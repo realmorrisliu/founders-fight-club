@@ -1,0 +1,47 @@
+; Engine configuration file.
+; It's best edited using the editor.
+config_version=5
+
+[application]
+config/name="founders-fight-club"
+run/main_scene="res://scenes/Main.tscn"
+config/features=PackedStringArray("4.2")
+config/icon="res://icon.svg"
+
+[input]
+move_left={
+"deadzone": 0.5,
+"events": [Object(InputEventKey,"device":-1,"modifiers":0,"physical_keycode":65,"keycode":65,"unicode":0), Object(InputEventKey,"device":-1,"modifiers":0,"physical_keycode":16777231,"keycode":16777231,"unicode":0), Object(InputEventJoypadButton,"button_index":14,"device":-1), Object(InputEventJoypadMotion,"axis":0,"axis_value":-1.0,"device":-1)]
+}
+move_right={
+"deadzone": 0.5,
+"events": [Object(InputEventKey,"device":-1,"modifiers":0,"physical_keycode":68,"keycode":68,"unicode":0), Object(InputEventKey,"device":-1,"modifiers":0,"physical_keycode":16777233,"keycode":16777233,"unicode":0), Object(InputEventJoypadButton,"button_index":15,"device":-1), Object(InputEventJoypadMotion,"axis":0,"axis_value":1.0,"device":-1)]
+}
+move_up={
+"deadzone": 0.5,
+"events": [Object(InputEventKey,"device":-1,"modifiers":0,"physical_keycode":87,"keycode":87,"unicode":0), Object(InputEventKey,"device":-1,"modifiers":0,"physical_keycode":16777232,"keycode":16777232,"unicode":0), Object(InputEventJoypadButton,"button_index":12,"device":-1), Object(InputEventJoypadMotion,"axis":1,"axis_value":-1.0,"device":-1)]
+}
+move_down={
+"deadzone": 0.5,
+"events": [Object(InputEventKey,"device":-1,"modifiers":0,"physical_keycode":83,"keycode":83,"unicode":0), Object(InputEventKey,"device":-1,"modifiers":0,"physical_keycode":16777234,"keycode":16777234,"unicode":0), Object(InputEventJoypadButton,"button_index":13,"device":-1), Object(InputEventJoypadMotion,"axis":1,"axis_value":1.0,"device":-1)]
+}
+jump={
+"deadzone": 0.5,
+"events": [Object(InputEventKey,"device":-1,"modifiers":0,"physical_keycode":32,"keycode":32,"unicode":32), Object(InputEventJoypadButton,"button_index":2,"device":-1)]
+}
+attack_light={
+"deadzone": 0.5,
+"events": [Object(InputEventKey,"device":-1,"modifiers":0,"physical_keycode":74,"keycode":74,"unicode":0), Object(InputEventJoypadButton,"button_index":0,"device":-1)]
+}
+attack_heavy={
+"deadzone": 0.5,
+"events": [Object(InputEventKey,"device":-1,"modifiers":0,"physical_keycode":75,"keycode":75,"unicode":0), Object(InputEventJoypadButton,"button_index":1,"device":-1)]
+}
+dash={
+"deadzone": 0.5,
+"events": [Object(InputEventKey,"device":-1,"modifiers":0,"physical_keycode":76,"keycode":76,"unicode":0), Object(InputEventJoypadButton,"button_index":3,"device":-1)]
+}
+pause={
+"deadzone": 0.5,
+"events": [Object(InputEventKey,"device":-1,"modifiers":0,"physical_keycode":16777217,"keycode":16777217,"unicode":0), Object(InputEventJoypadButton,"button_index":9,"device":-1)]
+}
