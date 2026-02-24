@@ -1,0 +1,47 @@
+[gd_resource type="SpriteFrames" format=3]
+
+[ext_resource type="Texture2D" path="res://assets/sprites/effects/counter_spark_0.png" id="1_l5iti"]
+[ext_resource type="Texture2D" path="res://assets/sprites/effects/counter_spark_1.png" id="2_wdiaa"]
+[ext_resource type="Texture2D" path="res://assets/sprites/effects/counter_spark_2.png" id="3_sl2j1"]
+[ext_resource type="Texture2D" path="res://assets/sprites/effects/counter_spark_3.png" id="4_2001x"]
+[ext_resource type="Texture2D" path="res://assets/sprites/effects/guard_spark_0.png" id="5_5cwef"]
+[ext_resource type="Texture2D" path="res://assets/sprites/effects/guard_spark_1.png" id="6_62otq"]
+[ext_resource type="Texture2D" path="res://assets/sprites/effects/guard_spark_2.png" id="7_qwimy"]
+[ext_resource type="Texture2D" path="res://assets/sprites/effects/guard_spark_3.png" id="8_vw6b8"]
+
+[resource]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("1_l5iti")
+}, {
+"duration": 1.0,
+"texture": ExtResource("2_wdiaa")
+}, {
+"duration": 1.0,
+"texture": ExtResource("3_sl2j1")
+}, {
+"duration": 1.0,
+"texture": ExtResource("4_2001x")
+}],
+"loop": false,
+"name": &"counter",
+"speed": 22.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("5_5cwef")
+}, {
+"duration": 1.0,
+"texture": ExtResource("6_62otq")
+}, {
+"duration": 1.0,
+"texture": ExtResource("7_qwimy")
+}, {
+"duration": 1.0,
+"texture": ExtResource("8_vw6b8")
+}],
+"loop": false,
+"name": &"guard",
+"speed": 20.0
+}]

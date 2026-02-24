@@ -1,4 +1,4 @@
-[gd_scene load_steps=7 format=3 uid="uid://cpvtvcwyciv8m"]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://scripts/Match.gd" id="1"]
 [ext_resource type="PackedScene" path="res://scenes/Arena.tscn" id="2"]
@@ -7,8 +7,14 @@
 [ext_resource type="Resource" path="res://assets/data/characters/PrototypeP1AttackTable.tres" id="5"]
 [ext_resource type="Resource" path="res://assets/data/characters/PrototypeP2AttackTable.tres" id="6"]
 
-[node name="Main" type="Node2D"]
+[node name="Training" type="Node2D"]
 script = ExtResource("1")
+round_timer_enabled = false
+training_scene_enabled = true
+training_panel_enabled = true
+training_controls_enabled = true
+training_dummy_default_mode = "stand"
+training_detail_default_visible = false
 
 [node name="Arena" parent="." instance=ExtResource("2")]
 

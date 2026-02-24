@@ -1,0 +1,27 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/Player.gd" id=1]
+
+[sub_resource type="RectangleShape2D" id=1]
+size = Vector2(24, 48)
+
+[sub_resource type="RectangleShape2D" id=2]
+size = Vector2(26, 18)
+
+[node name="Player" type="CharacterBody2D"]
+script = ExtResource( 1 )
+collision_layer = 1
+collision_mask = 1
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource( 1 )
+
+[node name="Hitbox" type="Area2D" parent="."]
+collision_layer = 2
+collision_mask = 1
+monitoring = false
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Hitbox"]
+shape = SubResource( 2 )
+
+[node name="Visual" type="AnimatedSprite2D" parent="."]
