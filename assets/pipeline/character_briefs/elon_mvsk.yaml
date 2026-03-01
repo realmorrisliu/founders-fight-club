@@ -1,0 +1,19 @@
+character_id: elon_mvsk
+display_name: "Elon Mvsk"
+wave: "wave1"
+parody_target: "high-profile rocket + social platform + EV founder archetype"
+hook: "Volatile rushdown with social pressure and explosive vertical threat"
+silhouette_keys: ["angled_hair", "long_dark_coat", "rocket_back_glow"]
+palette: ["#111111", "#00AEEF", "#FF6A3D"]
+must_have_props: ["phone-like social app device", "mini rocket thruster", "futuristic EV cue"]
+forbidden_props: ["exact Tesla logo", "exact X logo", "exact real UI screenshot"]
+rival_hooks: ["mark_zuck", "sam_altmyn"]
+skills:
+  - name: "X Dogpile"
+    visual: "blue sentiment-wave projectile with jitter lines"
+  - name: "SpaceX Launch"
+    visual: "vertical launch strike with bright exhaust"
+  - name: "Tesla Autopilot Ram"
+    visual: "off-screen EV rush with skid sparks"
+  - name: "Mars Colony Drop"
+    visual: "large top-down rocket impact circle"

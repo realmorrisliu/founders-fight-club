@@ -1,0 +1,19 @@
+character_id: bill_geytz
+display_name: "Bill Geytz"
+wave: "wave1"
+parody_target: "legacy software empire founder archetype"
+hook: "Trap-control veteran with system-reset tempo tools"
+silhouette_keys: ["retro_sweater_shape", "square_glasses", "blue_pulse_ring"]
+palette: ["#1C1C1C", "#2D7FF9", "#B7C7E6"]
+must_have_props: ["blue-screen pulse motif", "legacy window frame cue", "cloud wall effect"]
+forbidden_props: ["exact Microsoft logo", "exact Windows logo", "exact Copilot icon"]
+rival_hooks: ["larry_pagyr", "steve_jobz"]
+skills:
+  - name: "Blue Screen Stun"
+    visual: "short blue pulse with freeze twitch"
+  - name: "Azure Flood"
+    visual: "slow cloud wall that advances space"
+  - name: "Copilot Correct"
+    visual: "auto-follow strike after defensive read"
+  - name: "Windows 95 Reboot"
+    visual: "global retro reboot flash and tempo reset"

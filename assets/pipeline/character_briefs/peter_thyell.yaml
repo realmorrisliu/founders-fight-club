@@ -1,0 +1,19 @@
+character_id: peter_thyell
+display_name: "Peter Thyell"
+wave: "wave1"
+parody_target: "investor-strategist founder archetype, deliberate and manipulative"
+hook: "Slow but high-reward punish game with turn-steal tools"
+silhouette_keys: ["long_formal_coat", "cane_shape", "heavy_step_pose"]
+palette: ["#161616", "#8B5CF6", "#A5A5A5"]
+must_have_props: ["cane-like pointer", "boardroom sigil overlay", "scan ring effect"]
+forbidden_props: ["exact Palantir logo", "exact fund brand marks", "real company presentation slides"]
+rival_hooks: ["sam_altmyn"]
+skills:
+  - name: "Palantir Scan"
+    visual: "short stance with target scan reticle"
+  - name: "Board Coup"
+    visual: "armored forward step with shock edge"
+  - name: "Fund Freeze"
+    visual: "purple strike that suppresses resource gain"
+  - name: "Liquidation Event"
+    visual: "command-grab cinematic with contract stamp"

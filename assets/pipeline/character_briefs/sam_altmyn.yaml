@@ -1,0 +1,19 @@
+character_id: sam_altmyn
+display_name: "Sam Altmyn"
+wave: "wave1"
+parody_target: "AI lab founder archetype, strategic and adaptive"
+hook: "Adaptive control fighter with read-based conversions"
+silhouette_keys: ["tailored_jacket", "data_gauntlet", "calm_forward_stance"]
+palette: ["#202020", "#45C3FF", "#F4B942"]
+must_have_props: ["AI-core gauntlet", "floating token particles", "terminal-like hit flashes"]
+forbidden_props: ["exact OpenAI logo", "exact ChatGPT icon", "exact UI screenshot"]
+rival_hooks: ["peter_thyell", "elon_mvsk", "jensen_hwang"]
+skills:
+  - name: "GPT Burst"
+    visual: "split high-low burst with adaptive trajectory"
+  - name: "Sora Cutscene"
+    visual: "brief freeze-frame then delayed impact"
+  - name: "Codex Assist"
+    visual: "delayed helper slash with code trail"
+  - name: "AGI Deadline"
+    visual: "timed aura field with escalating pulses"

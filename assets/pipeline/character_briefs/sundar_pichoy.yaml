@@ -1,0 +1,19 @@
+character_id: sundar_pichoy
+display_name: "Sundar Pichoy"
+wave: "wave1"
+parody_target: "search-and-platform CEO archetype, stable and measured"
+hook: "Low-risk neutral control with clean delayed confirms"
+silhouette_keys: ["clean_suit_outline", "chrome_arc_trail", "steady_guard_pose"]
+palette: ["#1F1F1F", "#34A853", "#4285F4"]
+must_have_props: ["dual-strike split arc", "chrome-like speed trail", "mini bot swarm"]
+forbidden_props: ["exact Google logo", "exact Chrome logo", "exact Android robot icon"]
+rival_hooks: ["sam_altmyn", "mark_zuck", "sergey_brinn"]
+skills:
+  - name: "Gemini Split"
+    visual: "two-timing split strike with delay cue"
+  - name: "Chrome Rush"
+    visual: "safe pressure dash with reflective arc"
+  - name: "Android Swarm"
+    visual: "staggered mini-bot poke sequence"
+  - name: "Default Engine"
+    visual: "short neutral-dominance mode glow"

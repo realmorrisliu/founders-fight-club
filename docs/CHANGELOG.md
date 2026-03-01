@@ -31,6 +31,8 @@
 - **UI**: Added "Press R to Restart" prompt and localized result text hooks.
 - **AI Art Template Pack**: Added `docs/AI_ART_TEMPLATE_PACK.md` with reusable templates for style lock, manifest, prompts, naming, and QA.
 - **AI Art Execution Guide (2026)**: Added `docs/AI_ART_EXECUTION_GUIDE_2026.md` with model routing, production workflow, rollout plan, and risk controls.
+- **Asset Manifest (16 Launch Fighters)**: Added `assets/pipeline/asset_manifest.csv` with initial P0/P1 art queue and model routes.
+- **Wave 1 Character Briefs**: Added 8 production briefs under `assets/pipeline/character_briefs/` for Wave 1 generation setup.
 
 ### Changed
 - **Match.gd**: Heavily refactored to handle camera, walls, input, and hitstop.

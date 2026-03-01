@@ -1,0 +1,19 @@
+character_id: mark_zuck
+display_name: "Mark Zuck"
+wave: "wave1"
+parody_target: "platform-builder founder archetype with competitive discipline"
+hook: "Counter-trap specialist who controls rhythm and corner pace"
+silhouette_keys: ["tight_athletic_top", "minimal_hair_shape", "neon_octagon_ui"]
+palette: ["#1E1E1E", "#27D3A2", "#7E9BFF"]
+must_have_props: ["holographic ring-ui accents", "clone afterimage", "threads-like line trap motif"]
+forbidden_props: ["exact Meta logo", "exact Threads logo", "exact headset product copy"]
+rival_hooks: ["elon_mvsk", "sam_altmyn"]
+skills:
+  - name: "Threads Snare"
+    visual: "ground line trap that glows before trigger"
+  - name: "Meta Mirror"
+    visual: "transparent clone feint with offset lag"
+  - name: "Reels Loop"
+    visual: "multi-hit advancing reel of kicks"
+  - name: "Octagon Lock-In"
+    visual: "arena bounds tighten with neon frame"

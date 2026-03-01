@@ -1,0 +1,19 @@
+character_id: jensen_hwang
+display_name: "Jensen Hwang"
+wave: "wave1"
+parody_target: "compute hardware leader archetype with snowball firepower"
+hook: "Damage-scaling offense that becomes lethal after momentum"
+silhouette_keys: ["leather_jacket_outline", "broad_shoulders", "neon_hardware_lines"]
+palette: ["#0E0E0E", "#76B900", "#4CE0FF"]
+must_have_props: ["compute-core glow", "vector chip shards", "overclock aura"]
+forbidden_props: ["exact NVIDIA logo", "exact GeForce branding", "exact RTX badge"]
+rival_hooks: ["sam_altmyn", "zef_bezos"]
+skills:
+  - name: "CUDA Barrage"
+    visual: "stacking projectile string with recoil flares"
+  - name: "Tensor Core Smash"
+    visual: "armor-breaking overhead hammer arc"
+  - name: "RTX Flash"
+    visual: "bright directional burst masking approach"
+  - name: "Blackwell Overclock"
+    visual: "temporary overclock mode with power ring"

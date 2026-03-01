@@ -1,0 +1,19 @@
+character_id: zef_bezos
+display_name: "Zef Bezos"
+wave: "wave1"
+parody_target: "e-commerce + logistics founder archetype"
+hook: "Zoning setplay with delayed triggers and lane control"
+silhouette_keys: ["bomber_jacket", "drone_halo", "boxy_shoulder_shape"]
+palette: ["#151515", "#FF9900", "#49B5FF"]
+must_have_props: ["delivery-drone motif", "package warning icon", "orbital pop trail"]
+forbidden_props: ["exact Amazon logo", "exact Prime logo", "exact Blue Origin logo"]
+rival_hooks: ["elon_mvsk", "bill_geytz", "jensen_hwang"]
+skills:
+  - name: "Prime Drone Fleet"
+    visual: "staggered drones across fixed horizontal lanes"
+  - name: "Blue Origin Pop"
+    visual: "vertical burst exhaust for anti-air"
+  - name: "Checkout Trap"
+    visual: "hidden floor marker with delayed detonation"
+  - name: "1-Day Doom Delivery"
+    visual: "wave drop sequence ending in heavy slam"
