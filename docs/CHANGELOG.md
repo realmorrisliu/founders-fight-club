@@ -29,6 +29,8 @@
 - **Restart**: Added Match Restart (Key: `R`) logic and input mapping.
 - **Pause**: Added Pause toggle (Key: `Esc`).
 - **UI**: Added "Press R to Restart" prompt and localized result text hooks.
+- **AI Art Template Pack**: Added `docs/AI_ART_TEMPLATE_PACK.md` with reusable templates for style lock, manifest, prompts, naming, and QA.
+- **AI Art Execution Guide (2026)**: Added `docs/AI_ART_EXECUTION_GUIDE_2026.md` with model routing, production workflow, rollout plan, and risk controls.
 
 ### Changed
 - **Match.gd**: Heavily refactored to handle camera, walls, input, and hitstop.
