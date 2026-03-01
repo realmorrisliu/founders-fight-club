@@ -46,6 +46,8 @@ messages = {
 "HUD_TRAINING_DETAIL_REC_SHORT": "恢复",
 "MENU_TITLE": "Founders Fight Club",
 "MENU_SUBTITLE": "选择模式",
+"MENU_P1_CHARACTER": "玩家1角色",
+"MENU_P2_CHARACTER": "对手角色",
 "MENU_VERSUS": "对战模式",
 "MENU_TRAINING": "训练模式",
 "RESULT_P1_WIN": "玩家1胜利",

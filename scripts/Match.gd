@@ -60,6 +60,13 @@ const SFX_VOLUME_DB := {
 	"combo": -8.5,
 	"tech": -10.0
 }
+const DIALOGUE_PACK_PATH := "res://assets/data/dialogue/DialoguePackV1.json"
+const SESSION_KEY_P1_ID := "ffc_selected_player_1_character_id"
+const SESSION_KEY_P2_ID := "ffc_selected_player_2_character_id"
+const SESSION_KEY_P1_TABLE_PATH := "ffc_selected_player_1_attack_table_path"
+const SESSION_KEY_P2_TABLE_PATH := "ffc_selected_player_2_attack_table_path"
+const SESSION_KEY_P1_NAME := "ffc_selected_player_1_name"
+const SESSION_KEY_P2_NAME := "ffc_selected_player_2_name"
 
 var time_left := ROUND_TIME_SECONDS
 var match_over := false
@@ -85,10 +92,15 @@ var effects_layer: Node2D
 var impact_sprite_frames: SpriteFrames
 var sfx_streams := {}
 var training_options := TRAINING_DEFAULT_OPTIONS.duplicate(true)
+var selected_character_ids := {"p1": "", "p2": ""}
+var selected_character_names := {"p1": "Player 1", "p2": "Player 2"}
+var dialogue_pack := {}
+var dialogue_rng := RandomNumberGenerator.new()
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	camera_rng.randomize()
+	dialogue_rng.randomize()
 	training_options["enabled"] = training_scene_enabled
 	training_options["dummy_mode"] = training_dummy_default_mode
 	training_options["show_detail"] = training_detail_default_visible
@@ -97,6 +109,8 @@ func _ready() -> void:
 	_setup_effects_layer()
 	_load_impact_sprite_frames()
 	_load_sfx_streams()
+	_apply_selected_character_tables()
+	_load_dialogue_pack()
 
 	player_1.health_changed.connect(_on_player_health_changed)
 	player_2.health_changed.connect(_on_player_health_changed)
@@ -139,6 +153,7 @@ func _ready() -> void:
 	_apply_training_options()
 	_update_hud()
 	_refresh_result_text()
+	_trigger_pre_fight_dialogue()
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("restart"):
@@ -242,6 +257,7 @@ func _end_match(result_key: String) -> void:
 	if hud and hud.has_method("set_pause_visible"):
 		hud.set_pause_visible(false)
 	_refresh_result_text()
+	_trigger_victory_dialogue(result_key)
 
 func _restart_match() -> void:
 	Engine.time_scale = 1.0
@@ -521,3 +537,198 @@ func _spawn_impact_animation(
 		CONNECT_ONE_SHOT
 	)
 	spark.play(animation_name)
+
+func _apply_selected_character_tables() -> void:
+	_apply_selected_character_table_for_player(
+		player_1,
+		SESSION_KEY_P1_TABLE_PATH,
+		SESSION_KEY_P1_ID,
+		SESSION_KEY_P1_NAME,
+		"p1"
+	)
+	_apply_selected_character_table_for_player(
+		player_2,
+		SESSION_KEY_P2_TABLE_PATH,
+		SESSION_KEY_P2_ID,
+		SESSION_KEY_P2_NAME,
+		"p2"
+	)
+
+func _apply_selected_character_table_for_player(
+	player: Node,
+	table_path_key: String,
+	character_id_key: String,
+	character_name_key: String,
+	player_key: String
+) -> void:
+	if player == null:
+		return
+	if not (player is CharacterBody2D):
+		return
+	var selected_table_path := ""
+	if Engine.has_meta(table_path_key):
+		selected_table_path = str(Engine.get_meta(table_path_key, ""))
+	var loaded_resource: Resource = null
+	if selected_table_path != "":
+		var loaded := load(selected_table_path)
+		if loaded is Resource:
+			loaded_resource = loaded as Resource
+	if loaded_resource != null and player.has_method("apply_attack_table"):
+		player.call("apply_attack_table", loaded_resource)
+
+	var character_id := ""
+	if Engine.has_meta(character_id_key):
+		character_id = str(Engine.get_meta(character_id_key, ""))
+	if character_id == "" and player.has_method("get_character_id"):
+		character_id = str(player.call("get_character_id"))
+	selected_character_ids[player_key] = character_id
+
+	var display_name := ""
+	if Engine.has_meta(character_name_key):
+		display_name = str(Engine.get_meta(character_name_key, ""))
+	if display_name == "" and player.has_method("get_character_display_name"):
+		display_name = str(player.call("get_character_display_name"))
+	if display_name == "":
+		display_name = "Player 1" if player_key == "p1" else "Player 2"
+	selected_character_names[player_key] = display_name
+
+func _load_dialogue_pack() -> void:
+	dialogue_pack.clear()
+	if not FileAccess.file_exists(DIALOGUE_PACK_PATH):
+		push_warning("Dialogue pack file not found: %s" % DIALOGUE_PACK_PATH)
+		return
+	var raw_text := FileAccess.get_file_as_string(DIALOGUE_PACK_PATH)
+	var parsed: Variant = JSON.parse_string(raw_text)
+	if typeof(parsed) == TYPE_DICTIONARY:
+		dialogue_pack = parsed as Dictionary
+	else:
+		push_warning("Dialogue pack JSON parse failed: %s" % DIALOGUE_PACK_PATH)
+
+func _trigger_pre_fight_dialogue() -> void:
+	if dialogue_pack.is_empty():
+		return
+	if not hud or not hud.has_method("show_dialogue_line"):
+		return
+	var text := _build_pre_fight_dialogue_text()
+	if text == "":
+		return
+	call_deferred("_show_dialogue_line_deferred", text, 2.8, Color(0.94, 0.97, 1.0, 1.0))
+
+func _trigger_victory_dialogue(result_key: String) -> void:
+	if dialogue_pack.is_empty():
+		return
+	if not hud or not hud.has_method("show_dialogue_line"):
+		return
+	var winner_key := ""
+	if result_key == "p1_win":
+		winner_key = "p1"
+	elif result_key == "p2_win":
+		winner_key = "p2"
+	if winner_key == "":
+		return
+	var character_id := str(selected_character_ids.get(winner_key, ""))
+	var winner_name := str(selected_character_names.get(winner_key, "Player"))
+	var win_line := _get_fighter_dialogue_line(character_id, "win")
+	if win_line == "":
+		return
+	var text := "%s: %s" % [winner_name, win_line]
+	call_deferred("_show_dialogue_line_deferred", text, 3.0, Color(1.0, 0.92, 0.72, 1.0))
+
+func _show_dialogue_line_deferred(text: String, duration: float, tint: Color) -> void:
+	await get_tree().create_timer(0.45).timeout
+	if hud and hud.has_method("show_dialogue_line"):
+		hud.show_dialogue_line(text, duration, tint)
+
+func _build_pre_fight_dialogue_text() -> String:
+	var p1_id := str(selected_character_ids.get("p1", ""))
+	var p2_id := str(selected_character_ids.get("p2", ""))
+	var p1_name := str(selected_character_names.get("p1", "Player 1"))
+	var p2_name := str(selected_character_names.get("p2", "Player 2"))
+	var rivalry_result := _find_rivalry_entry(p1_id, p2_id)
+	if not rivalry_result.is_empty():
+		var entry: Dictionary = rivalry_result.get("entry", {})
+		var reversed_pair := bool(rivalry_result.get("reversed", false))
+		var pre_block_value: Variant = entry.get("pre_fight", {})
+		if typeof(pre_block_value) == TYPE_DICTIONARY:
+			var lines := _get_localized_lines(pre_block_value as Dictionary)
+			if lines.size() >= 2:
+				var first_line := lines[0]
+				var second_line := lines[1]
+				if reversed_pair:
+					var tmp := first_line
+					first_line = second_line
+					second_line = tmp
+				return "%s: %s  |  %s: %s" % [p1_name, first_line, p2_name, second_line]
+			if lines.size() == 1:
+				return lines[0]
+	var p1_line := _get_fighter_dialogue_line(p1_id, "intro")
+	var p2_line := _get_fighter_dialogue_line(p2_id, "intro")
+	if p1_line != "" and p2_line != "":
+		return "%s: %s  |  %s: %s" % [p1_name, p1_line, p2_name, p2_line]
+	if p1_line != "":
+		return "%s: %s" % [p1_name, p1_line]
+	if p2_line != "":
+		return "%s: %s" % [p2_name, p2_line]
+	return ""
+
+func _find_rivalry_entry(p1_id: String, p2_id: String) -> Dictionary:
+	var rivalries_value: Variant = dialogue_pack.get("rivalries", [])
+	if typeof(rivalries_value) != TYPE_ARRAY:
+		return {}
+	for entry_value in rivalries_value:
+		if typeof(entry_value) != TYPE_DICTIONARY:
+			continue
+		var entry := entry_value as Dictionary
+		var fighters_value: Variant = entry.get("fighters", [])
+		if typeof(fighters_value) != TYPE_ARRAY:
+			continue
+		var fighters := fighters_value as Array
+		if fighters.size() < 2:
+			continue
+		var first := str(fighters[0])
+		var second := str(fighters[1])
+		if first == p1_id and second == p2_id:
+			return {"entry": entry, "reversed": false}
+		if first == p2_id and second == p1_id:
+			return {"entry": entry, "reversed": true}
+	return {}
+
+func _get_fighter_dialogue_line(character_id: String, bucket: String) -> String:
+	if character_id == "":
+		return ""
+	var fighters_value: Variant = dialogue_pack.get("fighters", {})
+	if typeof(fighters_value) != TYPE_DICTIONARY:
+		return ""
+	var fighters_dict := fighters_value as Dictionary
+	if not fighters_dict.has(character_id):
+		return ""
+	var fighter_value: Variant = fighters_dict[character_id]
+	if typeof(fighter_value) != TYPE_DICTIONARY:
+		return ""
+	var fighter_dict := fighter_value as Dictionary
+	var bucket_value: Variant = fighter_dict.get(bucket, {})
+	if typeof(bucket_value) != TYPE_DICTIONARY:
+		return ""
+	var lines := _get_localized_lines(bucket_value as Dictionary)
+	if lines.is_empty():
+		return ""
+	var pick := dialogue_rng.randi_range(0, lines.size() - 1)
+	return lines[pick]
+
+func _get_localized_lines(language_block: Dictionary) -> PackedStringArray:
+	var locale_key := _dialogue_locale_key()
+	var lines_value: Variant = language_block.get(locale_key, [])
+	if typeof(lines_value) != TYPE_ARRAY:
+		return PackedStringArray()
+	var result := PackedStringArray()
+	for line_value in lines_value:
+		var line := str(line_value).strip_edges()
+		if line != "":
+			result.append(line)
+	return result
+
+func _dialogue_locale_key() -> String:
+	var locale := TranslationServer.get_locale().to_lower()
+	if locale.begins_with("zh"):
+		return "zh"
+	return "en"

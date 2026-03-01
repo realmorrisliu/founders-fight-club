@@ -21,71 +21,101 @@ grow_vertical = 2
 color = Color(0.08, 0.11, 0.16, 1)
 
 [node name="CenterPanel" type="Panel" parent="."]
-custom_minimum_size = Vector2(340, 230)
+custom_minimum_size = Vector2(360, 360)
 layout_mode = 1
 anchors_preset = 8
 anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -170.0
-offset_top = -115.0
-offset_right = 170.0
-offset_bottom = 115.0
+offset_left = -180.0
+offset_top = -180.0
+offset_right = 180.0
+offset_bottom = 180.0
 grow_horizontal = 2
 grow_vertical = 2
 
 [node name="TitleLabel" type="Label" parent="CenterPanel"]
 offset_left = 20.0
-offset_top = 18.0
-offset_right = 320.0
-offset_bottom = 44.0
+offset_top = 16.0
+offset_right = 340.0
+offset_bottom = 42.0
 theme_override_colors/font_color = Color(0.96, 0.98, 1, 1)
 horizontal_alignment = 1
 text = "Founders Fight Club"
 
 [node name="SubtitleLabel" type="Label" parent="CenterPanel"]
 offset_left = 20.0
-offset_top = 46.0
-offset_right = 320.0
-offset_bottom = 68.0
+offset_top = 44.0
+offset_right = 340.0
+offset_bottom = 66.0
 theme_override_colors/font_color = Color(0.78, 0.88, 1, 1)
 horizontal_alignment = 1
 text = "Select Mode"
 
+[node name="P1CharacterLabel" type="Label" parent="CenterPanel"]
+offset_left = 50.0
+offset_top = 76.0
+offset_right = 310.0
+offset_bottom = 96.0
+theme_override_colors/font_color = Color(0.88, 0.93, 1, 1)
+horizontal_alignment = 1
+text = "P1 Character"
+
+[node name="P1CharacterOption" type="OptionButton" parent="CenterPanel"]
+offset_left = 50.0
+offset_top = 98.0
+offset_right = 310.0
+offset_bottom = 130.0
+
+[node name="P2CharacterLabel" type="Label" parent="CenterPanel"]
+offset_left = 50.0
+offset_top = 138.0
+offset_right = 310.0
+offset_bottom = 158.0
+theme_override_colors/font_color = Color(0.88, 0.93, 1, 1)
+horizontal_alignment = 1
+text = "Opponent Character"
+
+[node name="P2CharacterOption" type="OptionButton" parent="CenterPanel"]
+offset_left = 50.0
+offset_top = 160.0
+offset_right = 310.0
+offset_bottom = 192.0
+
 [node name="VersusButton" type="Button" parent="CenterPanel"]
 offset_left = 50.0
-offset_top = 82.0
-offset_right = 290.0
-offset_bottom = 116.0
+offset_top = 202.0
+offset_right = 310.0
+offset_bottom = 236.0
 text = "VS Match"
 
 [node name="TrainingButton" type="Button" parent="CenterPanel"]
 offset_left = 50.0
-offset_top = 124.0
-offset_right = 290.0
-offset_bottom = 158.0
+offset_top = 244.0
+offset_right = 310.0
+offset_bottom = 278.0
 text = "Training Mode"
 
 [node name="LanguageLabel" type="Label" parent="CenterPanel"]
 offset_left = 50.0
-offset_top = 172.0
-offset_right = 290.0
-offset_bottom = 192.0
+offset_top = 290.0
+offset_right = 310.0
+offset_bottom = 310.0
 theme_override_colors/font_color = Color(0.88, 0.93, 1, 1)
 horizontal_alignment = 1
 text = "Language"
 
 [node name="LangEnButton" type="Button" parent="CenterPanel"]
 offset_left = 74.0
-offset_top = 196.0
+offset_top = 316.0
 offset_right = 164.0
-offset_bottom = 224.0
+offset_bottom = 344.0
 text = "English"
 
 [node name="LangZhButton" type="Button" parent="CenterPanel"]
 offset_left = 176.0
-offset_top = 196.0
+offset_top = 316.0
 offset_right = 266.0
-offset_bottom = 224.0
+offset_bottom = 344.0
 text = "中文"

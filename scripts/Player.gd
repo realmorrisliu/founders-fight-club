@@ -426,6 +426,30 @@ func get_training_dummy_options() -> Dictionary:
 		"dummy_mode": training_dummy_mode
 	}
 
+func apply_attack_table(resource: Resource) -> void:
+	if resource == null:
+		return
+	attack_table_resource = resource
+	_setup_attack_data()
+
+func get_character_id() -> String:
+	if attack_table_resource:
+		var id_value: Variant = attack_table_resource.get("character_id")
+		if typeof(id_value) == TYPE_STRING or typeof(id_value) == TYPE_STRING_NAME:
+			var character_id := str(id_value).strip_edges()
+			if character_id != "":
+				return character_id
+	return "player_%d" % player_id
+
+func get_character_display_name() -> String:
+	if attack_table_resource:
+		var name_value: Variant = attack_table_resource.get("display_name")
+		if typeof(name_value) == TYPE_STRING or typeof(name_value) == TYPE_STRING_NAME:
+			var display_name := str(name_value).strip_edges()
+			if display_name != "":
+				return display_name
+	return "Player %d" % player_id
+
 func _update_attack(delta: float) -> void:
 	if attack_state == "":
 		return

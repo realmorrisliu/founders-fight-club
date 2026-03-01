@@ -1,0 +1,534 @@
+{
+  "version": "v1",
+  "tone": "comedy_satire",
+  "fighters": {
+    "elon_mvsk": {
+      "name": "Elon Mvsk",
+      "intro": {
+        "en": [
+          "Cage first, thread second.",
+          "Post less. Punch more."
+        ],
+        "zh": [
+          "先进笼，再发帖。",
+          "少发帖，多出拳。"
+        ]
+      },
+      "win": {
+        "en": [
+          "Algorithm says I was inevitable.",
+          "Launch successful. Again."
+        ],
+        "zh": [
+          "算法说我注定会赢。",
+          "发射成功。又一次。"
+        ]
+      }
+    },
+    "mark_zuck": {
+      "name": "Mark Zuck",
+      "intro": {
+        "en": [
+          "You challenge. I schedule.",
+          "Welcome to the octagon roadmap."
+        ],
+        "zh": [
+          "你负责挑战，我负责排期。",
+          "欢迎来到八角笼路线图。"
+        ]
+      },
+      "win": {
+        "en": [
+          "Engagement completed.",
+          "You were A/B tested."
+        ],
+        "zh": [
+          "互动闭环已完成。",
+          "你刚被 A/B 测试了。"
+        ]
+      }
+    },
+    "sam_altmyn": {
+      "name": "Sam Altmyn",
+      "intro": {
+        "en": [
+          "Let's benchmark your confidence.",
+          "Prompt carefully."
+        ],
+        "zh": [
+          "来，基准测试一下你的自信。",
+          "先把提示词想清楚。"
+        ]
+      },
+      "win": {
+        "en": [
+          "Iteration beats ego.",
+          "Model updated. You are deprecated."
+        ],
+        "zh": [
+          "迭代，胜过自负。",
+          "模型已更新，你已过时。"
+        ]
+      }
+    },
+    "peter_thyell": {
+      "name": "Peter Thyell",
+      "intro": {
+        "en": [
+          "Control is a feature, not a bug.",
+          "Sign here, then fall here."
+        ],
+        "zh": [
+          "控制不是漏洞，是功能。",
+          "先在这里签字，再在这里倒下。"
+        ]
+      },
+      "win": {
+        "en": [
+          "Term accepted.",
+          "Liquidity always wins."
+        ],
+        "zh": [
+          "条款已接受。",
+          "流动性永远获胜。"
+        ]
+      }
+    },
+    "zef_bezos": {
+      "name": "Zef Bezos",
+      "intro": {
+        "en": [
+          "Your dream ships next year. Mine ships now.",
+          "Prime delivery, same-day pain."
+        ],
+        "zh": [
+          "你的梦想明年发货，我的今天送达。",
+          "Prime 当日达，痛感也当日达。"
+        ]
+      },
+      "win": {
+        "en": [
+          "Delivered.",
+          "Your return window has closed."
+        ],
+        "zh": [
+          "已送达。",
+          "你的退货窗口已关闭。"
+        ]
+      }
+    },
+    "bill_geytz": {
+      "name": "Bill Geytz",
+      "intro": {
+        "en": [
+          "Compatibility mode: on.",
+          "Please wait... forever."
+        ],
+        "zh": [
+          "兼容模式：已开启。",
+          "请稍候……一直稍候。"
+        ]
+      },
+      "win": {
+        "en": [
+          "Works as designed.",
+          "Did you try restarting yourself?"
+        ],
+        "zh": [
+          "这就是设计使然。",
+          "你试过重启你自己吗？"
+        ]
+      }
+    },
+    "larry_pagyr": {
+      "name": "Larry Pagyr",
+      "intro": {
+        "en": [
+          "I do not chase. I route.",
+          "You are page two at best."
+        ],
+        "zh": [
+          "我不追，我只做路径规划。",
+          "你最多排在第二页。"
+        ]
+      },
+      "win": {
+        "en": [
+          "Top result secured.",
+          "Query resolved."
+        ],
+        "zh": [
+          "第一结果已锁定。",
+          "查询已解决。"
+        ]
+      }
+    },
+    "sergey_brinn": {
+      "name": "Sergey Brinn",
+      "intro": {
+        "en": [
+          "Let's test in production.",
+          "If it breaks, it is a feature demo."
+        ],
+        "zh": [
+          "我们直接在生产环境测试。",
+          "真坏了也算功能演示。"
+        ]
+      },
+      "win": {
+        "en": [
+          "Prototype validated.",
+          "Moonshot approved."
+        ],
+        "zh": [
+          "原型已验证。",
+          "登月项目批准。"
+        ]
+      }
+    },
+    "sundar_pichoy": {
+      "name": "Sundar Pichoy",
+      "intro": {
+        "en": [
+          "Let's keep this efficient.",
+          "Clean inputs. Clean outcomes."
+        ],
+        "zh": [
+          "让我们高效一点。",
+          "输入干净，结果也干净。"
+        ]
+      },
+      "win": {
+        "en": [
+          "Shipped globally.",
+          "Default setting: me winning."
+        ],
+        "zh": [
+          "已全球发布。",
+          "默认设置：我赢。"
+        ]
+      }
+    },
+    "jensen_hwang": {
+      "name": "Jensen Hwang",
+      "intro": {
+        "en": [
+          "Need more compute?",
+          "You brought code. I brought cores."
+        ],
+        "zh": [
+          "需要更多算力吗？",
+          "你带了代码，我带了核心。"
+        ]
+      },
+      "win": {
+        "en": [
+          "Frame rate stable. Opponent unstable.",
+          "Overclock complete."
+        ],
+        "zh": [
+          "帧率稳定，对手不稳定。",
+          "超频完成。"
+        ]
+      }
+    },
+    "satya_nadello": {
+      "name": "Satya Nadello",
+      "intro": {
+        "en": [
+          "Let's collaborate... aggressively.",
+          "Cloud first, fists second."
+        ],
+        "zh": [
+          "我们来协作……激进地协作。",
+          "先上云，再上拳。"
+        ]
+      },
+      "win": {
+        "en": [
+          "Migration complete.",
+          "Your workflow is now managed."
+        ],
+        "zh": [
+          "迁移完成。",
+          "你的工作流已被接管。"
+        ]
+      }
+    },
+    "tim_cuke": {
+      "name": "Tim Cuke",
+      "intro": {
+        "en": [
+          "Designed to dominate.",
+          "Minimal form. Maximum pain."
+        ],
+        "zh": [
+          "为统治而设计。",
+          "外形极简，痛感拉满。"
+        ]
+      },
+      "win": {
+        "en": [
+          "Polished. Predictable.",
+          "You are out of ecosystem."
+        ],
+        "zh": [
+          "精致，也可预测。",
+          "你已被移出生态。"
+        ]
+      }
+    },
+    "jack_dorsee": {
+      "name": "Jack Dorsee",
+      "intro": {
+        "en": [
+          "Signal over noise.",
+          "I brought old school chaos."
+        ],
+        "zh": [
+          "信号高于噪音。",
+          "我带来了老派混沌。"
+        ]
+      },
+      "win": {
+        "en": [
+          "Thread closed.",
+          "Decentralized knockout."
+        ],
+        "zh": [
+          "话题已关闭。",
+          "去中心化 KO。"
+        ]
+      }
+    },
+    "travis_kalanik": {
+      "name": "Travis Kalanik",
+      "intro": {
+        "en": [
+          "I am taking this market.",
+          "Surge pricing starts now."
+        ],
+        "zh": [
+          "这个市场我接管了。",
+          "动态加价，现在开始。"
+        ]
+      },
+      "win": {
+        "en": [
+          "Demand was high.",
+          "Ride ended."
+        ],
+        "zh": [
+          "需求很高。",
+          "行程结束。"
+        ]
+      }
+    },
+    "reed_hestings": {
+      "name": "Reed Hestings",
+      "intro": {
+        "en": [
+          "No breaks. Next round now.",
+          "Skip intro. Catch hands."
+        ],
+        "zh": [
+          "不休息，下一回合现在开始。",
+          "跳过片头，直接挨打。"
+        ]
+      },
+      "win": {
+        "en": [
+          "You are still watching.",
+          "Autoplay continued."
+        ],
+        "zh": [
+          "你还在观看。",
+          "自动播放继续。"
+        ]
+      }
+    },
+    "steve_jobz": {
+      "name": "Steve Jobz",
+      "intro": {
+        "en": [
+          "You shipped fast. Did you ship right?",
+          "One more thing: survive."
+        ],
+        "zh": [
+          "你发得很快，但你发对了吗？",
+          "还有一件事：活下来。"
+        ]
+      },
+      "win": {
+        "en": [
+          "Taste is a mechanic.",
+          "Simplicity defeated you."
+        ],
+        "zh": [
+          "审美，本身就是机制。",
+          "极简，击败了你。"
+        ]
+      }
+    }
+  },
+  "rivalries": [
+    {
+      "id": "elon_vs_mark",
+      "fighters": ["elon_mvsk", "mark_zuck"],
+      "pre_fight": {
+        "en": ["Elon: Cage first.", "Mark: Scheduled."],
+        "zh": ["Elon：先进笼。", "Mark：已排期。"]
+      },
+      "post_fight": {
+        "en": ["Loser: This was a beta.", "Winner: Production says otherwise."],
+        "zh": ["败者：这只是测试版。", "胜者：线上环境不是这么说的。"]
+      }
+    },
+    {
+      "id": "sam_vs_peter",
+      "fighters": ["sam_altmyn", "peter_thyell"],
+      "pre_fight": {
+        "en": ["Sam: You brought a term sheet?", "Peter: I brought control."],
+        "zh": ["Sam：你真带了条款书？", "Peter：我带来的是控制权。"]
+      },
+      "post_fight": {
+        "en": ["Loser: Board meeting adjourned.", "Winner: Meeting replaced."],
+        "zh": ["败者：董事会休会。", "胜者：董事会已被重组。"]
+      }
+    },
+    {
+      "id": "sam_vs_jensen",
+      "fighters": ["sam_altmyn", "jensen_hwang"],
+      "pre_fight": {
+        "en": ["Sam: Brains over brute force.", "Jensen: Compute is brute force."],
+        "zh": ["Sam：智慧胜过蛮力。", "Jensen：算力就是蛮力。"]
+      },
+      "post_fight": {
+        "en": ["Loser: Need fewer parameters.", "Winner: Need more GPUs."],
+        "zh": ["败者：参数太多了。", "胜者：GPU 还不够。"]
+      }
+    },
+    {
+      "id": "zef_vs_jensen",
+      "fighters": ["zef_bezos", "jensen_hwang"],
+      "pre_fight": {
+        "en": ["Zef: I deliver scale.", "Jensen: I deliver speed."],
+        "zh": ["Zef：我交付规模。", "Jensen：我交付速度。"]
+      },
+      "post_fight": {
+        "en": ["Loser: Shipment delayed.", "Winner: Shipment accelerated."],
+        "zh": ["败者：发货延迟。", "胜者：发货加速。"]
+      }
+    },
+    {
+      "id": "bill_vs_larry",
+      "fighters": ["bill_geytz", "larry_pagyr"],
+      "pre_fight": {
+        "en": ["Bill: Legacy still runs the world.", "Larry: Search says no."],
+        "zh": ["Bill：旧体系仍在运转世界。", "Larry：搜索结果并不支持。"]
+      },
+      "post_fight": {
+        "en": ["Loser: Outdated claim.", "Winner: Updated index."],
+        "zh": ["败者：结论过时。", "胜者：索引已更新。"]
+      }
+    },
+    {
+      "id": "tim_vs_steve",
+      "fighters": ["tim_cuke", "steve_jobz"],
+      "pre_fight": {
+        "en": ["Tim: We kept it polished.", "Steve: Did you keep it hungry?"],
+        "zh": ["Tim：我们保持了精致。", "Steve：你保持了饥饿吗？"]
+      },
+      "post_fight": {
+        "en": ["Loser: Design review failed.", "Winner: Ship taste, not noise."],
+        "zh": ["败者：设计评审未通过。", "胜者：交付审美，不是噪音。"]
+      }
+    },
+    {
+      "id": "elon_vs_sam",
+      "fighters": ["elon_mvsk", "sam_altmyn"],
+      "pre_fight": {
+        "en": ["Elon: Open speed wins.", "Sam: Safe speed wins."],
+        "zh": ["Elon：开放速度会赢。", "Sam：安全速度会赢。"]
+      },
+      "post_fight": {
+        "en": ["Loser: See you next funding round.", "Winner: Round closed."],
+        "zh": ["败者：下轮融资见。", "胜者：本轮已关闭。"]
+      }
+    },
+    {
+      "id": "jack_vs_elon",
+      "fighters": ["jack_dorsee", "elon_mvsk"],
+      "pre_fight": {
+        "en": ["Jack: I built the storm.", "Elon: I own the storm."],
+        "zh": ["Jack：风暴是我造的。", "Elon：风暴现在归我。"]
+      },
+      "post_fight": {
+        "en": ["Loser: Feed archived.", "Winner: Feed amplified."],
+        "zh": ["败者：信息流已归档。", "胜者：信息流已放大。"]
+      }
+    }
+  ],
+  "story_events": {
+    "cold_open": {
+      "en": [
+        "An octagon challenge post breaks the internet.",
+        "The Pitch Ring opens emergency qualifiers."
+      ],
+      "zh": [
+        "一条八角笼挑战帖引爆全网。",
+        "Pitch Ring 紧急开启资格赛。"
+      ]
+    },
+    "board_coup": {
+      "en": [
+        "A boardroom coup removes Sam Altmyn.",
+        "Public pressure forces a return match."
+      ],
+      "zh": [
+        "董事会政变让 Sam Altmyn 下台。",
+        "舆论压力迫使回归对决。"
+      ]
+    },
+    "main_event": {
+      "en": [
+        "Main Event: Elon Mvsk vs Mark Zuck.",
+        "Winner sets the semifinal bracket."
+      ],
+      "zh": [
+        "主赛：Elon Mvsk 对 Mark Zuck。",
+        "胜者将改写半决赛对阵。"
+      ]
+    },
+    "legend_encounter": {
+      "en": [
+        "After your first clear, a legend appears.",
+        "Steve Jobz requests one final review."
+      ],
+      "zh": [
+        "首次通关后，传奇现身。",
+        "Steve Jobz 发起最后一次评审。"
+      ]
+    },
+    "ending_open_stack": {
+      "en": [
+        "You open the stack to everyone.",
+        "The crowd cheers. Investors panic."
+      ],
+      "zh": [
+        "你把技术栈向所有人开放。",
+        "观众欢呼，投资人慌了。"
+      ]
+    },
+    "ending_walled_garden": {
+      "en": [
+        "You lock everything behind one gate.",
+        "Profits soar. Memes multiply."
+      ],
+      "zh": [
+        "你把一切锁进同一扇门。",
+        "利润起飞，梗图暴涨。"
+      ]
+    }
+  }
+}

@@ -1,0 +1,94 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/AttackTable.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+character_id = "jensen_hwang"
+display_name = "Jensen Hwang"
+attacks = {
+"heavy": {
+"active": 0.12,
+"air_blockable": true,
+"block_recovery": 0.34,
+"block_type": "overhead",
+"blockstun": 0.16,
+"cancel_on_block": false,
+"cancel_on_hit": true,
+"cancel_options": ["special"],
+"damage": 14,
+"hitbox_offset_air": Vector2(24, -10),
+"hitbox_offset_ground": Vector2(27, -2),
+"hitbox_size_air": Vector2(31, 18),
+"hitbox_size_ground": Vector2(35, 20),
+"hitstun": 0.22,
+"knockback_air": Vector2(178, -150),
+"knockback_ground": Vector2(236, -100),
+"recovery": 0.27,
+"startup": 0.16
+},
+"light": {
+"active": 0.09,
+"air_blockable": true,
+"block_recovery": 0.19,
+"block_type": "mid",
+"blockstun": 0.1,
+"cancel_on_block": true,
+"cancel_on_hit": true,
+"cancel_options": ["light", "heavy", "special"],
+"damage": 6,
+"hitbox_offset_air": Vector2(20, -6),
+"hitbox_offset_ground": Vector2(22, 0),
+"hitbox_size_air": Vector2(24, 16),
+"hitbox_size_ground": Vector2(26, 18),
+"hitstun": 0.12,
+"knockback_air": Vector2(90, -72),
+"knockback_ground": Vector2(116, -36),
+"recovery": 0.16,
+"startup": 0.06
+},
+"special": {
+"active": 0.16,
+"air_blockable": true,
+"block_recovery": 0.38,
+"block_type": "low",
+"blockstun": 0.2,
+"cancel_on_block": false,
+"cancel_on_hit": false,
+"cancel_options": [],
+"damage": 17,
+"hitbox_offset_air": Vector2(27, -8),
+"hitbox_offset_ground": Vector2(30, -2),
+"hitbox_size_air": Vector2(33, 18),
+"hitbox_size_ground": Vector2(38, 20),
+"hitstun": 0.23,
+"knockback_air": Vector2(228, -134),
+"knockback_ground": Vector2(272, -72),
+"lunge_speed": 360.0,
+"recovery": 0.29,
+"signature_alt": "RTX Flash",
+"signature_primary": "CUDA Barrage",
+"startup": 0.11
+},
+"throw": {
+"active": 0.08,
+"air_blockable": false,
+"block_recovery": 0.23,
+"block_type": "throw",
+"blockstun": 0.0,
+"cancel_on_block": false,
+"cancel_on_hit": false,
+"cancel_options": [],
+"damage": 11,
+"hitbox_offset_air": Vector2(18, -6),
+"hitbox_offset_ground": Vector2(18, 0),
+"hitbox_size_air": Vector2(18, 14),
+"hitbox_size_ground": Vector2(20, 16),
+"hitstun": 0.24,
+"knockback_air": Vector2(132, -190),
+"knockback_ground": Vector2(182, -154),
+"recovery": 0.23,
+"startup": 0.08,
+"throw_techable": true
+}
+}

@@ -1,0 +1,94 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/AttackTable.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+character_id = "bill_geytz"
+display_name = "Bill Geytz"
+attacks = {
+"heavy": {
+"active": 0.12,
+"air_blockable": true,
+"block_recovery": 0.33,
+"block_type": "overhead",
+"blockstun": 0.16,
+"cancel_on_block": false,
+"cancel_on_hit": true,
+"cancel_options": ["special"],
+"damage": 12,
+"hitbox_offset_air": Vector2(24, -10),
+"hitbox_offset_ground": Vector2(26, -2),
+"hitbox_size_air": Vector2(30, 18),
+"hitbox_size_ground": Vector2(34, 20),
+"hitstun": 0.2,
+"knockback_air": Vector2(168, -144),
+"knockback_ground": Vector2(216, -92),
+"recovery": 0.27,
+"startup": 0.17
+},
+"light": {
+"active": 0.09,
+"air_blockable": true,
+"block_recovery": 0.2,
+"block_type": "mid",
+"blockstun": 0.1,
+"cancel_on_block": true,
+"cancel_on_hit": true,
+"cancel_options": ["light", "heavy", "special"],
+"damage": 5,
+"hitbox_offset_air": Vector2(20, -6),
+"hitbox_offset_ground": Vector2(22, 0),
+"hitbox_size_air": Vector2(24, 16),
+"hitbox_size_ground": Vector2(26, 18),
+"hitstun": 0.12,
+"knockback_air": Vector2(84, -68),
+"knockback_ground": Vector2(106, -32),
+"recovery": 0.17,
+"startup": 0.06
+},
+"special": {
+"active": 0.22,
+"air_blockable": true,
+"block_recovery": 0.33,
+"block_type": "low",
+"blockstun": 0.2,
+"cancel_on_block": false,
+"cancel_on_hit": false,
+"cancel_options": [],
+"damage": 11,
+"hitbox_offset_air": Vector2(24, -8),
+"hitbox_offset_ground": Vector2(26, -2),
+"hitbox_size_air": Vector2(30, 18),
+"hitbox_size_ground": Vector2(36, 20),
+"hitstun": 0.2,
+"knockback_air": Vector2(192, -112),
+"knockback_ground": Vector2(222, -56),
+"lunge_speed": 250.0,
+"recovery": 0.27,
+"signature_alt": "Blue Screen Stun",
+"signature_primary": "Azure Flood",
+"startup": 0.13
+},
+"throw": {
+"active": 0.08,
+"air_blockable": false,
+"block_recovery": 0.23,
+"block_type": "throw",
+"blockstun": 0.0,
+"cancel_on_block": false,
+"cancel_on_hit": false,
+"cancel_options": [],
+"damage": 10,
+"hitbox_offset_air": Vector2(18, -6),
+"hitbox_offset_ground": Vector2(18, 0),
+"hitbox_size_air": Vector2(18, 14),
+"hitbox_size_ground": Vector2(20, 16),
+"hitstun": 0.24,
+"knockback_air": Vector2(128, -186),
+"knockback_ground": Vector2(176, -150),
+"recovery": 0.23,
+"startup": 0.08,
+"throw_techable": true
+}
+}

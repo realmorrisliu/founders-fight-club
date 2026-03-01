@@ -1,0 +1,94 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/AttackTable.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+character_id = "mark_zuck"
+display_name = "Mark Zuck"
+attacks = {
+"heavy": {
+"active": 0.12,
+"air_blockable": true,
+"block_recovery": 0.31,
+"block_type": "overhead",
+"blockstun": 0.16,
+"cancel_on_block": false,
+"cancel_on_hit": true,
+"cancel_options": ["special"],
+"damage": 12,
+"hitbox_offset_air": Vector2(24, -10),
+"hitbox_offset_ground": Vector2(26, -2),
+"hitbox_size_air": Vector2(30, 18),
+"hitbox_size_ground": Vector2(34, 20),
+"hitstun": 0.2,
+"knockback_air": Vector2(166, -142),
+"knockback_ground": Vector2(214, -92),
+"recovery": 0.24,
+"startup": 0.15
+},
+"light": {
+"active": 0.09,
+"air_blockable": true,
+"block_recovery": 0.18,
+"block_type": "mid",
+"blockstun": 0.11,
+"cancel_on_block": true,
+"cancel_on_hit": true,
+"cancel_options": ["light", "heavy", "special"],
+"damage": 5,
+"hitbox_offset_air": Vector2(20, -6),
+"hitbox_offset_ground": Vector2(22, 0),
+"hitbox_size_air": Vector2(24, 16),
+"hitbox_size_ground": Vector2(26, 18),
+"hitstun": 0.12,
+"knockback_air": Vector2(86, -70),
+"knockback_ground": Vector2(110, -34),
+"recovery": 0.15,
+"startup": 0.06
+},
+"special": {
+"active": 0.22,
+"air_blockable": true,
+"block_recovery": 0.3,
+"block_type": "low",
+"blockstun": 0.21,
+"cancel_on_block": false,
+"cancel_on_hit": false,
+"cancel_options": [],
+"damage": 11,
+"hitbox_offset_air": Vector2(24, -8),
+"hitbox_offset_ground": Vector2(26, -2),
+"hitbox_size_air": Vector2(30, 18),
+"hitbox_size_ground": Vector2(36, 20),
+"hitstun": 0.2,
+"knockback_air": Vector2(192, -112),
+"knockback_ground": Vector2(224, -56),
+"lunge_speed": 285.0,
+"recovery": 0.24,
+"signature_alt": "Meta Mirror",
+"signature_primary": "Threads Snare",
+"startup": 0.11
+},
+"throw": {
+"active": 0.08,
+"air_blockable": false,
+"block_recovery": 0.22,
+"block_type": "throw",
+"blockstun": 0.0,
+"cancel_on_block": false,
+"cancel_on_hit": false,
+"cancel_options": [],
+"damage": 10,
+"hitbox_offset_air": Vector2(18, -6),
+"hitbox_offset_ground": Vector2(18, 0),
+"hitbox_size_air": Vector2(18, 14),
+"hitbox_size_ground": Vector2(20, 16),
+"hitstun": 0.24,
+"knockback_air": Vector2(128, -186),
+"knockback_ground": Vector2(176, -150),
+"recovery": 0.22,
+"startup": 0.08,
+"throw_techable": true
+}
+}

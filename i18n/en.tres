@@ -46,6 +46,8 @@ messages = {
 "HUD_TRAINING_DETAIL_REC_SHORT": "Rec",
 "MENU_TITLE": "Founders Fight Club",
 "MENU_SUBTITLE": "Select Mode",
+"MENU_P1_CHARACTER": "P1 Character",
+"MENU_P2_CHARACTER": "Opponent Character",
 "MENU_VERSUS": "VS Match",
 "MENU_TRAINING": "Training Mode",
 "RESULT_P1_WIN": "Player 1 Wins",
