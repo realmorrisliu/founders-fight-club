@@ -2,6 +2,9 @@
 
 This workflow is for developers with little or no drawing experience.
 
+For API-key-driven bulk generation automation, see:
+- `docs/AI_AUTOMATION_WORKFLOW.md`
+
 The key idea:
 - AI generates candidate art and key poses
 - Scripts enforce naming, sizing, and structure
@@ -192,4 +195,3 @@ For your first AI-driven character:
 5. Then complete the remaining defensive/reaction states
 
 This keeps scope small and validates the pipeline before scaling.
-
