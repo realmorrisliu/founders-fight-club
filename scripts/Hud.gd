@@ -15,6 +15,12 @@ static var _translations_registered := false
 @onready var timer_label := $TimerLabel
 @onready var p1_hp_label := $P1HpLabel
 @onready var p2_hp_label := $P2HpLabel
+@onready var p1_hype_label := $P1HypeLabel
+@onready var p2_hype_label := $P2HypeLabel
+@onready var p1_hype_bar := $P1HypeBar
+@onready var p2_hype_bar := $P2HypeBar
+@onready var p1_state_label := $P1StateLabel
+@onready var p2_state_label := $P2StateLabel
 @onready var result_label := $ResultLabel
 @onready var p1_hp_bar := $P1HpBar
 @onready var p2_hp_bar := $P2HpBar
@@ -46,6 +52,8 @@ var cached_timer_seconds := 60.0
 var cached_p1_hp := 100
 var cached_p2_hp := 100
 var cached_max_hp := 100
+var cached_p1_combat_state := {}
+var cached_p2_combat_state := {}
 var callout_message_key := ""
 var callout_message_value := 0
 var callout_uses_value := false
@@ -233,6 +241,7 @@ func _play_hit_type_callout(text: String, tint: Color) -> void:
 func _refresh_ui_text() -> void:
 	set_timer_seconds(cached_timer_seconds)
 	set_health(cached_p1_hp, cached_p2_hp)
+	_refresh_combat_state_ui()
 	if combat_callout_label.visible:
 		combat_callout_label.text = _resolve_callout_text()
 	if hit_type_callout_label and hit_type_callout_label.visible and hit_type_callout_message_key != "":
@@ -245,6 +254,75 @@ func _refresh_ui_text() -> void:
 	lang_en_button.text = tr("PAUSE_LANG_EN")
 	lang_zh_button.text = tr("PAUSE_LANG_ZH")
 	_update_language_buttons()
+
+func set_combat_state(p1_state: Dictionary, p2_state: Dictionary) -> void:
+	cached_p1_combat_state = p1_state.duplicate(true)
+	cached_p2_combat_state = p2_state.duplicate(true)
+	_refresh_combat_state_ui()
+
+func _refresh_combat_state_ui() -> void:
+	_refresh_side_combat_state(
+		cached_p1_combat_state,
+		p1_hype_bar,
+		p1_hype_label,
+		p1_state_label,
+		false
+	)
+	_refresh_side_combat_state(
+		cached_p2_combat_state,
+		p2_hype_bar,
+		p2_hype_label,
+		p2_state_label,
+		true
+	)
+
+func _refresh_side_combat_state(
+	state: Dictionary,
+	hype_bar: Range,
+	hype_label: Label,
+	state_label: Label,
+	right_align: bool
+) -> void:
+	if hype_bar == null or hype_label == null or state_label == null:
+		return
+	var hype := clampf(float(state.get("hype", 0.0)), 0.0, 100.0)
+	hype_bar.max_value = 100.0
+	hype_bar.value = hype
+	var hype_prefix := tr("HUD_HYPE")
+	if hype_prefix == "HUD_HYPE":
+		hype_prefix = "Hype"
+	hype_label.text = "%s: %d" % [hype_prefix, int(round(hype))]
+	var cooldowns_value: Variant = state.get("cooldowns", {})
+	var cooldowns := {}
+	if typeof(cooldowns_value) == TYPE_DICTIONARY:
+		cooldowns = (cooldowns_value as Dictionary).duplicate(true)
+	var cd_line := "CD A%s B%s C%s U%s" % [
+		_format_cd_value(float(cooldowns.get("signature_a", 0.0))),
+		_format_cd_value(float(cooldowns.get("signature_b", 0.0))),
+		_format_cd_value(float(cooldowns.get("signature_c", 0.0))),
+		_format_cd_value(float(cooldowns.get("ultimate", 0.0)))
+	]
+	var tags: Array[String] = []
+	if float(state.get("silence_seconds", 0.0)) > 0.0:
+		tags.append("SIL")
+	if float(state.get("slow_seconds", 0.0)) > 0.0:
+		tags.append("SLOW")
+	if float(state.get("root_seconds", 0.0)) > 0.0:
+		tags.append("ROOT")
+	if float(state.get("install_seconds", 0.0)) > 0.0:
+		tags.append("BUFF")
+	var status_suffix := ""
+	if not tags.is_empty():
+		status_suffix = " | %s" % " ".join(tags)
+	state_label.text = cd_line + status_suffix
+	state_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT if right_align else HORIZONTAL_ALIGNMENT_LEFT
+
+func _format_cd_value(value: float) -> String:
+	if value <= 0.0:
+		return "0"
+	if value < 1.0:
+		return "%.1f" % value
+	return str(int(ceil(value)))
 
 func _refresh_training_panel() -> void:
 	if training_panel == null:

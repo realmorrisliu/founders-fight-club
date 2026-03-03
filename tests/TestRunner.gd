@@ -11,8 +11,11 @@ func _initialize() -> void:
 func _run() -> void:
 	await _test_character_attack_tables_are_valid()
 	await _test_core_scenes_boot()
+	await _test_hitstop_overlap_recovery()
 	await _test_player_damage_and_block_flow()
 	await _test_skill_runtime_primitives()
+	await _test_motion_feel_primitives()
+	await _test_ai_behavior_profiles()
 	await _test_wave1_vertical_slice_skills()
 	await _test_full_roster_signature_coverage()
 	_finish()
@@ -106,6 +109,27 @@ func _assert_scene_boot(path: String) -> void:
 	if is_instance_valid(instance):
 		instance.queue_free()
 	await process_frame
+
+func _test_hitstop_overlap_recovery() -> void:
+	Engine.time_scale = 1.0
+	var packed := load("res://scenes/Main.tscn")
+	_assert_true(packed is PackedScene, "main scene loads for hitstop overlap test")
+	if packed is not PackedScene:
+		return
+	var match_node := (packed as PackedScene).instantiate()
+	get_root().add_child(match_node)
+	await process_frame
+	await process_frame
+	match_node.call("_apply_hitstop", 0.03)
+	match_node.call("_apply_hitstop", 0.09)
+	_assert_true(Engine.time_scale < 0.5, "overlapping hitstop requests enter slow scale")
+	await create_timer(0.14, true, false, true).timeout
+	await process_frame
+	_assert_true(is_equal_approx(Engine.time_scale, 1.0), "overlapping hitstop requests recover to normal speed")
+	if is_instance_valid(match_node):
+		match_node.queue_free()
+	await process_frame
+	Engine.time_scale = 1.0
 
 func _test_player_damage_and_block_flow() -> void:
 	var player_scene := load("res://scenes/Player.tscn")
@@ -224,6 +248,19 @@ func _test_skill_runtime_primitives() -> void:
 
 	p1.set("hype_meter", 0.0)
 	_assert_true(not bool(p1.call("_can_trigger_attack_kind", "ultimate")), "ultimate blocked when hype is not full")
+	p1.set("hype_meter", 100.0)
+	p1.set("attack_state", "")
+	p1.set("skill_cooldowns", {})
+	p1.set("special_input_buffer_time", 0.08)
+	p1.set("heavy_input_buffer_time", 0.08)
+	_assert_true(bool(p1.call("_can_trigger_buffered_ultimate")), "ultimate chord input buffer supports leniency window")
+	p1.call("_consume_ultimate_chord_buffer")
+	var runtime_state_value: Variant = p1.call("get_runtime_status_snapshot")
+	_assert_true(typeof(runtime_state_value) == TYPE_DICTIONARY, "runtime status snapshot is dictionary")
+	if typeof(runtime_state_value) == TYPE_DICTIONARY:
+		var runtime_state := runtime_state_value as Dictionary
+		_assert_true(runtime_state.has("hype"), "runtime status snapshot includes hype")
+		_assert_true(runtime_state.has("cooldowns"), "runtime status snapshot includes cooldown dictionary")
 
 	var debuff_meta := {
 		"silence_seconds": 1.2,
@@ -235,6 +272,13 @@ func _test_skill_runtime_primitives() -> void:
 	_assert_true(float(p2.get("status_silence_time")) > 0.0, "silence status applied from control meta")
 	_assert_true(float(p2.get("status_slow_time")) > 0.0, "slow status applied from control meta")
 	_assert_true(float(p2.get("status_root_time")) > 0.0, "root status applied from control meta")
+	p1.set("attack_state", "")
+	p1.call("_start_attack", "light")
+	var locked_facing := int(p1.get("facing"))
+	p2.position.x = p1.position.x - 36.0 if locked_facing > 0 else p1.position.x + 36.0
+	p1.call("_update_facing")
+	_assert_true(bool(p1.get("facing_locked")), "starting an attack locks facing direction")
+	_assert_true(int(p1.get("facing")) == locked_facing, "facing remains stable while attack lock is active")
 
 	p1.set("current_hp", 100)
 	p2.set("current_hp", 100)
@@ -252,6 +296,91 @@ func _test_skill_runtime_primitives() -> void:
 		var payload := first_entity.get("payload", {}) as Dictionary
 		p1.call("_apply_skill_entity_hit", p2, payload)
 	_assert_true(int(p2.get("current_hp")) < 100, "runtime projectile entity can hit opponent")
+
+	host.queue_free()
+	await process_frame
+
+func _test_motion_feel_primitives() -> void:
+	var setup: Dictionary = await _spawn_test_players()
+	var p1 := setup.get("p1") as CharacterBody2D
+	var host := setup.get("host") as Node2D
+	if p1 == null or host == null:
+		return
+
+	p1.set("velocity", Vector2.ZERO)
+	p1.call("_apply_horizontal_intent", 220.0, 0.016, 1.0, 1.0)
+	var velocity_after_accel := p1.get("velocity") as Vector2
+	_assert_true(velocity_after_accel.x > 0.0 and velocity_after_accel.x < 220.0, "horizontal acceleration ramps toward target speed")
+
+	p1.set("velocity", Vector2(220.0, 0.0))
+	p1.call("_apply_horizontal_intent", 0.0, 0.016, 1.0, 1.0)
+	var velocity_after_decel := p1.get("velocity") as Vector2
+	_assert_true(velocity_after_decel.x > 0.0 and velocity_after_decel.x < 220.0, "horizontal deceleration ramps down instead of snapping")
+
+	p1.set("attack_state", "heavy")
+	p1.set("attack_phase", "startup")
+	var startup_speed := float(p1.call("_resolve_attack_animation_speed_scale", StringName("heavy")))
+	p1.set("attack_phase", "active")
+	var active_speed := float(p1.call("_resolve_attack_animation_speed_scale", StringName("heavy")))
+	p1.set("attack_phase", "recovery")
+	var recovery_speed := float(p1.call("_resolve_attack_animation_speed_scale", StringName("heavy")))
+	_assert_true(startup_speed < active_speed and recovery_speed < active_speed, "attack animation speed follows startup/active/recovery pacing")
+
+	p1.set("attack_state", "")
+	p1.set("attack_phase", "")
+	var neutral_speed := float(p1.call("_resolve_attack_animation_speed_scale", StringName("idle")))
+	_assert_true(is_equal_approx(neutral_speed, 1.0), "neutral animation speed scale remains default")
+
+	host.queue_free()
+	await process_frame
+
+func _test_ai_behavior_profiles() -> void:
+	var setup: Dictionary = await _spawn_test_players()
+	var p1 := setup.get("p1") as CharacterBody2D
+	var host := setup.get("host") as Node2D
+	if p1 == null or host == null:
+		return
+
+	p1.set("is_ai", true)
+	p1.set("hype_meter", 100.0)
+	p1.set("skill_cooldowns", {})
+
+	var travis_table := load("res://assets/data/characters/TravisKalanikAttackTable.tres")
+	_assert_true(travis_table != null, "travis attack table loads for ai profile test")
+	if travis_table == null:
+		host.queue_free()
+		await process_frame
+		return
+	p1.call("apply_attack_table", travis_table)
+	await process_frame
+	var travis_profile := p1.get("ai_style_profile") as Dictionary
+	_assert_true(travis_profile.has("preferred_range"), "ai style profile contains preferred range")
+	_assert_true(travis_profile.has("signature_bias"), "ai style profile contains signature bias")
+
+	var close_weights_value: Variant = p1.call("_build_ai_attack_weight_map", 24.0)
+	_assert_true(typeof(close_weights_value) == TYPE_DICTIONARY, "ai weight map builder returns dictionary")
+	if typeof(close_weights_value) == TYPE_DICTIONARY:
+		var close_weights := close_weights_value as Dictionary
+		_assert_true(close_weights.has("light"), "close-range ai candidates include light")
+		_assert_true(close_weights.has("heavy"), "close-range ai candidates include heavy")
+		_assert_true(close_weights.has("signature_a"), "close-range ai candidates include signature skill")
+		_assert_true(float(close_weights.get("heavy", 0.0)) > float(close_weights.get("signature_a", 0.0)), "rushdown profile favors heavy over signature at point-blank")
+
+	var larry_table := load("res://assets/data/characters/LarryPagyrAttackTable.tres")
+	_assert_true(larry_table != null, "larry attack table loads for ai profile test")
+	if larry_table != null:
+		p1.call("apply_attack_table", larry_table)
+		await process_frame
+		var far_weights_value: Variant = p1.call("_build_ai_attack_weight_map", 96.0)
+		_assert_true(typeof(far_weights_value) == TYPE_DICTIONARY, "far-range ai weight map builder returns dictionary")
+		if typeof(far_weights_value) == TYPE_DICTIONARY:
+			var far_weights := far_weights_value as Dictionary
+			_assert_true(far_weights.has("signature_a"), "far-range ai candidates include projectile signature")
+			_assert_true(far_weights.has("heavy"), "far-range ai candidates keep heavy candidate")
+			_assert_true(float(far_weights.get("signature_a", 0.0)) > float(far_weights.get("heavy", 0.0)), "zoning profile favors signature over heavy at long range")
+
+	var selected_kind := str(p1.call("_select_ai_attack_kind", 54.0))
+	_assert_true(selected_kind != "", "ai weighted selector can resolve an actionable attack kind")
 
 	host.queue_free()
 	await process_frame

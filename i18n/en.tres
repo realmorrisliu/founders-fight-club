@@ -6,6 +6,7 @@ messages = {
 "HUD_TIMER": "Time: %d",
 "HUD_P1_HP": "P1 HP: %d",
 "HUD_P2_HP": "P2 HP: %d",
+"HUD_HYPE": "Hype",
 "HUD_CALLOUT_GUARD": "GUARD",
 "HUD_CALLOUT_COUNTER": "COUNTER!",
 "HUD_CALLOUT_OVERHEAD": "OVERHEAD",

@@ -32,6 +32,7 @@ const CAMERA_SHAKE_BY_BLOCK := {
 }
 const COUNTER_HITSTOP_BONUS := 0.03
 const COUNTER_SHAKE_MULTIPLIER := 1.28
+const HITSTOP_SLOW_SCALE := 0.01
 const TRAINING_DEFAULT_OPTIONS := {
 	"enabled": true,
 	"dummy_mode": "stand",
@@ -75,6 +76,9 @@ var camera_shake_time := 0.0
 var camera_shake_duration := 0.0
 var camera_shake_strength := 0.0
 var camera_rng := RandomNumberGenerator.new()
+var hitstop_active := false
+var hitstop_end_msec := 0
+var hitstop_restore_scale := 1.0
 
 @export var round_timer_enabled := true
 @export var training_scene_enabled := false
@@ -99,6 +103,7 @@ var dialogue_rng := RandomNumberGenerator.new()
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	_clear_hitstop()
 	camera_rng.randomize()
 	dialogue_rng.randomize()
 	training_options["enabled"] = training_scene_enabled
@@ -162,6 +167,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		_toggle_pause()
 
 func _process(delta: float) -> void:
+	_update_hitstop_state()
 	if get_tree().paused:
 		return
 	if match_over:
@@ -253,6 +259,7 @@ func _resolve_timeout() -> String:
 func _end_match(result_key: String) -> void:
 	match_over = true
 	match_result_key = result_key
+	_clear_hitstop()
 	get_tree().paused = false
 	if hud and hud.has_method("set_pause_visible"):
 		hud.set_pause_visible(false)
@@ -260,7 +267,7 @@ func _end_match(result_key: String) -> void:
 	_trigger_victory_dialogue(result_key)
 
 func _restart_match() -> void:
-	Engine.time_scale = 1.0
+	_clear_hitstop()
 	get_tree().paused = false
 	get_tree().reload_current_scene()
 
@@ -278,6 +285,18 @@ func _update_hud() -> void:
 		hud.set_timer_seconds(time_left)
 	if hud and hud.has_method("set_health"):
 		hud.set_health(player_1.current_hp, player_2.current_hp)
+	if hud and hud.has_method("set_combat_state"):
+		var p1_state := {}
+		var p2_state := {}
+		if player_1 and player_1.has_method("get_runtime_status_snapshot"):
+			var p1_state_value: Variant = player_1.call("get_runtime_status_snapshot")
+			if typeof(p1_state_value) == TYPE_DICTIONARY:
+				p1_state = (p1_state_value as Dictionary).duplicate(true)
+		if player_2 and player_2.has_method("get_runtime_status_snapshot"):
+			var p2_state_value: Variant = player_2.call("get_runtime_status_snapshot")
+			if typeof(p2_state_value) == TYPE_DICTIONARY:
+				p2_state = (p2_state_value as Dictionary).duplicate(true)
+		hud.set_combat_state(p1_state, p2_state)
 
 func _refresh_result_text() -> void:
 	if not hud or not hud.has_method("set_result"):
@@ -349,10 +368,35 @@ func _on_tech_recovered(fighter, tech_kind: String) -> void:
 		)
 
 func _apply_hitstop(duration: float) -> void:
-	var old_scale = Engine.time_scale
-	Engine.time_scale = 0.01 # Almost freeze
-	await get_tree().create_timer(duration, true, false, true).timeout
-	Engine.time_scale = old_scale
+	if duration <= 0.0:
+		return
+	var now_msec := Time.get_ticks_msec()
+	var request_end_msec := now_msec + int(ceil(duration * 1000.0))
+	if not hitstop_active:
+		hitstop_restore_scale = Engine.time_scale
+		if hitstop_restore_scale <= 0.0:
+			hitstop_restore_scale = 1.0
+		Engine.time_scale = HITSTOP_SLOW_SCALE
+		hitstop_active = true
+		hitstop_end_msec = request_end_msec
+		return
+	hitstop_end_msec = maxi(hitstop_end_msec, request_end_msec)
+
+func _update_hitstop_state() -> void:
+	if not hitstop_active:
+		return
+	if Time.get_ticks_msec() < hitstop_end_msec:
+		return
+	_clear_hitstop()
+
+func _clear_hitstop() -> void:
+	if hitstop_active:
+		Engine.time_scale = hitstop_restore_scale if hitstop_restore_scale > 0.0 else 1.0
+	else:
+		Engine.time_scale = 1.0
+	hitstop_active = false
+	hitstop_end_msec = 0
+	hitstop_restore_scale = 1.0
 
 func _on_hud_resume_requested() -> void:
 	if get_tree().paused:

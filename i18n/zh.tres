@@ -6,6 +6,7 @@ messages = {
 "HUD_TIMER": "时间: %d",
 "HUD_P1_HP": "玩家1 生命: %d",
 "HUD_P2_HP": "玩家2 生命: %d",
+"HUD_HYPE": "热度",
 "HUD_CALLOUT_GUARD": "防御",
 "HUD_CALLOUT_COUNTER": "反击!",
 "HUD_CALLOUT_OVERHEAD": "中段!",

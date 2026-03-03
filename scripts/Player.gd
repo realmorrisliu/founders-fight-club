@@ -32,6 +32,50 @@ const TRAINING_RANDOM_BLOCK_CHANCE := 0.5
 const TRAINING_RANDOM_BLOCK_HOLD_SECONDS := 0.22
 const TRAINING_BLOCK_THREAT_DISTANCE := 108.0
 const INPUT_BUFFER_SECONDS := 0.22
+const DIRECTION_INPUT_BUFFER_SECONDS := 0.10
+const ULTIMATE_CHORD_BUFFER_SECONDS := 0.12
+const GROUND_ACCELERATION := 1720.0
+const GROUND_DECELERATION := 2140.0
+const AIR_ACCELERATION := 980.0
+const AIR_DECELERATION := 820.0
+const BLOCK_ACCELERATION_SCALE := 0.72
+const BLOCK_DECELERATION_SCALE := 1.14
+const WALK_ANIMATION_SPEED_THRESHOLD := 34.0
+const AI_PROFILE_DEFAULT := {
+	"preferred_range": 56.0,
+	"chase_range": 108.0,
+	"retreat_range": 20.0,
+	"retreat_chance": 0.24,
+	"block_chance": 0.35,
+	"block_hold_time": 0.18,
+	"signature_bias": 1.0,
+	"special_bias": 1.0,
+	"heavy_bias": 1.0,
+	"throw_bias": 1.0,
+	"ultimate_bias": 1.0,
+	"dash_in_chance": 0.08,
+	"cooldown_min": 0.40,
+	"cooldown_max": 0.72,
+	"combo_pressure": 0.52
+}
+const AI_PROFILE_BY_CHARACTER := {
+	"elon_mvsk": {"preferred_range": 74.0, "chase_range": 132.0, "retreat_range": 18.0, "retreat_chance": 0.16, "block_chance": 0.28, "signature_bias": 1.45, "special_bias": 0.8, "heavy_bias": 0.75, "throw_bias": 0.55, "ultimate_bias": 1.25, "dash_in_chance": 0.04, "cooldown_min": 0.52, "cooldown_max": 0.90, "combo_pressure": 0.35},
+	"mark_zuck": {"preferred_range": 62.0, "chase_range": 110.0, "retreat_range": 24.0, "retreat_chance": 0.28, "block_chance": 0.34, "signature_bias": 1.2, "special_bias": 1.1, "heavy_bias": 0.9, "throw_bias": 0.8, "ultimate_bias": 1.15, "dash_in_chance": 0.10, "cooldown_min": 0.40, "cooldown_max": 0.72, "combo_pressure": 0.58},
+	"sam_altmyn": {"preferred_range": 58.0, "chase_range": 108.0, "retreat_range": 20.0, "retreat_chance": 0.24, "block_chance": 0.33, "signature_bias": 1.05, "special_bias": 1.05, "heavy_bias": 1.0, "throw_bias": 0.85, "ultimate_bias": 1.35, "dash_in_chance": 0.10, "cooldown_min": 0.40, "cooldown_max": 0.70, "combo_pressure": 0.56},
+	"peter_thyell": {"preferred_range": 70.0, "chase_range": 124.0, "retreat_range": 19.0, "retreat_chance": 0.22, "block_chance": 0.40, "signature_bias": 1.25, "special_bias": 0.95, "heavy_bias": 0.82, "throw_bias": 0.60, "ultimate_bias": 1.2, "dash_in_chance": 0.06, "cooldown_min": 0.50, "cooldown_max": 0.86, "combo_pressure": 0.40},
+	"zef_bezos": {"preferred_range": 46.0, "chase_range": 94.0, "retreat_range": 15.0, "retreat_chance": 0.18, "block_chance": 0.27, "signature_bias": 0.92, "special_bias": 1.18, "heavy_bias": 1.28, "throw_bias": 1.22, "ultimate_bias": 1.1, "dash_in_chance": 0.16, "cooldown_min": 0.34, "cooldown_max": 0.62, "combo_pressure": 0.72},
+	"bill_geytz": {"preferred_range": 72.0, "chase_range": 126.0, "retreat_range": 20.0, "retreat_chance": 0.22, "block_chance": 0.42, "signature_bias": 1.35, "special_bias": 0.88, "heavy_bias": 0.78, "throw_bias": 0.60, "ultimate_bias": 1.2, "dash_in_chance": 0.05, "cooldown_min": 0.48, "cooldown_max": 0.84, "combo_pressure": 0.38},
+	"sundar_pichoy": {"preferred_range": 60.0, "chase_range": 112.0, "retreat_range": 22.0, "retreat_chance": 0.25, "block_chance": 0.36, "signature_bias": 1.1, "special_bias": 1.0, "heavy_bias": 0.96, "throw_bias": 0.80, "ultimate_bias": 1.22, "dash_in_chance": 0.11, "cooldown_min": 0.40, "cooldown_max": 0.72, "combo_pressure": 0.56},
+	"jensen_hwang": {"preferred_range": 55.0, "chase_range": 102.0, "retreat_range": 19.0, "retreat_chance": 0.20, "block_chance": 0.29, "signature_bias": 1.0, "special_bias": 1.18, "heavy_bias": 1.18, "throw_bias": 0.88, "ultimate_bias": 1.18, "dash_in_chance": 0.13, "cooldown_min": 0.36, "cooldown_max": 0.66, "combo_pressure": 0.66},
+	"larry_pagyr": {"preferred_range": 76.0, "chase_range": 136.0, "retreat_range": 18.0, "retreat_chance": 0.16, "block_chance": 0.38, "signature_bias": 1.45, "special_bias": 0.82, "heavy_bias": 0.70, "throw_bias": 0.50, "ultimate_bias": 1.24, "dash_in_chance": 0.03, "cooldown_min": 0.54, "cooldown_max": 0.92, "combo_pressure": 0.34},
+	"sergey_brinn": {"preferred_range": 68.0, "chase_range": 120.0, "retreat_range": 22.0, "retreat_chance": 0.24, "block_chance": 0.37, "signature_bias": 1.30, "special_bias": 0.94, "heavy_bias": 0.86, "throw_bias": 0.66, "ultimate_bias": 1.22, "dash_in_chance": 0.07, "cooldown_min": 0.48, "cooldown_max": 0.82, "combo_pressure": 0.46},
+	"satya_nadello": {"preferred_range": 66.0, "chase_range": 116.0, "retreat_range": 22.0, "retreat_chance": 0.22, "block_chance": 0.44, "signature_bias": 1.22, "special_bias": 0.9, "heavy_bias": 0.82, "throw_bias": 0.64, "ultimate_bias": 1.18, "dash_in_chance": 0.06, "cooldown_min": 0.46, "cooldown_max": 0.80, "combo_pressure": 0.42},
+	"tim_cuke": {"preferred_range": 59.0, "chase_range": 104.0, "retreat_range": 26.0, "retreat_chance": 0.30, "block_chance": 0.32, "signature_bias": 1.16, "special_bias": 1.05, "heavy_bias": 0.88, "throw_bias": 0.84, "ultimate_bias": 1.16, "dash_in_chance": 0.14, "cooldown_min": 0.38, "cooldown_max": 0.68, "combo_pressure": 0.60},
+	"jack_dorsee": {"preferred_range": 64.0, "chase_range": 118.0, "retreat_range": 22.0, "retreat_chance": 0.24, "block_chance": 0.31, "signature_bias": 1.34, "special_bias": 0.98, "heavy_bias": 0.90, "throw_bias": 0.70, "ultimate_bias": 1.2, "dash_in_chance": 0.10, "cooldown_min": 0.40, "cooldown_max": 0.72, "combo_pressure": 0.54},
+	"travis_kalanik": {"preferred_range": 48.0, "chase_range": 96.0, "retreat_range": 14.0, "retreat_chance": 0.14, "block_chance": 0.24, "signature_bias": 1.18, "special_bias": 1.2, "heavy_bias": 1.20, "throw_bias": 1.0, "ultimate_bias": 1.15, "dash_in_chance": 0.20, "cooldown_min": 0.32, "cooldown_max": 0.58, "combo_pressure": 0.78},
+	"reed_hestings": {"preferred_range": 69.0, "chase_range": 122.0, "retreat_range": 21.0, "retreat_chance": 0.22, "block_chance": 0.39, "signature_bias": 1.26, "special_bias": 0.92, "heavy_bias": 0.84, "throw_bias": 0.68, "ultimate_bias": 1.25, "dash_in_chance": 0.07, "cooldown_min": 0.46, "cooldown_max": 0.82, "combo_pressure": 0.44},
+	"steve_jobz": {"preferred_range": 53.0, "chase_range": 100.0, "retreat_range": 18.0, "retreat_chance": 0.20, "block_chance": 0.30, "signature_bias": 1.22, "special_bias": 1.08, "heavy_bias": 1.08, "throw_bias": 0.90, "ultimate_bias": 1.34, "dash_in_chance": 0.16, "cooldown_min": 0.34, "cooldown_max": 0.62, "combo_pressure": 0.70}
+}
 const COMBO_CHAIN_TIMEOUT_SECONDS := 0.95
 const COMBO_DAMAGE_SCALING_STEP := 0.12
 const COMBO_DAMAGE_SCALING_MIN := 0.45
@@ -49,6 +93,7 @@ const HYPE_GAIN_ON_HIT := 12.0
 const HYPE_GAIN_ON_BLOCK := 6.0
 const HYPE_GAIN_ON_TAKING_HIT := 4.0
 const SKILL_ENTITY_TARGET_HEIGHT_OFFSET := 22.0
+const SKILL_ENTITY_MIN_SIZE := Vector2(12.0, 10.0)
 const SIGNATURE_ATTACK_KEYS := ["signature_a", "signature_b", "signature_c", "ultimate"]
 const STATUS_SILENCE_CAP_SECONDS := 1.6
 const STATUS_SLOW_CAP_SECONDS := 1.2
@@ -180,6 +225,7 @@ var tech_slide_time := 0.0
 var tech_slide_speed := 0.0
 var ai_tech_decision_roll := false
 var ai_guard_mode := "high"
+var ai_style_profile: Dictionary = AI_PROFILE_DEFAULT.duplicate(true)
 var throw_tech_buffer_time := 0.0
 var last_training_info := {}
 var training_dummy_enabled := false
@@ -202,6 +248,13 @@ var install_speed_multiplier := 1.0
 var install_startup_multiplier := 1.0
 var install_chip_bonus := 0.0
 var hype_meter := 0.0
+var skill_entity_texture_cache: Dictionary = {}
+var facing_locked := false
+var facing_locked_direction := 1
+var forward_input_buffer_time := 0.0
+var down_input_buffer_time := 0.0
+var special_input_buffer_time := 0.0
+var heavy_input_buffer_time := 0.0
 
 @onready var hitbox := $Hitbox as Area2D
 @onready var hitbox_shape := $Hitbox/CollisionShape2D
@@ -211,6 +264,7 @@ var hype_meter := 0.0
 func _ready() -> void:
 	add_to_group("fighters")
 	_setup_attack_data()
+	_refresh_ai_style_profile()
 	_setup_visual()
 	hitbox.monitoring = false
 	hitbox.body_entered.connect(_on_hitbox_body_entered)
@@ -220,6 +274,7 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	if not is_on_floor():
 		velocity.y += gravity * delta
+	_update_command_input_buffers(delta)
 	guard_counter_time = maxf(0.0, guard_counter_time - delta)
 	wake_invuln_time = maxf(0.0, wake_invuln_time - delta)
 	_update_skill_runtime(delta)
@@ -281,7 +336,7 @@ func _physics_process(delta: float) -> void:
 	elif is_ai:
 		_process_ai(delta)
 	else:
-		_process_player_input()
+		_process_player_input(delta)
 
 	_update_attack(delta)
 	_try_start_buffered_attack_from_neutral()
@@ -289,7 +344,7 @@ func _physics_process(delta: float) -> void:
 	_update_visual()
 	move_and_slide()
 
-func _process_player_input() -> void:
+func _process_player_input(delta: float) -> void:
 	if attack_state == "":
 		var move_axis := Input.get_axis("move_left", "move_right")
 		if _is_rooted():
@@ -298,17 +353,18 @@ func _process_player_input() -> void:
 		var wants_block := _can_enter_block() and InputMap.has_action("block") and Input.is_action_pressed("block")
 		if wants_block:
 			is_blocking = true
+			var block_target_speed := move_axis * move_speed * BLOCK_WALK_SPEED_FACTOR
 			if is_on_floor():
-				velocity.x = move_axis * move_speed * BLOCK_WALK_SPEED_FACTOR
+				_apply_horizontal_intent(block_target_speed, delta, BLOCK_ACCELERATION_SCALE, BLOCK_DECELERATION_SCALE)
 			else:
-				velocity.x = move_axis * move_speed * 0.45
+				_apply_horizontal_intent(block_target_speed * 0.45, delta, BLOCK_ACCELERATION_SCALE, BLOCK_DECELERATION_SCALE)
 			if is_on_floor() and Input.is_action_just_pressed("jump"):
 				is_blocking = false
 				velocity.y = JUMP_VELOCITY
 			return
 
 		is_blocking = false
-		velocity.x = move_axis * move_speed
+		_apply_horizontal_intent(move_axis * move_speed, delta)
 		if is_on_floor() and Input.is_action_just_pressed("jump"):
 			velocity.y = JUMP_VELOCITY
 		var requested_attack := _read_requested_attack()
@@ -318,40 +374,168 @@ func _process_player_input() -> void:
 			_start_dash()
 	else:
 		is_blocking = false
-		velocity.x = 0.0
+		_apply_horizontal_intent(0.0, delta, 0.8, 1.3)
 		var buffered_kind := _read_requested_attack()
 		if buffered_kind != "":
 			_buffer_attack(buffered_kind)
+
+func _apply_horizontal_intent(target_speed: float, delta: float, acceleration_scale: float = 1.0, deceleration_scale: float = 1.0) -> void:
+	var resolved_target := target_speed
+	if _is_rooted():
+		resolved_target = 0.0
+	var acceleration := (GROUND_ACCELERATION if is_on_floor() else AIR_ACCELERATION) * maxf(0.1, acceleration_scale)
+	var deceleration := (GROUND_DECELERATION if is_on_floor() else AIR_DECELERATION) * maxf(0.1, deceleration_scale)
+	var accelerating := absf(resolved_target) > absf(velocity.x)
+	var target_sign := signf(resolved_target)
+	var current_sign := signf(velocity.x)
+	if not is_zero_approx(target_sign) and not is_zero_approx(current_sign) and target_sign != current_sign:
+		accelerating = true
+	var rate := acceleration if accelerating else deceleration
+	velocity.x = move_toward(velocity.x, resolved_target, rate * delta)
 
 func _process_ai(delta: float) -> void:
 	if opponent == null:
 		return
 	ai_attack_cooldown = maxf(0.0, ai_attack_cooldown - delta)
 	var distance = opponent.global_position.x - global_position.x
+	var distance_abs := absf(distance)
 	var ai_move_speed := MOVE_SPEED * _get_move_speed_multiplier()
+	var preferred_range := _get_ai_profile_number("preferred_range", 56.0)
+	var chase_range := _get_ai_profile_number("chase_range", 108.0)
+	var retreat_range := _get_ai_profile_number("retreat_range", 20.0)
+	var retreat_chance := _get_ai_profile_number("retreat_chance", 0.24)
 	if attack_state == "":
 		if _should_ai_block(distance):
 			is_blocking = true
 			ai_guard_mode = _resolve_ai_guard_mode()
-			velocity.x = 0.0
+			_apply_horizontal_intent(0.0, delta, BLOCK_ACCELERATION_SCALE, BLOCK_DECELERATION_SCALE)
 			return
 
 		is_blocking = false
 		ai_guard_mode = "high"
-		if absf(distance) > 48.0:
-			velocity.x = 0.0 if _is_rooted() else sign(distance) * ai_move_speed * 0.7
-		else:
-			velocity.x = 0.0
-			if ai_attack_cooldown <= 0.0:
-				var ai_attack_kind := "signature_a" if _has_attack_kind("signature_a") and _can_trigger_attack_kind("signature_a") and randf() < 0.18 else "light"
-				if _is_silenced() and ai_attack_kind in ["special", "signature_a", "signature_b", "signature_c", "ultimate"]:
-					ai_attack_kind = "light"
+		var target_speed := 0.0
+		if distance_abs > chase_range:
+			target_speed = signf(distance) * ai_move_speed * 0.86
+		elif distance_abs > preferred_range:
+			target_speed = signf(distance) * ai_move_speed * 0.62
+		elif distance_abs < retreat_range and randf() < retreat_chance:
+			target_speed = -signf(distance) * ai_move_speed * 0.42
+		_apply_horizontal_intent(target_speed, delta)
+
+		var dash_in_chance := _get_ai_profile_number("dash_in_chance", 0.08)
+		if distance_abs > chase_range + 20.0 and dash_cooldown_timer <= 0.0 and is_on_floor() and not _is_rooted() and randf() < dash_in_chance:
+			_start_dash()
+			return
+
+		if distance_abs <= preferred_range + 18.0 and ai_attack_cooldown <= 0.0:
+			var ai_attack_kind := _select_ai_attack_kind(distance_abs)
+			if ai_attack_kind != "":
 				_request_attack(ai_attack_kind)
-				ai_attack_cooldown = 0.6
+				var cooldown_min := _get_ai_profile_number("cooldown_min", 0.40)
+				var cooldown_max := maxf(cooldown_min + 0.04, _get_ai_profile_number("cooldown_max", 0.72))
+				ai_attack_cooldown = randf_range(cooldown_min, cooldown_max)
 	else:
 		is_blocking = false
 		ai_guard_mode = "high"
-		velocity.x = 0.0
+		_apply_horizontal_intent(0.0, delta, 0.8, 1.2)
+
+func _select_ai_attack_kind(distance: float) -> String:
+	var candidates := _build_ai_attack_candidates(distance)
+	return _pick_weighted_ai_attack(candidates)
+
+func _build_ai_attack_weight_map(distance: float) -> Dictionary:
+	var weight_map := {}
+	var candidates := _build_ai_attack_candidates(distance)
+	for candidate in candidates:
+		if typeof(candidate) != TYPE_DICTIONARY:
+			continue
+		var entry := candidate as Dictionary
+		var kind := str(entry.get("kind", ""))
+		var weight := float(entry.get("weight", 0.0))
+		if kind == "" or weight <= 0.0:
+			continue
+		weight_map[kind] = weight
+	return weight_map
+
+func _build_ai_attack_candidates(distance: float) -> Array[Dictionary]:
+	var candidates: Array[Dictionary] = []
+	_append_ai_attack_candidate(candidates, "light", 1.0, distance)
+	_append_ai_attack_candidate(candidates, "heavy", 0.62 * _get_ai_profile_number("heavy_bias", 1.0), distance)
+	_append_ai_attack_candidate(candidates, "throw", 0.44 * _get_ai_profile_number("throw_bias", 1.0), distance)
+	_append_ai_attack_candidate(candidates, "special", 0.68 * _get_ai_profile_number("special_bias", 1.0), distance)
+	var signature_bias := _get_ai_profile_number("signature_bias", 1.0)
+	_append_ai_attack_candidate(candidates, "signature_a", 0.66 * signature_bias, distance)
+	_append_ai_attack_candidate(candidates, "signature_b", 0.60 * signature_bias, distance)
+	_append_ai_attack_candidate(candidates, "signature_c", 0.58 * signature_bias, distance)
+	_append_ai_attack_candidate(candidates, "ultimate", 0.54 * _get_ai_profile_number("ultimate_bias", 1.0), distance)
+	return candidates
+
+func _append_ai_attack_candidate(candidates: Array[Dictionary], kind: String, base_weight: float, distance: float) -> void:
+	if base_weight <= 0.0:
+		return
+	if not _can_trigger_ai_attack_kind(kind):
+		return
+	var weighted := base_weight * _get_ai_distance_weight(kind, distance)
+	if weighted <= 0.0:
+		return
+	candidates.append({"kind": kind, "weight": weighted})
+
+func _pick_weighted_ai_attack(candidates: Array[Dictionary]) -> String:
+	if candidates.is_empty():
+		return ""
+	var total_weight := 0.0
+	for candidate in candidates:
+		if typeof(candidate) != TYPE_DICTIONARY:
+			continue
+		total_weight += maxf(0.0, float((candidate as Dictionary).get("weight", 0.0)))
+	if total_weight <= 0.0:
+		return str((candidates[0] as Dictionary).get("kind", ""))
+	var roll := randf() * total_weight
+	for candidate in candidates:
+		if typeof(candidate) != TYPE_DICTIONARY:
+			continue
+		var entry := candidate as Dictionary
+		roll -= maxf(0.0, float(entry.get("weight", 0.0)))
+		if roll <= 0.0:
+			return str(entry.get("kind", ""))
+	return str((candidates[candidates.size() - 1] as Dictionary).get("kind", ""))
+
+func _can_trigger_ai_attack_kind(kind: String) -> bool:
+	if not _has_attack_kind(kind):
+		return false
+	if _is_silenced() and kind in ["special", "signature_a", "signature_b", "signature_c", "ultimate"]:
+		return false
+	return _can_trigger_attack_kind(kind)
+
+func _get_ai_distance_weight(kind: String, distance: float) -> float:
+	var weight := 1.0
+	var attack_data := _get_attack_data(kind)
+	var effect_type := _resolve_attack_effect_type(attack_data)
+	if distance >= 78.0:
+		if effect_type in ["projectile", "trap", "summon"]:
+			weight *= 1.40
+		elif kind in ["special", "signature_a", "signature_b", "signature_c", "ultimate"]:
+			weight *= 1.18
+		if kind in ["throw", "heavy"]:
+			weight *= 0.58
+	elif distance <= 30.0:
+		if kind == "throw":
+			weight *= 1.45
+		elif kind == "heavy":
+			weight *= 1.25
+		elif kind == "light":
+			weight *= 1.12
+		if effect_type in ["projectile", "trap", "summon"]:
+			weight *= 0.74
+	return weight
+
+func _resolve_attack_effect_type(attack_data: Dictionary) -> String:
+	if attack_data.is_empty():
+		return ""
+	var effect_value: Variant = attack_data.get("effect", {})
+	if typeof(effect_value) != TYPE_DICTIONARY:
+		return ""
+	return str((effect_value as Dictionary).get("type", ""))
 
 func _is_training_dummy_active() -> bool:
 	return training_dummy_enabled
@@ -359,15 +543,15 @@ func _is_training_dummy_active() -> bool:
 func _process_training_dummy(delta: float) -> void:
 	if opponent == null:
 		is_blocking = false
-		velocity.x = 0.0
+		_apply_horizontal_intent(0.0, delta, 0.8, 1.2)
 		return
 	if attack_state != "":
 		is_blocking = false
 		ai_guard_mode = "high"
-		velocity.x = 0.0
+		_apply_horizontal_intent(0.0, delta, 0.8, 1.2)
 		return
 
-	velocity.x = move_toward(velocity.x, 0.0, MOVE_SPEED * delta * 4.0)
+	_apply_horizontal_intent(0.0, delta, 0.8, 1.5)
 	var wants_block := false
 	match training_dummy_mode:
 		"force_block":
@@ -435,8 +619,8 @@ func _should_ai_block(distance: float) -> bool:
 	var opponent_attack_state := str(opponent_attack_state_value)
 	if opponent_attack_state == "":
 		return false
-	if randf() < 0.35:
-		ai_block_time = 0.18
+	if randf() < _get_ai_profile_number("block_chance", 0.35):
+		ai_block_time = _get_ai_profile_number("block_hold_time", 0.18)
 	return ai_block_time > 0.0
 
 func _resolve_ai_guard_mode() -> String:
@@ -468,6 +652,7 @@ func apply_attack_table(resource: Resource) -> void:
 		return
 	attack_table_resource = resource
 	_setup_attack_data()
+	_refresh_ai_style_profile()
 
 func get_character_id() -> String:
 	if attack_table_resource:
@@ -486,6 +671,18 @@ func get_character_display_name() -> String:
 			if display_name != "":
 				return display_name
 	return "Player %d" % player_id
+
+func _refresh_ai_style_profile() -> void:
+	var character_id := get_character_id()
+	ai_style_profile = AI_PROFILE_DEFAULT.duplicate(true)
+	var override_value: Variant = AI_PROFILE_BY_CHARACTER.get(character_id, {})
+	if typeof(override_value) == TYPE_DICTIONARY:
+		var overrides := override_value as Dictionary
+		for key in overrides.keys():
+			ai_style_profile[str(key)] = overrides[key]
+
+func _get_ai_profile_number(key: String, fallback: float) -> float:
+	return float(ai_style_profile.get(key, fallback))
 
 func _update_attack(delta: float) -> void:
 	if attack_state == "":
@@ -521,6 +718,7 @@ func _update_attack(delta: float) -> void:
 		attack_startup_duration = 0.0
 		attack_active_duration = 0.0
 		attack_recovery_duration = 0.0
+		facing_locked = false
 		_set_hitbox_active(false)
 
 	if attack_phase in ["startup", "active"] and data.has("lunge_speed"):
@@ -558,6 +756,7 @@ func _update_skill_entities(delta: float) -> void:
 	if skill_entities.is_empty():
 		return
 	if opponent == null or not is_instance_valid(opponent):
+		_free_skill_entity_nodes(skill_entities)
 		skill_entities.clear()
 		return
 	var remaining_entities: Array[Dictionary] = []
@@ -567,12 +766,14 @@ func _update_skill_entities(delta: float) -> void:
 		var entity := (entity_variant as Dictionary).duplicate(true)
 		var delay := maxf(0.0, float(entity.get("delay", 0.0)) - delta)
 		entity["delay"] = delay
+		_update_skill_entity_visual(entity, true)
 		if delay > 0.0:
 			remaining_entities.append(entity)
 			continue
 		var life := maxf(0.0, float(entity.get("life", 0.0)) - delta)
 		entity["life"] = life
 		if life <= 0.0:
+			_free_skill_entity_node(entity)
 			continue
 		var velocity_value: Variant = entity.get("velocity", Vector2.ZERO)
 		var velocity_vec: Vector2 = velocity_value if velocity_value is Vector2 else Vector2.ZERO
@@ -585,9 +786,38 @@ func _update_skill_entities(delta: float) -> void:
 			var payload: Dictionary = entity.get("payload", {}) as Dictionary
 			_apply_skill_entity_hit(opponent, payload)
 			if destroy_on_hit:
+				_free_skill_entity_node(entity)
 				continue
 		remaining_entities.append(entity)
 	skill_entities = remaining_entities
+
+func _update_skill_entity_visual(entity: Dictionary, is_delayed: bool) -> void:
+	var node_value: Variant = entity.get("node", null)
+	if node_value == null or not (node_value is Node2D):
+		return
+	var node := node_value as Node2D
+	if not is_instance_valid(node):
+		return
+	var pos_value: Variant = entity.get("position", global_position)
+	var pos: Vector2 = pos_value if pos_value is Vector2 else global_position
+	node.global_position = pos
+	var alpha := 0.9
+	if is_delayed:
+		var phase := sin(float(Time.get_ticks_msec()) * 0.02)
+		alpha = 0.28 + (phase + 1.0) * 0.16
+	node.modulate.a = clampf(alpha, 0.2, 0.95)
+
+func _free_skill_entity_node(entity: Dictionary) -> void:
+	var node_value: Variant = entity.get("node", null)
+	if node_value == null or not (node_value is Node2D):
+		return
+	var node := node_value as Node2D
+	if is_instance_valid(node):
+		node.queue_free()
+
+func _free_skill_entity_nodes(entities: Array[Dictionary]) -> void:
+	for entry in entities:
+		_free_skill_entity_node(entry)
 
 func _skill_entity_hit_test(entity: Dictionary, target: Node2D) -> bool:
 	if target == null:
@@ -674,6 +904,8 @@ func _try_apply_attack_effect(data: Dictionary) -> void:
 func _spawn_skill_entity_from_effect(effect: Dictionary, data: Dictionary) -> void:
 	var size_value: Variant = effect.get("size", Vector2(26, 18))
 	var size: Vector2 = size_value if size_value is Vector2 else Vector2(26, 18)
+	size.x = maxf(SKILL_ENTITY_MIN_SIZE.x, size.x)
+	size.y = maxf(SKILL_ENTITY_MIN_SIZE.y, size.y)
 	var base_offset := float(effect.get("spawn_offset_x", 36.0))
 	var spawn_height := float(effect.get("spawn_offset_y", -14.0))
 	var start_position := global_position + Vector2(base_offset * facing, spawn_height)
@@ -704,7 +936,50 @@ func _spawn_skill_entity_from_effect(effect: Dictionary, data: Dictionary) -> vo
 		"destroy_on_hit": bool(effect.get("destroy_on_hit", true)),
 		"payload": payload
 	}
+	entity["node"] = _create_skill_entity_visual(str(entity.get("type", "projectile")), size, start_position)
 	skill_entities.append(entity)
+
+func _create_skill_entity_visual(effect_type: String, size: Vector2, start_position: Vector2) -> Node2D:
+	if get_parent() == null:
+		return null
+	var node := Node2D.new()
+	var sprite := Sprite2D.new()
+	sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	sprite.centered = true
+	sprite.z_index = 8
+	sprite.texture = _get_skill_entity_texture(effect_type, size)
+	node.add_child(sprite)
+	node.global_position = start_position
+	node.modulate = _get_skill_entity_color(effect_type)
+	get_parent().add_child(node)
+	return node
+
+func _get_skill_entity_texture(effect_type: String, size: Vector2) -> Texture2D:
+	var key := "%s:%dx%d" % [effect_type, int(round(size.x)), int(round(size.y))]
+	if skill_entity_texture_cache.has(key):
+		var cached: Variant = skill_entity_texture_cache.get(key, null)
+		if cached is Texture2D:
+			return cached as Texture2D
+	var fill := _get_skill_entity_color(effect_type)
+	var border := fill.darkened(0.45)
+	var image := Image.create(maxi(4, int(round(size.x))), maxi(4, int(round(size.y))), false, Image.FORMAT_RGBA8)
+	image.fill(Color(0.0, 0.0, 0.0, 0.0))
+	_draw_rect(image, Rect2i(0, 0, image.get_width(), image.get_height()), fill)
+	_draw_rect_outline(image, Rect2i(0, 0, image.get_width(), image.get_height()), border)
+	var texture := ImageTexture.create_from_image(image)
+	skill_entity_texture_cache[key] = texture
+	return texture
+
+func _get_skill_entity_color(effect_type: String) -> Color:
+	match effect_type:
+		"projectile":
+			return Color(1.0, 0.88, 0.48, 0.90)
+		"trap":
+			return Color(0.68, 0.94, 1.0, 0.85)
+		"summon":
+			return Color(0.86, 0.80, 1.0, 0.9)
+		_:
+			return Color(0.95, 0.95, 0.95, 0.86)
 
 func _apply_mobility_effect(effect: Dictionary) -> void:
 	var mode := str(effect.get("mode", "dash"))
@@ -756,12 +1031,8 @@ func _get_startup_multiplier_for_attack(kind: String) -> float:
 	return clampf(install_startup_multiplier, 0.55, 1.0)
 
 func _resolve_directional_special_kind() -> String:
-	var pressing_down := InputMap.has_action("move_down") and Input.is_action_pressed("move_down")
-	var pressing_forward := false
-	if facing >= 0:
-		pressing_forward = Input.is_action_pressed("move_right")
-	else:
-		pressing_forward = Input.is_action_pressed("move_left")
+	var pressing_down := down_input_buffer_time > 0.0
+	var pressing_forward := forward_input_buffer_time > 0.0
 	if pressing_forward and _has_attack_kind("signature_b"):
 		return "signature_b"
 	if pressing_down and _has_attack_kind("signature_c"):
@@ -973,24 +1244,56 @@ func _get_generated_skill_profile_for_character(character_id: String) -> Diction
 			return {}
 
 func _read_requested_attack() -> String:
-	if Input.is_action_just_pressed("attack_heavy") and Input.is_action_pressed("attack_special") and _can_trigger_attack_kind("ultimate"):
+	if _can_trigger_buffered_ultimate():
+		_consume_ultimate_chord_buffer()
 		return "ultimate"
 	if Input.is_action_just_pressed("attack_special"):
-		if Input.is_action_pressed("attack_heavy") and _can_trigger_attack_kind("ultimate"):
-			return "ultimate"
 		if not _is_silenced():
 			var special_kind := _resolve_directional_special_kind()
 			if special_kind != "":
+				special_input_buffer_time = 0.0
 				return special_kind
 			if _has_attack_kind("special"):
+				special_input_buffer_time = 0.0
 				return "special"
 	if Input.is_action_just_pressed("attack_light"):
 		return "light"
 	if Input.is_action_just_pressed("attack_heavy"):
+		heavy_input_buffer_time = 0.0
 		return "heavy"
 	if Input.is_action_just_pressed("throw"):
 		return "throw"
 	return ""
+
+func _update_command_input_buffers(delta: float) -> void:
+	forward_input_buffer_time = maxf(0.0, forward_input_buffer_time - delta)
+	down_input_buffer_time = maxf(0.0, down_input_buffer_time - delta)
+	special_input_buffer_time = maxf(0.0, special_input_buffer_time - delta)
+	heavy_input_buffer_time = maxf(0.0, heavy_input_buffer_time - delta)
+	if is_ai:
+		return
+	if _is_forward_input_pressed():
+		forward_input_buffer_time = DIRECTION_INPUT_BUFFER_SECONDS
+	if InputMap.has_action("move_down") and Input.is_action_pressed("move_down"):
+		down_input_buffer_time = DIRECTION_INPUT_BUFFER_SECONDS
+	if Input.is_action_just_pressed("attack_special"):
+		special_input_buffer_time = ULTIMATE_CHORD_BUFFER_SECONDS
+	if Input.is_action_just_pressed("attack_heavy"):
+		heavy_input_buffer_time = ULTIMATE_CHORD_BUFFER_SECONDS
+
+func _is_forward_input_pressed() -> bool:
+	if facing >= 0:
+		return InputMap.has_action("move_right") and Input.is_action_pressed("move_right")
+	return InputMap.has_action("move_left") and Input.is_action_pressed("move_left")
+
+func _can_trigger_buffered_ultimate() -> bool:
+	if special_input_buffer_time <= 0.0 or heavy_input_buffer_time <= 0.0:
+		return false
+	return _can_trigger_attack_kind("ultimate")
+
+func _consume_ultimate_chord_buffer() -> void:
+	special_input_buffer_time = 0.0
+	heavy_input_buffer_time = 0.0
 
 func _update_throw_tech_buffer(delta: float) -> void:
 	throw_tech_buffer_time = maxf(0.0, throw_tech_buffer_time - delta)
@@ -1129,6 +1432,8 @@ func _start_attack(kind: String) -> void:
 	attack_startup_duration = float(data.get("startup", 0.06)) * _get_startup_multiplier_for_attack(kind)
 	attack_active_duration = float(data.get("active", 0.10))
 	attack_recovery_duration = float(data.get("recovery", 0.20))
+	facing_locked = true
+	facing_locked_direction = facing
 	hit_targets.clear()
 	_set_hitbox_active(false)
 	_apply_hitbox_profile()
@@ -1150,7 +1455,9 @@ func _set_hitbox_active(active: bool) -> void:
 		hitbox_shape.set_deferred("disabled", not active)
 
 func _update_facing() -> void:
-	if opponent:
+	if facing_locked:
+		facing = facing_locked_direction
+	elif opponent:
 		facing = -1 if opponent.global_position.x < global_position.x else 1
 	hitbox.position = Vector2(hitbox_offset.x * facing, hitbox_offset.y)
 	if visual:
@@ -1179,10 +1486,13 @@ func _update_visual() -> void:
 		animation = StringName(attack_state)
 	elif not is_on_floor():
 		animation = &"jump"
-	elif absf(velocity.x) > 20.0:
+	elif absf(velocity.x) > WALK_ANIMATION_SPEED_THRESHOLD:
 		animation = &"walk"
 
 	animation = _resolve_visual_animation(animation)
+	var animation_speed := _resolve_attack_animation_speed_scale(animation)
+	if not is_equal_approx(visual.speed_scale, animation_speed):
+		visual.speed_scale = animation_speed
 
 	if visual.animation != animation:
 		visual.play(animation)
@@ -1371,13 +1681,28 @@ func _try_execute_buffered_cancel() -> bool:
 func _plan_ai_combo_follow_up(was_blocked: bool) -> void:
 	if not is_ai:
 		return
+	var pressure := _get_ai_profile_number("combo_pressure", 0.52)
 	if attack_state == "light":
-		if was_blocked and randf() < 0.35:
-			_buffer_attack("heavy")
-		elif not was_blocked and randf() < 0.55:
-			_buffer_attack("heavy")
-	elif attack_state == "heavy" and not was_blocked and randf() < 0.50:
-		_buffer_attack("special")
+		var chance := pressure * (0.62 if was_blocked else 1.0)
+		if randf() < chance:
+			var extension := _select_ai_combo_extension(was_blocked)
+			if extension != "":
+				_buffer_attack(extension)
+	elif attack_state == "heavy" and not was_blocked and randf() < pressure * 0.78:
+		var extension := _select_ai_combo_extension(false)
+		if extension != "":
+			_buffer_attack(extension)
+
+func _select_ai_combo_extension(was_blocked: bool) -> String:
+	var preferred: Array[String] = []
+	if was_blocked:
+		preferred = ["throw", "heavy", "signature_b", "light"]
+	else:
+		preferred = ["heavy", "special", "signature_b", "signature_a", "light"]
+	for kind in preferred:
+		if _can_trigger_ai_attack_kind(kind):
+			return kind
+	return ""
 
 func _record_combo_hit(target: Node) -> int:
 	if combo_target == target and combo_chain_timer > 0.0:
@@ -1545,6 +1870,7 @@ func _apply_block_impact(
 	attack_startup_duration = 0.0
 	attack_active_duration = 0.0
 	attack_recovery_duration = 0.0
+	facing_locked = false
 	next_attack_is_counter = false
 	_set_hitbox_active(false)
 
@@ -1689,6 +2015,7 @@ func apply_damage(
 	attack_startup_duration = 0.0
 	attack_active_duration = 0.0
 	attack_recovery_duration = 0.0
+	facing_locked = false
 	getup_time = 0.0
 	wake_invuln_time = 0.0
 	tech_slide_time = 0.0
@@ -1732,6 +2059,21 @@ func get_last_training_info() -> Dictionary:
 func get_hype_meter() -> float:
 	return hype_meter
 
+func get_runtime_status_snapshot() -> Dictionary:
+	return {
+		"hype": hype_meter,
+		"silence_seconds": status_silence_time,
+		"slow_seconds": status_slow_time,
+		"root_seconds": status_root_time,
+		"install_seconds": install_buff_time,
+		"cooldowns": {
+			"signature_a": float(skill_cooldowns.get("signature_a", 0.0)),
+			"signature_b": float(skill_cooldowns.get("signature_b", 0.0)),
+			"signature_c": float(skill_cooldowns.get("signature_c", 0.0)),
+			"ultimate": float(skill_cooldowns.get("ultimate", 0.0))
+		}
+	}
+
 func get_skill_cooldown_remaining(kind: String) -> float:
 	return float(skill_cooldowns.get(kind, 0.0))
 
@@ -1765,6 +2107,25 @@ func _resolve_visual_animation(animation_name: StringName) -> StringName:
 		return &"idle"
 	return animation_name
 
+func _resolve_attack_animation_speed_scale(animation_name: StringName) -> float:
+	if attack_state == "":
+		return 1.0
+	var attack_animation := StringName(attack_state)
+	var is_attack_animation := animation_name == attack_animation
+	if not is_attack_animation and animation_name == &"special" and attack_state in ["signature_a", "signature_b", "signature_c", "ultimate"]:
+		is_attack_animation = true
+	if not is_attack_animation:
+		return 1.0
+	match attack_phase:
+		"startup":
+			return 0.90
+		"active":
+			return 1.18
+		"recovery":
+			return 0.82
+		_:
+			return 1.0
+
 func _resolve_hit_reaction_animation(knockback: Vector2, hitstun_override: float) -> StringName:
 	var heavy_hit := hitstun_override >= 0.20 or absf(knockback.y) >= 140.0
 	if heavy_hit and _has_runtime_animation(&"hit_heavy"):
@@ -1783,6 +2144,7 @@ func _has_runtime_animation(animation_name: StringName) -> bool:
 func _start_dash() -> void:
 	if _is_rooted():
 		return
+	facing_locked = false
 	is_dashing = true
 	is_blocking = false
 	dash_time = DASH_DURATION
