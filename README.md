@@ -49,8 +49,8 @@ python3 scripts/tools/auto_generate_assets.py --dry-run --status queued --limit 
 ```
 
 For full setup and operating workflow, see:
-- `docs/AI_AUTOMATION_WORKFLOW.md`
-- `docs/AI_ART_TEMPLATE_PACK.md`
-- `docs/AI_ASSET_WORKFLOW.md`
+- `docs/art/AI_AUTOMATION_WORKFLOW.md`
+- `docs/art/AI_ART_TEMPLATE_PACK.md`
+- `docs/art/AI_ASSET_WORKFLOW.md`
 
 <img width="800" height="800" alt="image" src="https://github.com/user-attachments/assets/f50265ab-67dd-47fc-8af7-55a8c1ae7fac" />

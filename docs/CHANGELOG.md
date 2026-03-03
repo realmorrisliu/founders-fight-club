@@ -29,12 +29,12 @@
 - **Restart**: Added Match Restart (Key: `R`) logic and input mapping.
 - **Pause**: Added Pause toggle (Key: `Esc`).
 - **UI**: Added "Press R to Restart" prompt and localized result text hooks.
-- **AI Art Template Pack**: Added `docs/AI_ART_TEMPLATE_PACK.md` with reusable templates for style lock, manifest, prompts, naming, and QA.
-- **AI Art Execution Guide (2026)**: Added `docs/AI_ART_EXECUTION_GUIDE_2026.md` with model routing, production workflow, rollout plan, and risk controls.
+- **AI Art Template Pack**: Added `docs/art/AI_ART_TEMPLATE_PACK.md` with reusable templates for style lock, manifest, prompts, naming, and QA.
+- **AI Art Execution Guide (2026)**: Added `docs/art/AI_ART_EXECUTION_GUIDE_2026.md` with model routing, production workflow, rollout plan, and risk controls.
 - **Asset Manifest (16 Launch Fighters)**: Added `assets/pipeline/asset_manifest.csv` with initial P0/P1 art queue and model routes.
 - **Wave 1 Character Briefs**: Added 8 production briefs under `assets/pipeline/character_briefs/` for Wave 1 generation setup.
 - **AI Asset Auto-Generator**: Added `scripts/tools/auto_generate_assets.py` for manifest-driven provider API generation and optional manifest write-back.
-- **AI Automation Workflow Doc**: Added `docs/AI_AUTOMATION_WORKFLOW.md` with key setup, dry-run, wave commands, and refinement flow.
+- **AI Automation Workflow Doc**: Added `docs/art/AI_AUTOMATION_WORKFLOW.md` with key setup, dry-run, wave commands, and refinement flow.
 - **Doubao/Volcengine Provider Support**: Extended `auto_generate_assets.py` with Volcengine image routing (`doubao40`, `doubao45`, `doubao5lite`, `ep-...`, `volc:<model>`).
 - **Manifest Route Standardization**: Updated `assets/pipeline/asset_manifest.csv` default model routes to `doubao45` / `doubao45->gpt15`.
 - **Docs Consistency Pass**: Updated README and AI art docs to reflect current Doubao-first workflow and automation entrypoints.

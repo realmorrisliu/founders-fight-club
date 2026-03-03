@@ -3,8 +3,8 @@
 This template pack is for producing the launch roster (16 characters) with consistent style, faster iteration, and easier integration into Godot.
 
 Use this together with:
-- `docs/AI_ASSET_WORKFLOW.md`
-- `docs/ART_PIPELINE.md`
+- `docs/art/AI_ASSET_WORKFLOW.md`
+- `docs/art/ART_PIPELINE.md`
 
 ---
 
@@ -151,7 +151,7 @@ assets/
 Naming:
 - Character id: `snake_case`
 - Runtime asset file: `<character_id>_<asset_type>_<variant>.png`
-- Keep frame names compatible with `docs/ART_PIPELINE.md` when exporting animation frames.
+- Keep frame names compatible with `docs/art/ART_PIPELINE.md` when exporting animation frames.
 
 ---
 

@@ -53,7 +53,7 @@ Rules:
 ## 4) End-to-End Production Workflow
 
 1. Freeze style:
-- Lock `Style Lock Card v1` once (see `docs/AI_ART_TEMPLATE_PACK.md`).
+- Lock `Style Lock Card v1` once (see `docs/art/AI_ART_TEMPLATE_PACK.md`).
 
 2. Define character anchors:
 - For each character: `face_anchor`, `full_body_anchor`, `signature_pose_anchor`.

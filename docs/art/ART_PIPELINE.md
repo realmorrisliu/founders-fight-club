@@ -438,4 +438,4 @@ godot --headless --path . --script scripts/tools/ImportCharacterSpriteFrames.gd 
 ```
 
 See also:
-- `docs/AI_ASSET_WORKFLOW.md` for an end-to-end AI-assisted production workflow
+- `docs/art/AI_ASSET_WORKFLOW.md` for an end-to-end AI-assisted production workflow

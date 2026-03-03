@@ -3,16 +3,16 @@
 This version defines a launch-ready 16-character cast for viral, comedy-first Silicon Valley parody fighting.
 
 Detailed per-character sheets live in:
-- `docs/ROSTER_16_DETAIL.md`
+- `docs/content/ROSTER_16_DETAIL.md`
 
 Development balance/priority matrix lives in:
-- `docs/ROSTER_16_DEV_TABLE.md`
+- `docs/content/ROSTER_16_DEV_TABLE.md`
 
 Wave 1 concrete AttackTable drafts live in:
-- `docs/WAVE1_ATTACKTABLE_DRAFT.md`
+- `docs/content/WAVE1_ATTACKTABLE_DRAFT.md`
 
 Dialogue pack spec and source file live in:
-- `docs/DIALOGUE_PACK_V1.md`
+- `docs/content/DIALOGUE_PACK_V1.md`
 
 ## 1. Direction Lock
 

@@ -3,7 +3,7 @@
 This workflow is for developers with little or no drawing experience.
 
 For API-key-driven bulk generation automation, see:
-- `docs/AI_AUTOMATION_WORKFLOW.md`
+- `docs/art/AI_AUTOMATION_WORKFLOW.md`
 
 The key idea:
 - AI generates candidate art and key poses
