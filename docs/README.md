@@ -38,6 +38,8 @@ Recommended read order for asset production:
   - High-level launch narrative and roster direction
 - `ROSTER_16_DETAIL.md`
   - Detailed sheets for all 16 fighters
+- `SPECIAL_SKILL_DESIGN_V1.md`
+  - Full per-fighter Signature A/B/C + Ultimate gameplay design spec
 - `ROSTER_16_DEV_TABLE.md`
   - Balance/production matrix and wave priorities
 - `WAVE1_ATTACKTABLE_DRAFT.md`
@@ -49,7 +51,8 @@ Recommended read order for gameplay content:
 1. `CONTENT_BIBLE.md`
 2. `ROSTER_16_DEV_TABLE.md`
 3. `ROSTER_16_DETAIL.md`
-4. `DIALOGUE_PACK_V1.md`
+4. `SPECIAL_SKILL_DESIGN_V1.md`
+5. `DIALOGUE_PACK_V1.md`
 
 ## Project Docs (`docs/project/`)
 
@@ -57,6 +60,10 @@ Recommended read order for gameplay content:
   - MVP scope and early goals
 - `TEST_PLAN.md`
   - Test/verification checklist
+- `SKILL_IMPLEMENTATION_TASKS.md`
+  - Step-by-step task backlog and automated test gates for roster skill rollout
+- `SKILL_RUNTIME_ARCHITECTURE.md`
+  - Runtime skill system architecture, data contract, and coverage strategy
 
 ## Change Tracking
 

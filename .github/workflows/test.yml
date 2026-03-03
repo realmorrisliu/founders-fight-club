@@ -1,0 +1,21 @@
+name: Headless Tests
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  smoke:
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Godot
+        run: brew install godot
+
+      - name: Run headless test suite
+        run: bash scripts/test.sh smoke

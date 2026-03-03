@@ -7,6 +7,26 @@ Verify the implementation of MVP features: Dash, Hitstun, Restart, Pause, Camera
 - Godot 4.2+ installed.
 - Gamepad connected (optional, verifying keyboard inputs first).
 
+## 2.1 Automated Regression (Required)
+- Command: `just test`
+- Entrypoint: `tests/TestRunner.gd` (headless)
+- Scope:
+	- Scene boot smoke checks (`Menu`, `Main`, `Training`)
+	- Character attack-table structural validation
+	- Core damage/block flow validation
+	- Skill runtime primitive validation (cooldown/status/effects)
+	- Wave1 explicit skill wiring validation
+	- Full 16-roster runtime signature coverage validation
+
+## 2.2 CI Automation
+- Workflow: `.github/workflows/test.yml`
+- Trigger:
+	- Every pull request
+	- Every push to `main`
+- Gate:
+	- Runs `scripts/test.sh smoke` in a clean environment
+	- Build is considered failed if any smoke assertion or script/runtime parse check fails
+
 ## 3. Test Cases
 
 ### TC-01: Dash

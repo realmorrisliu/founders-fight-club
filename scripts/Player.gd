@@ -44,11 +44,24 @@ const PLACEHOLDER_FRAME_SIZE := Vector2i(24, 48)
 const OUTLINE_COLOR := Color(0.09, 0.09, 0.09, 1.0)
 const DEFAULT_SPRITE_FRAMES_PATH := "res://assets/sprites/player/PlayerSpriteFrames.tres"
 const DEFAULT_ATTACK_TABLE_PATH := "res://assets/data/PlayerAttackTable.tres"
+const HYPE_MAX := 100.0
+const HYPE_GAIN_ON_HIT := 12.0
+const HYPE_GAIN_ON_BLOCK := 6.0
+const HYPE_GAIN_ON_TAKING_HIT := 4.0
+const SKILL_ENTITY_TARGET_HEIGHT_OFFSET := 22.0
+const SIGNATURE_ATTACK_KEYS := ["signature_a", "signature_b", "signature_c", "ultimate"]
+const STATUS_SILENCE_CAP_SECONDS := 1.6
+const STATUS_SLOW_CAP_SECONDS := 1.2
+const STATUS_ROOT_CAP_SECONDS := 0.5
 const BLOCK_CHIP_BY_ATTACK := {
 	"light": 0.0,
 	"heavy": 0.08,
 	"special": 0.12,
-	"throw": 0.0
+	"throw": 0.0,
+	"signature_a": 0.10,
+	"signature_b": 0.12,
+	"signature_c": 0.12,
+	"ultimate": 0.15
 }
 const REQUIRED_ANIMATION_NAMES := [
 	"idle",
@@ -173,6 +186,22 @@ var training_dummy_enabled := false
 var training_dummy_mode := "stand"
 var training_random_block_hold_time := 0.0
 var training_random_block_signature := ""
+var skill_cooldowns: Dictionary = {}
+var skill_entities: Array[Dictionary] = []
+var attack_effect_triggered := false
+var attack_startup_duration := 0.0
+var attack_active_duration := 0.0
+var attack_recovery_duration := 0.0
+var status_silence_time := 0.0
+var status_slow_time := 0.0
+var status_slow_factor := 0.65
+var status_root_time := 0.0
+var install_buff_time := 0.0
+var install_damage_multiplier := 1.0
+var install_speed_multiplier := 1.0
+var install_startup_multiplier := 1.0
+var install_chip_bonus := 0.0
+var hype_meter := 0.0
 
 @onready var hitbox := $Hitbox as Area2D
 @onready var hitbox_shape := $Hitbox/CollisionShape2D
@@ -193,6 +222,7 @@ func _physics_process(delta: float) -> void:
 		velocity.y += gravity * delta
 	guard_counter_time = maxf(0.0, guard_counter_time - delta)
 	wake_invuln_time = maxf(0.0, wake_invuln_time - delta)
+	_update_skill_runtime(delta)
 	_update_throw_tech_buffer(delta)
 	_update_attack_buffer(delta)
 	_update_combo_chain(delta)
@@ -262,26 +292,29 @@ func _physics_process(delta: float) -> void:
 func _process_player_input() -> void:
 	if attack_state == "":
 		var move_axis := Input.get_axis("move_left", "move_right")
+		if _is_rooted():
+			move_axis = 0.0
+		var move_speed := MOVE_SPEED * _get_move_speed_multiplier()
 		var wants_block := _can_enter_block() and InputMap.has_action("block") and Input.is_action_pressed("block")
 		if wants_block:
 			is_blocking = true
 			if is_on_floor():
-				velocity.x = move_axis * MOVE_SPEED * BLOCK_WALK_SPEED_FACTOR
+				velocity.x = move_axis * move_speed * BLOCK_WALK_SPEED_FACTOR
 			else:
-				velocity.x = move_axis * MOVE_SPEED * 0.45
+				velocity.x = move_axis * move_speed * 0.45
 			if is_on_floor() and Input.is_action_just_pressed("jump"):
 				is_blocking = false
 				velocity.y = JUMP_VELOCITY
 			return
 
 		is_blocking = false
-		velocity.x = move_axis * MOVE_SPEED
+		velocity.x = move_axis * move_speed
 		if is_on_floor() and Input.is_action_just_pressed("jump"):
 			velocity.y = JUMP_VELOCITY
 		var requested_attack := _read_requested_attack()
 		if requested_attack != "":
 			_request_attack(requested_attack)
-		elif Input.is_action_just_pressed("dash") and dash_cooldown_timer <= 0.0 and is_on_floor():
+		elif Input.is_action_just_pressed("dash") and dash_cooldown_timer <= 0.0 and is_on_floor() and not _is_rooted():
 			_start_dash()
 	else:
 		is_blocking = false
@@ -295,6 +328,7 @@ func _process_ai(delta: float) -> void:
 		return
 	ai_attack_cooldown = maxf(0.0, ai_attack_cooldown - delta)
 	var distance = opponent.global_position.x - global_position.x
+	var ai_move_speed := MOVE_SPEED * _get_move_speed_multiplier()
 	if attack_state == "":
 		if _should_ai_block(distance):
 			is_blocking = true
@@ -305,11 +339,14 @@ func _process_ai(delta: float) -> void:
 		is_blocking = false
 		ai_guard_mode = "high"
 		if absf(distance) > 48.0:
-			velocity.x = sign(distance) * MOVE_SPEED * 0.7
+			velocity.x = 0.0 if _is_rooted() else sign(distance) * ai_move_speed * 0.7
 		else:
 			velocity.x = 0.0
 			if ai_attack_cooldown <= 0.0:
-				_request_attack("light")
+				var ai_attack_kind := "signature_a" if _has_attack_kind("signature_a") and _can_trigger_attack_kind("signature_a") and randf() < 0.18 else "light"
+				if _is_silenced() and ai_attack_kind in ["special", "signature_a", "signature_b", "signature_c", "ultimate"]:
+					ai_attack_kind = "light"
+				_request_attack(ai_attack_kind)
 				ai_attack_cooldown = 0.6
 	else:
 		is_blocking = false
@@ -458,14 +495,17 @@ func _update_attack(delta: float) -> void:
 	_apply_hitbox_profile()
 	attack_time += delta
 	var data := _get_attack_data(attack_state)
-	var recovery_duration := float(data["recovery"])
+	var startup_duration := attack_startup_duration if attack_startup_duration > 0.0 else float(data.get("startup", 0.06))
+	var active_duration := attack_active_duration if attack_active_duration > 0.0 else float(data.get("active", 0.10))
+	var recovery_duration := attack_recovery_duration if attack_recovery_duration > 0.0 else float(data.get("recovery", 0.20))
 	if attack_recovery_override > 0.0:
 		recovery_duration = attack_recovery_override
-	if attack_phase == "startup" and attack_time >= data["startup"]:
+	if attack_phase == "startup" and attack_time >= startup_duration:
 		attack_phase = "active"
 		attack_time = 0.0
 		_set_hitbox_active(true)
-	elif attack_phase == "active" and attack_time >= data["active"]:
+		_on_attack_active_started(data)
+	elif attack_phase == "active" and attack_time >= active_duration:
 		attack_phase = "recovery"
 		attack_time = 0.0
 		_set_hitbox_active(false)
@@ -477,18 +517,477 @@ func _update_attack(delta: float) -> void:
 		next_attack_is_counter = false
 		attack_confirmed_hit = false
 		attack_confirmed_block = false
+		attack_effect_triggered = false
+		attack_startup_duration = 0.0
+		attack_active_duration = 0.0
+		attack_recovery_duration = 0.0
 		_set_hitbox_active(false)
 
-	if attack_state == "special" and attack_phase in ["startup", "active"]:
+	if attack_phase in ["startup", "active"] and data.has("lunge_speed"):
 		velocity.x = float(data.get("lunge_speed", 320.0)) * facing
 
+func _update_skill_runtime(delta: float) -> void:
+	_update_skill_cooldowns(delta)
+	_update_status_timers(delta)
+	_update_skill_entities(delta)
+
+func _update_skill_cooldowns(delta: float) -> void:
+	if skill_cooldowns.is_empty():
+		return
+	var keys := skill_cooldowns.keys()
+	for key in keys:
+		var cooldown_key := str(key)
+		var remaining := maxf(0.0, float(skill_cooldowns.get(cooldown_key, 0.0)) - delta)
+		if remaining <= 0.0:
+			skill_cooldowns.erase(cooldown_key)
+		else:
+			skill_cooldowns[cooldown_key] = remaining
+
+func _update_status_timers(delta: float) -> void:
+	status_silence_time = maxf(0.0, status_silence_time - delta)
+	status_slow_time = maxf(0.0, status_slow_time - delta)
+	status_root_time = maxf(0.0, status_root_time - delta)
+	install_buff_time = maxf(0.0, install_buff_time - delta)
+	if install_buff_time <= 0.0:
+		install_damage_multiplier = 1.0
+		install_speed_multiplier = 1.0
+		install_startup_multiplier = 1.0
+		install_chip_bonus = 0.0
+
+func _update_skill_entities(delta: float) -> void:
+	if skill_entities.is_empty():
+		return
+	if opponent == null or not is_instance_valid(opponent):
+		skill_entities.clear()
+		return
+	var remaining_entities: Array[Dictionary] = []
+	for entity_variant in skill_entities:
+		if typeof(entity_variant) != TYPE_DICTIONARY:
+			continue
+		var entity := (entity_variant as Dictionary).duplicate(true)
+		var delay := maxf(0.0, float(entity.get("delay", 0.0)) - delta)
+		entity["delay"] = delay
+		if delay > 0.0:
+			remaining_entities.append(entity)
+			continue
+		var life := maxf(0.0, float(entity.get("life", 0.0)) - delta)
+		entity["life"] = life
+		if life <= 0.0:
+			continue
+		var velocity_value: Variant = entity.get("velocity", Vector2.ZERO)
+		var velocity_vec: Vector2 = velocity_value if velocity_value is Vector2 else Vector2.ZERO
+		var position_value: Variant = entity.get("position", global_position)
+		var position_vec: Vector2 = position_value if position_value is Vector2 else global_position
+		position_vec += velocity_vec * delta
+		entity["position"] = position_vec
+		var destroy_on_hit := bool(entity.get("destroy_on_hit", true))
+		if _skill_entity_hit_test(entity, opponent):
+			var payload: Dictionary = entity.get("payload", {}) as Dictionary
+			_apply_skill_entity_hit(opponent, payload)
+			if destroy_on_hit:
+				continue
+		remaining_entities.append(entity)
+	skill_entities = remaining_entities
+
+func _skill_entity_hit_test(entity: Dictionary, target: Node2D) -> bool:
+	if target == null:
+		return false
+	var position_value: Variant = entity.get("position", Vector2.ZERO)
+	var entity_pos: Vector2 = position_value if position_value is Vector2 else Vector2.ZERO
+	var size_value: Variant = entity.get("size", Vector2(26, 18))
+	var entity_size: Vector2 = size_value if size_value is Vector2 else Vector2(26, 18)
+	var target_half_size := _get_target_body_half_size(target)
+	var target_pos := target.global_position + Vector2(0.0, -SKILL_ENTITY_TARGET_HEIGHT_OFFSET)
+	return absf(entity_pos.x - target_pos.x) <= (entity_size.x * 0.5 + target_half_size.x) and absf(entity_pos.y - target_pos.y) <= (entity_size.y * 0.5 + target_half_size.y)
+
+func _get_target_body_half_size(target: Node2D) -> Vector2:
+	if target.has_node("CollisionShape2D"):
+		var shape_node := target.get_node("CollisionShape2D") as CollisionShape2D
+		if shape_node and shape_node.shape is RectangleShape2D:
+			var rect := shape_node.shape as RectangleShape2D
+			return rect.size * 0.5
+	return Vector2(12.0, 24.0)
+
+func _apply_skill_entity_hit(target: Node, payload: Dictionary) -> void:
+	if target == null or not target.has_method("apply_damage"):
+		return
+	var kind := str(payload.get("attack_kind", "signature_a"))
+	var base_damage := int(payload.get("damage", 8))
+	var damage := int(round(float(base_damage) * _get_damage_multiplier_for_attack(kind)))
+	var hitstun := float(payload.get("hitstun", HITSTUN_SECONDS))
+	var knockback_value: Variant = payload.get("knockback", Vector2(180, -70))
+	var knockback: Vector2 = knockback_value if knockback_value is Vector2 else Vector2(180, -70)
+	knockback.x *= facing
+	var meta := {
+		"blockstun": float(payload.get("blockstun", BLOCKSTUN_SECONDS)),
+		"counter": false,
+		"block_type": str(payload.get("block_type", "mid")),
+		"air_blockable": bool(payload.get("air_blockable", true)),
+		"throw_techable": bool(payload.get("throw_techable", false)),
+		"silence_seconds": float(payload.get("silence_seconds", 0.0)),
+		"slow_seconds": float(payload.get("slow_seconds", 0.0)),
+		"slow_factor": float(payload.get("slow_factor", 0.65)),
+		"root_seconds": float(payload.get("root_seconds", 0.0)),
+		"status_scale_on_block": float(payload.get("status_scale_on_block", 0.5)),
+		"chip_bonus": install_chip_bonus
+	}
+	var hit_result: Variant = target.call("apply_damage", damage, knockback, hitstun, kind, meta)
+	if typeof(hit_result) != TYPE_DICTIONARY:
+		return
+	var result_dict := hit_result as Dictionary
+	if bool(result_dict.get("ignored", false)):
+		return
+	if bool(result_dict.get("blocked", false)):
+		_gain_hype(HYPE_GAIN_ON_BLOCK)
+		blocked_landed.emit(self, target, kind)
+	else:
+		_gain_hype(HYPE_GAIN_ON_HIT)
+		var combo_count := _record_combo_hit(target)
+		if result_dict.has("damage_total"):
+			_record_combo_damage(int(result_dict.get("damage_total", 0)))
+		hit_landed.emit(self, target, kind, false, combo_count)
+
+func _on_attack_active_started(data: Dictionary) -> void:
+	if attack_effect_triggered:
+		return
+	attack_effect_triggered = true
+	_try_apply_attack_effect(data)
+
+func _try_apply_attack_effect(data: Dictionary) -> void:
+	var effect_value: Variant = data.get("effect", {})
+	if typeof(effect_value) != TYPE_DICTIONARY:
+		return
+	var effect := effect_value as Dictionary
+	var effect_type := str(effect.get("type", ""))
+	match effect_type:
+		"projectile", "trap", "summon":
+			_spawn_skill_entity_from_effect(effect, data)
+		"mobility":
+			_apply_mobility_effect(effect)
+		"buff":
+			var buff_value: Variant = effect.get("buff", {})
+			if typeof(buff_value) == TYPE_DICTIONARY:
+				_apply_install_buff(buff_value as Dictionary)
+		_:
+			pass
+
+func _spawn_skill_entity_from_effect(effect: Dictionary, data: Dictionary) -> void:
+	var size_value: Variant = effect.get("size", Vector2(26, 18))
+	var size: Vector2 = size_value if size_value is Vector2 else Vector2(26, 18)
+	var base_offset := float(effect.get("spawn_offset_x", 36.0))
+	var spawn_height := float(effect.get("spawn_offset_y", -14.0))
+	var start_position := global_position + Vector2(base_offset * facing, spawn_height)
+	var speed := float(effect.get("speed", 260.0))
+	var velocity := Vector2(speed * facing, float(effect.get("velocity_y", 0.0)))
+	var payload := {
+		"attack_kind": attack_state,
+		"damage": int(effect.get("damage", int(data.get("damage", 10)))),
+		"hitstun": float(effect.get("hitstun", float(data.get("hitstun", HITSTUN_SECONDS)))),
+		"blockstun": float(effect.get("blockstun", float(data.get("blockstun", BLOCKSTUN_SECONDS)))),
+		"block_type": str(effect.get("block_type", str(data.get("block_type", "mid")))),
+		"air_blockable": bool(effect.get("air_blockable", bool(data.get("air_blockable", true)))),
+		"throw_techable": bool(effect.get("throw_techable", false)),
+		"knockback": effect.get("knockback", data.get("knockback_ground", Vector2(180, -80))),
+		"silence_seconds": float(effect.get("silence_seconds", 0.0)),
+		"slow_seconds": float(effect.get("slow_seconds", 0.0)),
+		"slow_factor": float(effect.get("slow_factor", 0.65)),
+		"root_seconds": float(effect.get("root_seconds", 0.0)),
+		"status_scale_on_block": float(effect.get("status_scale_on_block", 0.5))
+	}
+	var entity := {
+		"type": str(effect.get("type", "projectile")),
+		"position": start_position,
+		"velocity": velocity if str(effect.get("type", "")) != "trap" else Vector2.ZERO,
+		"size": size,
+		"life": float(effect.get("duration", 0.9)),
+		"delay": float(effect.get("spawn_delay", 0.0)),
+		"destroy_on_hit": bool(effect.get("destroy_on_hit", true)),
+		"payload": payload
+	}
+	skill_entities.append(entity)
+
+func _apply_mobility_effect(effect: Dictionary) -> void:
+	var mode := str(effect.get("mode", "dash"))
+	match mode:
+		"teleport":
+			var distance := float(effect.get("distance", 120.0))
+			global_position.x += distance * facing
+			velocity.x = 0.0
+		"rising":
+			velocity.y = -absf(float(effect.get("rise_speed", 320.0)))
+			velocity.x = float(effect.get("forward_speed", 120.0)) * facing
+		_:
+			velocity.x = float(effect.get("speed", 360.0)) * facing
+
+func _apply_install_buff(buff: Dictionary) -> void:
+	install_buff_time = maxf(install_buff_time, float(buff.get("duration", 4.0)))
+	install_damage_multiplier = maxf(install_damage_multiplier, float(buff.get("damage_multiplier", 1.0)))
+	install_speed_multiplier = maxf(install_speed_multiplier, float(buff.get("speed_multiplier", 1.0)))
+	install_startup_multiplier = minf(install_startup_multiplier, float(buff.get("startup_multiplier", 1.0)))
+	install_chip_bonus = maxf(install_chip_bonus, float(buff.get("chip_bonus", 0.0)))
+
+func _is_signature_attack(kind: String) -> bool:
+	return kind in SIGNATURE_ATTACK_KEYS
+
+func _is_silenced() -> bool:
+	return status_silence_time > 0.0
+
+func _is_rooted() -> bool:
+	return status_root_time > 0.0
+
+func _get_move_speed_multiplier() -> float:
+	var multiplier := install_speed_multiplier
+	if status_slow_time > 0.0:
+		multiplier *= status_slow_factor
+	return clampf(multiplier, 0.2, 2.0)
+
+func _get_damage_multiplier_for_attack(kind: String) -> float:
+	if install_buff_time <= 0.0:
+		return 1.0
+	if kind == "throw":
+		return 1.0
+	return maxf(1.0, install_damage_multiplier)
+
+func _get_startup_multiplier_for_attack(kind: String) -> float:
+	if install_buff_time <= 0.0:
+		return 1.0
+	if kind == "throw":
+		return 1.0
+	return clampf(install_startup_multiplier, 0.55, 1.0)
+
+func _resolve_directional_special_kind() -> String:
+	var pressing_down := InputMap.has_action("move_down") and Input.is_action_pressed("move_down")
+	var pressing_forward := false
+	if facing >= 0:
+		pressing_forward = Input.is_action_pressed("move_right")
+	else:
+		pressing_forward = Input.is_action_pressed("move_left")
+	if pressing_forward and _has_attack_kind("signature_b"):
+		return "signature_b"
+	if pressing_down and _has_attack_kind("signature_c"):
+		return "signature_c"
+	if _has_attack_kind("signature_a"):
+		return "signature_a"
+	return ""
+
+func _can_trigger_attack_kind(kind: String) -> bool:
+	if kind == "":
+		return false
+	if not _has_attack_kind(kind):
+		return false
+	if _is_signature_attack(kind) and _is_silenced():
+		return false
+	var cooldown := float(skill_cooldowns.get(kind, 0.0))
+	if cooldown > 0.0:
+		return false
+	if kind == "ultimate" and hype_meter < HYPE_MAX:
+		return false
+	return true
+
+func _start_skill_cooldown_for_kind(kind: String) -> void:
+	var data := _get_attack_data(kind)
+	var cooldown := float(data.get("cooldown", 0.0))
+	if cooldown <= 0.0:
+		return
+	skill_cooldowns[kind] = cooldown
+
+func _consume_hype_for_attack(kind: String) -> void:
+	if kind != "ultimate":
+		return
+	hype_meter = maxf(0.0, hype_meter - HYPE_MAX)
+
+func _gain_hype(amount: float) -> void:
+	hype_meter = clampf(hype_meter + amount, 0.0, HYPE_MAX)
+
+func _build_attack_meta(data: Dictionary, is_counter_hit: bool) -> Dictionary:
+	var meta := {
+		"blockstun": float(data.get("blockstun", BLOCKSTUN_SECONDS)),
+		"counter": is_counter_hit,
+		"block_type": str(data.get("block_type", "mid")),
+		"air_blockable": bool(data.get("air_blockable", true)),
+		"throw_techable": bool(data.get("throw_techable", false)),
+		"chip_bonus": install_chip_bonus
+	}
+	var control_value: Variant = data.get("control", {})
+	if typeof(control_value) == TYPE_DICTIONARY:
+		var control := control_value as Dictionary
+		meta["silence_seconds"] = float(control.get("silence_seconds", 0.0))
+		meta["slow_seconds"] = float(control.get("slow_seconds", 0.0))
+		meta["slow_factor"] = float(control.get("slow_factor", 0.65))
+		meta["root_seconds"] = float(control.get("root_seconds", 0.0))
+		meta["status_scale_on_block"] = float(control.get("status_scale_on_block", 0.5))
+	return meta
+
+func _apply_status_from_meta(attack_meta: Dictionary, blocked: bool) -> void:
+	if attack_meta.is_empty():
+		return
+	var scale := 1.0
+	if blocked:
+		scale = clampf(float(attack_meta.get("status_scale_on_block", 0.5)), 0.0, 1.0)
+	var silence_seconds := float(attack_meta.get("silence_seconds", 0.0)) * scale
+	var slow_seconds := float(attack_meta.get("slow_seconds", 0.0)) * scale
+	var root_seconds := float(attack_meta.get("root_seconds", 0.0)) * scale
+	if silence_seconds > 0.0:
+		status_silence_time = maxf(status_silence_time, minf(STATUS_SILENCE_CAP_SECONDS, silence_seconds))
+	if slow_seconds > 0.0:
+		status_slow_time = maxf(status_slow_time, minf(STATUS_SLOW_CAP_SECONDS, slow_seconds))
+		status_slow_factor = clampf(float(attack_meta.get("slow_factor", status_slow_factor)), 0.35, 0.95)
+	if root_seconds > 0.0:
+		status_root_time = maxf(status_root_time, minf(STATUS_ROOT_CAP_SECONDS, root_seconds))
+
+func _inject_generated_signature_attacks() -> void:
+	var character_id := get_character_id()
+	var profile := _get_generated_skill_profile_for_character(character_id)
+	if profile.is_empty():
+		return
+	var special_base := _get_attack_data("special").duplicate(true)
+	if special_base.is_empty():
+		var fallback_special: Variant = ATTACK_DATA.get("special", {})
+		if typeof(fallback_special) == TYPE_DICTIONARY:
+			special_base = (fallback_special as Dictionary).duplicate(true)
+	for key in SIGNATURE_ATTACK_KEYS:
+		if runtime_attack_data.has(key):
+			continue
+		var config_value: Variant = profile.get(key, {})
+		if typeof(config_value) != TYPE_DICTIONARY:
+			continue
+		runtime_attack_data[key] = _build_generated_signature_attack_from_special(key, special_base, config_value as Dictionary)
+
+func _build_generated_signature_attack_from_special(kind: String, special_base: Dictionary, config: Dictionary) -> Dictionary:
+	var entry := special_base.duplicate(true)
+	var default_startup := float(special_base.get("startup", 0.10))
+	var default_active := float(special_base.get("active", 0.15))
+	var default_recovery := float(special_base.get("recovery", 0.28))
+	var damage_scale := float(config.get("damage_scale", 0.65))
+	var base_damage := int(special_base.get("damage", 14))
+	entry["startup"] = float(config.get("startup", default_startup + (0.01 if kind != "signature_a" else -0.01)))
+	entry["active"] = float(config.get("active", default_active))
+	entry["recovery"] = float(config.get("recovery", default_recovery + (0.03 if kind == "ultimate" else 0.0)))
+	entry["block_recovery"] = float(config.get("block_recovery", float(entry.get("recovery", default_recovery)) + 0.08))
+	entry["damage"] = maxi(5, int(round(float(base_damage) * damage_scale)))
+	entry["hitstun"] = float(config.get("hitstun", float(special_base.get("hitstun", HITSTUN_SECONDS)) + (0.02 if kind == "ultimate" else 0.0)))
+	entry["blockstun"] = float(config.get("blockstun", float(special_base.get("blockstun", BLOCKSTUN_SECONDS)) + (0.02 if kind == "ultimate" else 0.0)))
+	entry["cancel_on_hit"] = false
+	entry["cancel_on_block"] = false
+	entry["cancel_options"] = []
+	entry["cooldown"] = float(config.get("cooldown", 1.5 if kind != "ultimate" else 8.0))
+	if config.has("block_type"):
+		entry["block_type"] = str(config.get("block_type", "mid"))
+	if config.has("effect"):
+		var effect_value: Variant = config.get("effect", {})
+		if typeof(effect_value) == TYPE_DICTIONARY:
+			entry["effect"] = (effect_value as Dictionary).duplicate(true)
+	if config.has("control"):
+		var control_value: Variant = config.get("control", {})
+		if typeof(control_value) == TYPE_DICTIONARY:
+			entry["control"] = (control_value as Dictionary).duplicate(true)
+	return entry
+
+func _get_generated_skill_profile_for_character(character_id: String) -> Dictionary:
+	match character_id:
+		"zef_bezos":
+			return {
+				"signature_a": {"damage_scale": 0.62, "cooldown": 1.4, "effect": {"type": "summon", "speed": 280.0, "duration": 1.1, "size": Vector2(28, 18), "spawn_delay": 0.06}},
+				"signature_b": {"damage_scale": 0.70, "cooldown": 1.9, "effect": {"type": "mobility", "mode": "rising", "rise_speed": 320.0, "forward_speed": 120.0}},
+				"signature_c": {"damage_scale": 0.64, "cooldown": 2.1, "effect": {"type": "trap", "duration": 1.3, "size": Vector2(32, 18), "spawn_delay": 0.08}},
+				"ultimate": {"damage_scale": 0.98, "cooldown": 8.0, "effect": {"type": "projectile", "speed": 430.0, "duration": 1.2, "size": Vector2(40, 22)}}
+			}
+		"bill_geytz":
+			return {
+				"signature_a": {"damage_scale": 0.64, "cooldown": 1.5, "control": {"slow_seconds": 0.7, "slow_factor": 0.62}},
+				"signature_b": {"damage_scale": 0.70, "cooldown": 1.8, "effect": {"type": "projectile", "speed": 210.0, "duration": 1.3, "size": Vector2(38, 20)}},
+				"signature_c": {"damage_scale": 0.58, "cooldown": 2.0, "effect": {"type": "buff", "buff": {"duration": 2.6, "damage_multiplier": 1.1, "startup_multiplier": 0.92}}},
+				"ultimate": {"damage_scale": 0.90, "cooldown": 8.4, "effect": {"type": "buff", "buff": {"duration": 4.5, "damage_multiplier": 1.18, "speed_multiplier": 1.06, "startup_multiplier": 0.88}}}
+			}
+		"larry_pagyr":
+			return {
+				"signature_a": {"damage_scale": 0.60, "cooldown": 1.4, "effect": {"type": "projectile", "speed": 330.0, "duration": 1.0, "size": Vector2(24, 16)}},
+				"signature_b": {"damage_scale": 0.65, "cooldown": 1.9, "control": {"slow_seconds": 0.6, "slow_factor": 0.7}},
+				"signature_c": {"damage_scale": 0.66, "cooldown": 2.2, "effect": {"type": "summon", "speed": 260.0, "duration": 1.2, "size": Vector2(32, 18), "spawn_delay": 0.1}},
+				"ultimate": {"damage_scale": 0.95, "cooldown": 8.0, "effect": {"type": "projectile", "speed": 430.0, "duration": 1.15, "size": Vector2(38, 22)}}
+			}
+		"sergey_brinn":
+			return {
+				"signature_a": {"damage_scale": 0.68, "cooldown": 1.6, "effect": {"type": "mobility", "mode": "rising", "rise_speed": 340.0, "forward_speed": 150.0}},
+				"signature_b": {"damage_scale": 0.62, "cooldown": 1.9, "effect": {"type": "mobility", "mode": "teleport", "distance": 120.0}},
+				"signature_c": {"damage_scale": 0.72, "cooldown": 2.0, "effect": {"type": "mobility", "mode": "rising", "rise_speed": 300.0, "forward_speed": 220.0}},
+				"ultimate": {"damage_scale": 1.0, "cooldown": 8.2, "effect": {"type": "summon", "speed": 280.0, "duration": 1.3, "size": Vector2(36, 20), "spawn_delay": 0.18}}
+			}
+		"sundar_pichoy":
+			return {
+				"signature_a": {"damage_scale": 0.64, "cooldown": 1.3, "control": {"slow_seconds": 0.7, "slow_factor": 0.66}},
+				"signature_b": {"damage_scale": 0.72, "cooldown": 1.8, "effect": {"type": "mobility", "mode": "dash", "speed": 320.0}},
+				"signature_c": {"damage_scale": 0.62, "cooldown": 2.2, "effect": {"type": "summon", "speed": 260.0, "duration": 1.15, "size": Vector2(30, 18), "spawn_delay": 0.1}},
+				"ultimate": {"damage_scale": 0.88, "cooldown": 7.6, "effect": {"type": "buff", "buff": {"duration": 4.6, "damage_multiplier": 1.14, "speed_multiplier": 1.1, "startup_multiplier": 0.86}}}
+			}
+		"jensen_hwang":
+			return {
+				"signature_a": {"damage_scale": 0.68, "cooldown": 1.4, "effect": {"type": "projectile", "speed": 390.0, "duration": 0.95, "size": Vector2(26, 16)}},
+				"signature_b": {"damage_scale": 0.82, "cooldown": 2.1, "block_type": "overhead", "effect": {"type": "mobility", "mode": "dash", "speed": 355.0}},
+				"signature_c": {"damage_scale": 0.56, "cooldown": 1.9, "control": {"slow_seconds": 0.75, "slow_factor": 0.58}},
+				"ultimate": {"damage_scale": 1.0, "cooldown": 8.0, "effect": {"type": "buff", "buff": {"duration": 4.2, "damage_multiplier": 1.24, "speed_multiplier": 1.12, "startup_multiplier": 0.82, "chip_bonus": 0.10}}}
+			}
+		"satya_nadello":
+			return {
+				"signature_a": {"damage_scale": 0.58, "cooldown": 1.6, "effect": {"type": "buff", "buff": {"duration": 3.0, "damage_multiplier": 1.1, "startup_multiplier": 0.92}}},
+				"signature_b": {"damage_scale": 0.66, "cooldown": 1.9, "effect": {"type": "projectile", "speed": 300.0, "duration": 0.95, "size": Vector2(26, 16)}},
+				"signature_c": {"damage_scale": 0.60, "cooldown": 2.0, "effect": {"type": "projectile", "speed": 250.0, "duration": 1.0, "size": Vector2(28, 18), "silence_seconds": 1.2}},
+				"ultimate": {"damage_scale": 0.90, "cooldown": 7.8, "effect": {"type": "buff", "buff": {"duration": 4.8, "damage_multiplier": 1.18, "speed_multiplier": 1.06, "startup_multiplier": 0.86, "chip_bonus": 0.09}}}
+			}
+		"tim_cuke":
+			return {
+				"signature_a": {"damage_scale": 0.66, "cooldown": 1.5},
+				"signature_b": {"damage_scale": 0.72, "cooldown": 1.9, "effect": {"type": "mobility", "mode": "teleport", "distance": 110.0}},
+				"signature_c": {"damage_scale": 0.52, "cooldown": 2.2, "effect": {"type": "buff", "buff": {"duration": 2.8, "speed_multiplier": 1.08, "startup_multiplier": 0.78}}},
+				"ultimate": {"damage_scale": 0.92, "cooldown": 7.9, "effect": {"type": "trap", "duration": 1.4, "size": Vector2(44, 24), "slow_seconds": 0.9, "slow_factor": 0.52, "root_seconds": 0.18}}
+			}
+		"jack_dorsee":
+			return {
+				"signature_a": {"damage_scale": 0.62, "cooldown": 1.2, "effect": {"type": "projectile", "speed": 450.0, "duration": 0.8, "size": Vector2(22, 14)}},
+				"signature_b": {"damage_scale": 0.72, "cooldown": 2.0, "effect": {"type": "summon", "speed": 260.0, "duration": 1.15, "spawn_delay": 0.2, "size": Vector2(32, 18)}},
+				"signature_c": {"damage_scale": 0.68, "cooldown": 2.1, "effect": {"type": "projectile", "speed": 220.0, "duration": 1.2, "size": Vector2(30, 18)}},
+				"ultimate": {"damage_scale": 0.94, "cooldown": 8.1, "effect": {"type": "summon", "speed": 300.0, "duration": 1.25, "size": Vector2(36, 20), "spawn_delay": 0.12}}
+			}
+		"travis_kalanik":
+			return {
+				"signature_a": {"damage_scale": 0.54, "cooldown": 1.7, "effect": {"type": "buff", "buff": {"duration": 4.0, "damage_multiplier": 1.2, "speed_multiplier": 1.1, "startup_multiplier": 0.9, "chip_bonus": 0.1}}},
+				"signature_b": {"damage_scale": 0.76, "cooldown": 2.1, "effect": {"type": "mobility", "mode": "dash", "speed": 360.0}},
+				"signature_c": {"damage_scale": 0.78, "cooldown": 2.3, "effect": {"type": "mobility", "mode": "dash", "speed": 400.0}},
+				"ultimate": {"damage_scale": 1.0, "cooldown": 8.2, "effect": {"type": "summon", "speed": 320.0, "duration": 1.3, "size": Vector2(38, 20), "spawn_delay": 0.1}}
+			}
+		"reed_hestings":
+			return {
+				"signature_a": {"damage_scale": 0.68, "cooldown": 1.6, "effect": {"type": "summon", "speed": 250.0, "duration": 1.2, "size": Vector2(32, 18), "spawn_delay": 0.08}},
+				"signature_b": {"damage_scale": 0.50, "cooldown": 1.8, "effect": {"type": "buff", "buff": {"duration": 3.2, "startup_multiplier": 0.8}}},
+				"signature_c": {"damage_scale": 0.74, "cooldown": 2.0, "effect": {"type": "mobility", "mode": "dash", "speed": 330.0}},
+				"ultimate": {"damage_scale": 0.96, "cooldown": 8.0, "effect": {"type": "buff", "buff": {"duration": 4.4, "damage_multiplier": 1.2, "speed_multiplier": 1.08, "startup_multiplier": 0.82, "chip_bonus": 0.09}}}
+			}
+		"steve_jobz":
+			return {
+				"signature_a": {"damage_scale": 0.72, "cooldown": 1.5},
+				"signature_b": {"damage_scale": 0.84, "cooldown": 2.0, "block_type": "overhead", "effect": {"type": "mobility", "mode": "dash", "speed": 380.0}},
+				"signature_c": {"damage_scale": 0.70, "cooldown": 2.2, "effect": {"type": "mobility", "mode": "teleport", "distance": 130.0}},
+				"ultimate": {"damage_scale": 1.12, "cooldown": 7.0, "effect": {"type": "buff", "buff": {"duration": 5.2, "damage_multiplier": 1.28, "speed_multiplier": 1.15, "startup_multiplier": 0.78, "chip_bonus": 0.12}}}
+			}
+		_:
+			return {}
+
 func _read_requested_attack() -> String:
+	if Input.is_action_just_pressed("attack_heavy") and Input.is_action_pressed("attack_special") and _can_trigger_attack_kind("ultimate"):
+		return "ultimate"
+	if Input.is_action_just_pressed("attack_special"):
+		if Input.is_action_pressed("attack_heavy") and _can_trigger_attack_kind("ultimate"):
+			return "ultimate"
+		if not _is_silenced():
+			var special_kind := _resolve_directional_special_kind()
+			if special_kind != "":
+				return special_kind
+			if _has_attack_kind("special"):
+				return "special"
 	if Input.is_action_just_pressed("attack_light"):
 		return "light"
 	if Input.is_action_just_pressed("attack_heavy"):
 		return "heavy"
-	if Input.is_action_just_pressed("attack_special"):
-		return "special"
 	if Input.is_action_just_pressed("throw"):
 		return "throw"
 	return ""
@@ -512,6 +1011,8 @@ func _is_throw_tech_input_pressed() -> bool:
 func _request_attack(kind: String) -> void:
 	if kind == "":
 		return
+	if not _can_trigger_attack_kind(kind):
+		return
 	if attack_state == "":
 		_start_attack(kind)
 	else:
@@ -532,13 +1033,13 @@ func _clear_attack_buffer() -> void:
 func _setup_attack_data() -> void:
 	runtime_attack_data = ATTACK_DATA.duplicate(true)
 	var external := _load_external_attack_table()
-	if external.is_empty():
-		return
-	for key in external.keys():
-		var attack_key := str(key)
-		var entry: Variant = external[key]
-		if typeof(entry) == TYPE_DICTIONARY:
-			runtime_attack_data[attack_key] = (entry as Dictionary).duplicate(true)
+	if not external.is_empty():
+		for key in external.keys():
+			var attack_key := str(key)
+			var entry: Variant = external[key]
+			if typeof(entry) == TYPE_DICTIONARY:
+				runtime_attack_data[attack_key] = (entry as Dictionary).duplicate(true)
+	_inject_generated_signature_attacks()
 
 func _load_external_attack_table() -> Dictionary:
 	if not use_external_attack_table:
@@ -608,6 +1109,8 @@ func _try_start_buffered_attack_from_neutral() -> void:
 func _start_attack(kind: String) -> void:
 	if not _has_attack_kind(kind):
 		return
+	if not _can_trigger_attack_kind(kind):
+		return
 	if is_knocked_down or getup_time > 0.0 or blockstun_time > 0.0:
 		return
 	is_blocking = false
@@ -621,9 +1124,16 @@ func _start_attack(kind: String) -> void:
 	attack_time = 0.0
 	attack_confirmed_hit = false
 	attack_confirmed_block = false
+	attack_effect_triggered = false
+	var data := _get_attack_data(kind)
+	attack_startup_duration = float(data.get("startup", 0.06)) * _get_startup_multiplier_for_attack(kind)
+	attack_active_duration = float(data.get("active", 0.10))
+	attack_recovery_duration = float(data.get("recovery", 0.20))
 	hit_targets.clear()
 	_set_hitbox_active(false)
 	_apply_hitbox_profile()
+	_start_skill_cooldown_for_kind(kind)
+	_consume_hype_for_attack(kind)
 
 func _apply_hitbox_profile() -> void:
 	if attack_state == "":
@@ -700,6 +1210,7 @@ func _on_hitbox_body_entered(body: Node) -> void:
 	var knockback = data["knockback_ground"] if is_on_floor() else data["knockback_air"]
 	var hitstun := float(data.get("hitstun", HITSTUN_SECONDS))
 	var damage := int(data.get("damage", 0))
+	damage = int(round(float(damage) * _get_damage_multiplier_for_attack(attack_state)))
 	var is_counter_hit := next_attack_is_counter and attack_state != "throw"
 	var predicted_combo_count := _peek_combo_hit_count(body)
 	if is_counter_hit:
@@ -714,13 +1225,7 @@ func _on_hitbox_body_entered(body: Node) -> void:
 			knockback,
 			hitstun,
 			attack_state,
-			{
-				"blockstun": float(data.get("blockstun", BLOCKSTUN_SECONDS)),
-				"counter": is_counter_hit,
-				"block_type": str(data.get("block_type", "mid")),
-				"air_blockable": bool(data.get("air_blockable", true)),
-				"throw_techable": bool(data.get("throw_techable", false))
-			}
+			_build_attack_meta(data, is_counter_hit)
 		)
 		var was_throw_teched := false
 		if typeof(hit_result) == TYPE_DICTIONARY:
@@ -746,6 +1251,7 @@ func _on_hitbox_body_entered(body: Node) -> void:
 
 		if was_blocked:
 			attack_confirmed_block = true
+			_gain_hype(HYPE_GAIN_ON_BLOCK)
 			_on_attack_blocked(data)
 			next_attack_is_counter = false
 			_reset_combo_chain()
@@ -762,6 +1268,7 @@ func _on_hitbox_body_entered(body: Node) -> void:
 				hit_targets.erase(body)
 				return
 			attack_confirmed_hit = true
+			_gain_hype(HYPE_GAIN_ON_HIT)
 			var combo_count := _record_combo_hit(body)
 			var combo_damage := combo_damage_total
 			if typeof(hit_result) == TYPE_DICTIONARY:
@@ -924,9 +1431,9 @@ func _on_attack_blocked(attack_data: Dictionary) -> void:
 func _get_attack_recovery_remaining_seconds(attack_data: Dictionary) -> float:
 	if attack_state == "":
 		return 0.0
-	var startup := float(attack_data.get("startup", 0.0))
-	var active := float(attack_data.get("active", 0.0))
-	var recovery := float(attack_data.get("recovery", 0.0))
+	var startup := attack_startup_duration if attack_startup_duration > 0.0 else float(attack_data.get("startup", 0.0))
+	var active := attack_active_duration if attack_active_duration > 0.0 else float(attack_data.get("active", 0.0))
+	var recovery := attack_recovery_duration if attack_recovery_duration > 0.0 else float(attack_data.get("recovery", 0.0))
 	if attack_recovery_override > 0.0:
 		recovery = attack_recovery_override
 	match attack_phase:
@@ -1019,6 +1526,7 @@ func _apply_block_impact(
 	attack_meta: Dictionary
 ) -> int:
 	var chip_scale := float(BLOCK_CHIP_BY_ATTACK.get(attack_kind, 0.0))
+	chip_scale += maxf(0.0, float(attack_meta.get("chip_bonus", 0.0)))
 	var chip_damage := maxi(0, int(round(float(amount) * chip_scale)))
 	if chip_damage > 0:
 		current_hp = max(0, current_hp - chip_damage)
@@ -1033,6 +1541,10 @@ func _apply_block_impact(
 	attack_state = ""
 	attack_phase = ""
 	attack_recovery_override = -1.0
+	attack_effect_triggered = false
+	attack_startup_duration = 0.0
+	attack_active_duration = 0.0
+	attack_recovery_duration = 0.0
 	next_attack_is_counter = false
 	_set_hitbox_active(false)
 
@@ -1146,6 +1658,7 @@ func apply_damage(
 	var guard_mode := _get_guard_mode()
 	if _can_block_hit(knockback, attack_kind, attack_meta):
 		var chip_damage := _apply_block_impact(amount, knockback, hitstun_override, attack_kind, attack_meta)
+		_apply_status_from_meta(attack_meta, true)
 		result["blocked"] = true
 		result["defeated"] = current_hp <= 0
 		result["stun_seconds"] = blockstun_time
@@ -1158,6 +1671,7 @@ func apply_damage(
 
 	var hp_before := current_hp
 	current_hp = max(0, current_hp - amount)
+	_gain_hype(HYPE_GAIN_ON_TAKING_HIT)
 	velocity = knockback
 	hitstun_time = maxf(0.0, hitstun_override)
 	blockstun_time = 0.0
@@ -1171,11 +1685,16 @@ func apply_damage(
 	attack_state = ""
 	attack_phase = ""
 	attack_recovery_override = -1.0
+	attack_effect_triggered = false
+	attack_startup_duration = 0.0
+	attack_active_duration = 0.0
+	attack_recovery_duration = 0.0
 	getup_time = 0.0
 	wake_invuln_time = 0.0
 	tech_slide_time = 0.0
 	tech_slide_speed = 0.0
 	_set_hitbox_active(false)
+	_apply_status_from_meta(attack_meta, false)
 
 	if _should_knockdown(knockback, hitstun_override, attack_kind):
 		is_knocked_down = true
@@ -1210,6 +1729,12 @@ func get_current_attack_block_type() -> String:
 func get_last_training_info() -> Dictionary:
 	return last_training_info.duplicate(true)
 
+func get_hype_meter() -> float:
+	return hype_meter
+
+func get_skill_cooldown_remaining(kind: String) -> float:
+	return float(skill_cooldowns.get(kind, 0.0))
+
 func _select_hit_reaction_animation() -> StringName:
 	if _has_runtime_animation(hit_reaction_animation):
 		return hit_reaction_animation
@@ -1219,6 +1744,9 @@ func _resolve_visual_animation(animation_name: StringName) -> StringName:
 	if _has_runtime_animation(animation_name):
 		return animation_name
 	match animation_name:
+		&"signature_a", &"signature_b", &"signature_c", &"ultimate":
+			if _has_runtime_animation(&"special"):
+				return &"special"
 		&"hit_light", &"hit_heavy":
 			if _has_runtime_animation(&"hit"):
 				return &"hit"
@@ -1253,11 +1781,13 @@ func _has_runtime_animation(animation_name: StringName) -> bool:
 	return runtime_sprite_frames.get_frame_count(animation_name) > 0
 
 func _start_dash() -> void:
+	if _is_rooted():
+		return
 	is_dashing = true
 	is_blocking = false
 	dash_time = DASH_DURATION
 	dash_cooldown_timer = DASH_COOLDOWN
-	velocity.x = facing * DASH_SPEED
+	velocity.x = facing * DASH_SPEED * _get_move_speed_multiplier()
 	velocity.y = 0.0
 
 func _setup_visual() -> void:

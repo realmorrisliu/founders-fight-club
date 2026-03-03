@@ -12,3 +12,7 @@ editor:
 # just run-scene "res://scenes/Main.tscn"
 run-scene scene:
 	@./scripts/godot.sh run-scene "{{scene}}"
+
+# Run automated headless tests (default: smoke suite).
+test suite="smoke":
+	@./scripts/test.sh "{{suite}}"

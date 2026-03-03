@@ -190,13 +190,11 @@ func show_dialogue_line(text: String, duration: float = 2.4, tint: Color = Color
 	dialogue_tween.tween_property(dialogue_label, "modulate:a", 1.0, 0.12)
 	dialogue_tween.tween_interval(maxf(0.2, duration))
 	dialogue_tween.tween_property(dialogue_label, "modulate:a", 0.0, 0.22)
-	dialogue_tween.finished.connect(
-		func():
-			if dialogue_label:
-				dialogue_label.visible = false
-				dialogue_label.text = ""
-		CONNECT_ONE_SHOT
-	)
+	var hide_dialogue := func() -> void:
+		if dialogue_label:
+			dialogue_label.visible = false
+			dialogue_label.text = ""
+	dialogue_tween.finished.connect(hide_dialogue, CONNECT_ONE_SHOT)
 
 func _play_combat_callout(text: String, tint: Color) -> void:
 	if combat_callout_label == null:

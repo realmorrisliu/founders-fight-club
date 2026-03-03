@@ -24,6 +24,13 @@ Note: The second fighter is AI-controlled in the current prototype.
 ## Tech
 - Godot 4.2
 
+## CLI
+- Run game: `just run`
+- Open editor: `just editor`
+- Run scene: `just run-scene "res://scenes/Main.tscn"`
+- Run automated tests: `just test`
+- CI smoke tests: `.github/workflows/test.yml` (runs on PR and push to `main`)
+
 ## Roadmap
 - Prototype loop (move, attack, hit, win/lose)
 - Core pixel characters and stage
