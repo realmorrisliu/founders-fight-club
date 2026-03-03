@@ -36,9 +36,9 @@ Create `assets/pipeline/asset_manifest.csv` and track production status.
 
 ```csv
 asset_id,character_id,asset_type,shot,expression,priority,width,height,model_route,status,review_note,file_path
-elon_mvsk_portrait_select,elon_mvsk,portrait_select,bust,smirk,P0,1024,1024,nano2->gpt15,wip,,
-elon_mvsk_skill_x_blast,elon_mvsk,skill_icon,icon,aggressive,P0,512,512,nano2,queued,,
-elon_mvsk_hero_splash,elon_mvsk,hero_splash,full_body,confident,P0,2048,2048,nano2->pro,wip,,
+elon_mvsk_portrait_select,elon_mvsk,portrait_select,bust,smirk,P0,1024,1024,doubao45->gpt15,wip,,
+elon_mvsk_skill_x_blast,elon_mvsk,skill_icon,icon,aggressive,P0,512,512,doubao45,queued,,
+elon_mvsk_hero_splash,elon_mvsk,hero_splash,full_body,confident,P0,2048,2048,doubao45->gpt15,wip,,
 ```
 
 ### Suggested `asset_type`

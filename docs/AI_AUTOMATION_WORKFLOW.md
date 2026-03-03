@@ -12,7 +12,7 @@ The pipeline is built for bulk generation with model routing per asset row.
 `scripts/tools/auto_generate_assets.py`:
 - reads asset rows from manifest by status filter,
 - builds prompts from character briefs + asset type,
-- resolves `model_route` (for example `nano2->gpt15`),
+- resolves `model_route` (for example `doubao45->gpt15`),
 - calls provider APIs (Google/OpenAI/Volcengine),
 - saves outputs under `assets/generated/<character_id>/`,
 - writes metadata json per generated image,
@@ -64,7 +64,7 @@ This verifies:
 
 ## 4) First-Pass Batch Generation
 
-Use first route hop (default), usually `nano2` from `nano2->gpt15`.
+Use first route hop (default), usually `doubao45` from `doubao45->gpt15`.
 
 ```bash
 python3 scripts/tools/auto_generate_assets.py \
