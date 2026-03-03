@@ -1,5 +1,6 @@
 extends SceneTree
 
+const GameSettingsStore := preload("res://scripts/GameSettings.gd")
 const REQUIRED_BASE_ATTACKS := ["light", "heavy", "special", "throw"]
 
 var _failures: Array[String] = []
@@ -11,6 +12,7 @@ func _initialize() -> void:
 func _run() -> void:
 	await _test_character_attack_tables_are_valid()
 	await _test_core_scenes_boot()
+	await _test_control_preset_profiles()
 	await _test_hitstop_overlap_recovery()
 	await _test_player_damage_and_block_flow()
 	await _test_skill_runtime_primitives()
@@ -109,6 +111,39 @@ func _assert_scene_boot(path: String) -> void:
 	if is_instance_valid(instance):
 		instance.queue_free()
 	await process_frame
+
+func _test_control_preset_profiles() -> void:
+	GameSettingsStore.apply_control_preset(GameSettingsStore.CONTROL_PRESET_MODERN)
+	_assert_true(_action_has_keyboard_key("jump", KEY_SPACE), "modern preset keeps jump on Space")
+	_assert_true(_action_has_keyboard_key("block", KEY_H), "modern preset keeps dedicated block key")
+
+	GameSettingsStore.apply_control_preset(GameSettingsStore.CONTROL_PRESET_CLASSIC)
+	_assert_true(_action_has_keyboard_key("jump", KEY_W), "classic preset maps jump to W")
+	_assert_true(_action_has_keyboard_key("jump", KEY_UP), "classic preset maps jump to Up")
+	_assert_true(not _action_has_any_keyboard_key("block"), "classic preset removes keyboard block key")
+
+	GameSettingsStore.set_control_preset(GameSettingsStore.CONTROL_PRESET_CLASSIC)
+	_assert_true(GameSettingsStore.get_control_preset() == GameSettingsStore.CONTROL_PRESET_CLASSIC, "control preset persists to user settings")
+	GameSettingsStore.set_control_preset(GameSettingsStore.CONTROL_PRESET_MODERN)
+	_assert_true(GameSettingsStore.get_control_preset() == GameSettingsStore.CONTROL_PRESET_MODERN, "control preset can switch back to modern")
+
+func _action_has_keyboard_key(action_name: String, keycode: int) -> bool:
+	if not InputMap.has_action(action_name):
+		return false
+	for event in InputMap.action_get_events(action_name):
+		if event is InputEventKey:
+			var key_event := event as InputEventKey
+			if int(key_event.keycode) == keycode:
+				return true
+	return false
+
+func _action_has_any_keyboard_key(action_name: String) -> bool:
+	if not InputMap.has_action(action_name):
+		return false
+	for event in InputMap.action_get_events(action_name):
+		if event is InputEventKey:
+			return true
+	return false
 
 func _test_hitstop_overlap_recovery() -> void:
 	Engine.time_scale = 1.0

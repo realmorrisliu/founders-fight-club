@@ -1,5 +1,7 @@
 extends CharacterBody2D
 
+const GameSettingsStore := preload("res://scripts/GameSettings.gd")
+
 signal health_changed
 signal defeated
 signal hit_landed(attacker: Node, target: Node, attack_kind: String, is_counter: bool, combo_count: int)
@@ -255,6 +257,7 @@ var forward_input_buffer_time := 0.0
 var down_input_buffer_time := 0.0
 var special_input_buffer_time := 0.0
 var heavy_input_buffer_time := 0.0
+var control_preset := GameSettingsStore.CONTROL_PRESET_MODERN
 
 @onready var hitbox := $Hitbox as Area2D
 @onready var hitbox_shape := $Hitbox/CollisionShape2D
@@ -263,6 +266,7 @@ var heavy_input_buffer_time := 0.0
 
 func _ready() -> void:
 	add_to_group("fighters")
+	_sync_control_preset()
 	_setup_attack_data()
 	_refresh_ai_style_profile()
 	_setup_visual()
@@ -350,7 +354,7 @@ func _process_player_input(delta: float) -> void:
 		if _is_rooted():
 			move_axis = 0.0
 		var move_speed := MOVE_SPEED * _get_move_speed_multiplier()
-		var wants_block := _can_enter_block() and InputMap.has_action("block") and Input.is_action_pressed("block")
+		var wants_block := _can_enter_block() and _is_block_input_pressed()
 		if wants_block:
 			is_blocking = true
 			var block_target_speed := move_axis * move_speed * BLOCK_WALK_SPEED_FACTOR
@@ -378,6 +382,25 @@ func _process_player_input(delta: float) -> void:
 		var buffered_kind := _read_requested_attack()
 		if buffered_kind != "":
 			_buffer_attack(buffered_kind)
+
+func _sync_control_preset() -> void:
+	var preset_value := str(Engine.get_meta(GameSettingsStore.ENGINE_META_KEY, ""))
+	if preset_value == "":
+		preset_value = GameSettingsStore.get_control_preset()
+	control_preset = GameSettingsStore.normalize_control_preset(preset_value)
+
+func _is_block_input_pressed() -> bool:
+	if _uses_classic_controls():
+		return _is_back_input_pressed()
+	return InputMap.has_action("block") and Input.is_action_pressed("block")
+
+func _uses_classic_controls() -> bool:
+	return control_preset == GameSettingsStore.CONTROL_PRESET_CLASSIC
+
+func _is_back_input_pressed() -> bool:
+	if facing >= 0:
+		return InputMap.has_action("move_left") and Input.is_action_pressed("move_left")
+	return InputMap.has_action("move_right") and Input.is_action_pressed("move_right")
 
 func _apply_horizontal_intent(target_speed: float, delta: float, acceleration_scale: float = 1.0, deceleration_scale: float = 1.0) -> void:
 	var resolved_target := target_speed

@@ -21,7 +21,7 @@ grow_vertical = 2
 color = Color(0.08, 0.11, 0.16, 1)
 
 [node name="CenterPanel" type="Panel" parent="."]
-custom_minimum_size = Vector2(360, 360)
+custom_minimum_size = Vector2(360, 430)
 layout_mode = 1
 anchors_preset = 8
 anchor_left = 0.5
@@ -29,9 +29,9 @@ anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
 offset_left = -180.0
-offset_top = -180.0
+offset_top = -215.0
 offset_right = 180.0
-offset_bottom = 180.0
+offset_bottom = 215.0
 grow_horizontal = 2
 grow_vertical = 2
 
@@ -97,25 +97,99 @@ offset_right = 310.0
 offset_bottom = 278.0
 text = "Training Mode"
 
+[node name="ControlStyleLabel" type="Label" parent="CenterPanel"]
+offset_left = 50.0
+offset_top = 286.0
+offset_right = 310.0
+offset_bottom = 306.0
+theme_override_colors/font_color = Color(0.88, 0.93, 1, 1)
+horizontal_alignment = 1
+text = "Control Style"
+
+[node name="ControlStyleButton" type="Button" parent="CenterPanel"]
+offset_left = 50.0
+offset_top = 310.0
+offset_right = 310.0
+offset_bottom = 342.0
+text = "Modern"
+
 [node name="LanguageLabel" type="Label" parent="CenterPanel"]
 offset_left = 50.0
-offset_top = 290.0
+offset_top = 350.0
 offset_right = 310.0
-offset_bottom = 310.0
+offset_bottom = 370.0
 theme_override_colors/font_color = Color(0.88, 0.93, 1, 1)
 horizontal_alignment = 1
 text = "Language"
 
 [node name="LangEnButton" type="Button" parent="CenterPanel"]
 offset_left = 74.0
-offset_top = 316.0
+offset_top = 376.0
 offset_right = 164.0
-offset_bottom = 344.0
+offset_bottom = 404.0
 text = "English"
 
 [node name="LangZhButton" type="Button" parent="CenterPanel"]
 offset_left = 176.0
-offset_top = 316.0
+offset_top = 376.0
 offset_right = 266.0
-offset_bottom = 344.0
+offset_bottom = 404.0
 text = "中文"
+
+[node name="FirstLaunchControlOverlay" type="ColorRect" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.03, 0.04, 0.06, 0.78)
+
+[node name="Panel" type="Panel" parent="FirstLaunchControlOverlay"]
+custom_minimum_size = Vector2(430, 220)
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -215.0
+offset_top = -110.0
+offset_right = 215.0
+offset_bottom = 110.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="TitleLabel" type="Label" parent="FirstLaunchControlOverlay/Panel"]
+offset_left = 24.0
+offset_top = 20.0
+offset_right = 406.0
+offset_bottom = 50.0
+theme_override_colors/font_color = Color(0.96, 0.98, 1, 1)
+horizontal_alignment = 1
+text = "Choose Control Style"
+
+[node name="HintLabel" type="Label" parent="FirstLaunchControlOverlay/Panel"]
+offset_left = 24.0
+offset_top = 58.0
+offset_right = 406.0
+offset_bottom = 102.0
+theme_override_colors/font_color = Color(0.82, 0.9, 1, 1)
+horizontal_alignment = 1
+autowrap_mode = 2
+text = "Classic: up to jump, back to block. Modern: dedicated block button."
+
+[node name="ClassicButton" type="Button" parent="FirstLaunchControlOverlay/Panel"]
+offset_left = 48.0
+offset_top = 132.0
+offset_right = 196.0
+offset_bottom = 172.0
+text = "Classic"
+
+[node name="ModernButton" type="Button" parent="FirstLaunchControlOverlay/Panel"]
+offset_left = 234.0
+offset_top = 132.0
+offset_right = 382.0
+offset_bottom = 172.0
+text = "Modern"
