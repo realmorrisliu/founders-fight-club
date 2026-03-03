@@ -46,6 +46,46 @@ const CHARACTER_OPTIONS := [
 		"id": "jensen_hwang",
 		"name": "Jensen Hwang",
 		"attack_table_path": "res://assets/data/characters/JensenHwangAttackTable.tres"
+	},
+	{
+		"id": "larry_pagyr",
+		"name": "Larry Pagyr",
+		"attack_table_path": "res://assets/data/characters/LarryPagyrAttackTable.tres"
+	},
+	{
+		"id": "sergey_brinn",
+		"name": "Sergey Brinn",
+		"attack_table_path": "res://assets/data/characters/SergeyBrinnAttackTable.tres"
+	},
+	{
+		"id": "satya_nadello",
+		"name": "Satya Nadello",
+		"attack_table_path": "res://assets/data/characters/SatyaNadelloAttackTable.tres"
+	},
+	{
+		"id": "tim_cuke",
+		"name": "Tim Cuke",
+		"attack_table_path": "res://assets/data/characters/TimCukeAttackTable.tres"
+	},
+	{
+		"id": "jack_dorsee",
+		"name": "Jack Dorsee",
+		"attack_table_path": "res://assets/data/characters/JackDorseeAttackTable.tres"
+	},
+	{
+		"id": "travis_kalanik",
+		"name": "Travis Kalanik",
+		"attack_table_path": "res://assets/data/characters/TravisKalanikAttackTable.tres"
+	},
+	{
+		"id": "reed_hestings",
+		"name": "Reed Hestings",
+		"attack_table_path": "res://assets/data/characters/ReedHestingsAttackTable.tres"
+	},
+	{
+		"id": "steve_jobz",
+		"name": "Steve Jobz",
+		"attack_table_path": "res://assets/data/characters/SteveJobzAttackTable.tres"
 	}
 ]
 const SESSION_KEY_P1_ID := "ffc_selected_player_1_character_id"
