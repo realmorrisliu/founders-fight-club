@@ -37,6 +37,7 @@
 - **AI Automation Workflow Doc**: Added `docs/AI_AUTOMATION_WORKFLOW.md` with key setup, dry-run, wave commands, and refinement flow.
 - **Doubao/Volcengine Provider Support**: Extended `auto_generate_assets.py` with Volcengine image routing (`doubao40`, `doubao45`, `doubao5lite`, `ep-...`, `volc:<model>`).
 - **Manifest Route Standardization**: Updated `assets/pipeline/asset_manifest.csv` default model routes to `doubao45` / `doubao45->gpt15`.
+- **Docs Consistency Pass**: Updated README and AI art docs to reflect current Doubao-first workflow and automation entrypoints.
 
 ### Changed
 - **Match.gd**: Heavily refactored to handle camera, walls, input, and hitstop.

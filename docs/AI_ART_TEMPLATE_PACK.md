@@ -172,8 +172,8 @@ Use this checklist before marking `status=done`.
 
 ## 8) Route Preset (Recommended)
 
-- Batch generation: `Nano Banana 2`
-- Hero/complex key art: `Nano Banana Pro`
-- Precision edits and style alignment: `GPT-Image-1.5`
+- Repository default (current): `doubao45` for generation
+- Repository default (refinement): `doubao45->gpt15`
+- Optional alternative routes: `doubao5lite`, `nano2`, `pro`
 
 Keep route metadata in `model_route` so later replacements are auditable.

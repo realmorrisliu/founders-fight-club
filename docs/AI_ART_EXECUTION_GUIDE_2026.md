@@ -1,4 +1,4 @@
-# AI Art Execution Guide (Founders Fight Club, 2026-03-02)
+# AI Art Execution Guide (Founders Fight Club, 2026-03-03)
 
 This guide translates the latest model research into a practical, ship-focused production plan for the launch roster.
 
@@ -19,12 +19,14 @@ Constraints:
 
 ## 2) Current Model Landscape (Verified in Research)
 
-As of 2026-03-02:
+As of 2026-03-03:
+- Volcengine/Doubao route used in repository: `doubao-seedream-4.5` (token: `doubao45`)
 - Google batch model: `gemini-3.1-flash-image-preview` (Nano Banana 2)
 - Google high-fidelity model: `gemini-3-pro-image-preview` (Nano Banana Pro Preview)
 - OpenAI image model: `gpt-image-1.5-2025-12-16` (GPT-Image-1.5)
 
 Working interpretation for this project:
+- `doubao45` = current default for manifest-driven bulk production in this repo.
 - Nano Banana 2 = high throughput and good cost/perf for large asset queues.
 - Nano Banana Pro = stronger for complex key art and multi-character scenes.
 - GPT-Image-1.5 = strong iterative editing / detail correction / style alignment pass.
@@ -37,9 +39,9 @@ Use deterministic routing by asset priority:
 
 | Priority | Asset Type | Primary Route | Fallback |
 |---|---|---|---|
-| P0 | select portrait, hero splash, core skill icons | nano2 -> gpt15 | nano2 -> pro |
-| P1 | rivalry cards, dialogue portraits | nano2 | nano2 -> gpt15 |
-| P2 | optional social variants, meme alternates | nano2 only | skip if schedule risk |
+| P0 | select portrait, hero splash, core skill icons | doubao45 -> gpt15 | doubao5lite -> gpt15 |
+| P1 | rivalry cards, dialogue portraits | doubao45 | doubao45 -> gpt15 |
+| P2 | optional social variants, meme alternates | doubao45 only | skip if schedule risk |
 
 Rules:
 - Do not send everything to the expensive route.
@@ -57,7 +59,7 @@ Rules:
 - For each character: `face_anchor`, `full_body_anchor`, `signature_pose_anchor`.
 
 3. Batch generation:
-- Use Nano Banana 2 for first-pass sets (6-8 candidates per asset).
+- Use `doubao45` for first-pass sets (6-8 candidates per asset).
 
 4. Curate and anchor:
 - Pick 1 candidate per asset as anchor.
@@ -69,7 +71,7 @@ Rules:
 - Round C: readability and anti-clutter.
 
 6. Escalation pass:
-- Only P0 failures go to Nano Banana Pro or GPT-Image-1.5.
+- Only P0 failures go to `doubao5lite` or `gpt15`.
 
 7. Integration and runtime check:
 - Import to project folders.
@@ -130,6 +132,10 @@ This guide is a production workflow, not legal advice.
 
 ## 9) Sources Used in Research
 
+- ByteDance Seedream 5.0 Lite release:  
+  https://seed.bytedance.com/zh/blog/%E6%80%9D%E8%80%83-%E6%9B%B4%E6%B7%B1-%E7%94%9F%E6%88%90%E6%9B%B4%E5%87%86-seedream-5-0-lite-%E5%8F%91%E5%B8%83
+- ByteDance Seedream 5.0 Lite model page:  
+  https://seed.bytedance.com/en/seedream5_0_lite
 - Google blog (Nano Banana 2 update):  
   https://blog.google/innovation-and-ai/technology/ai/nano-banana-2/
 - Gemini image generation docs:  

@@ -37,4 +37,20 @@ Note: The second fighter is AI-controlled in the current prototype.
 - First-pass real frame files are in `assets/sprites/player/first_pass/` and are now active for all required animations (including block/hit-react/knockdown/getup)
 - Pixel stage and HUD textures are active from `assets/sprites/arena/` and `assets/sprites/ui/`
 
+## AI Asset Automation (Current)
+- Manifest: `assets/pipeline/asset_manifest.csv`
+- Character briefs: `assets/pipeline/character_briefs/*.yaml`
+- Generator script: `scripts/tools/auto_generate_assets.py`
+- Current default route in repository: `doubao45` (base generation) and `doubao45->gpt15` (refinement path)
+
+### Quick Start
+```bash
+python3 scripts/tools/auto_generate_assets.py --dry-run --status queued --limit 10 --verbose
+```
+
+For full setup and operating workflow, see:
+- `docs/AI_AUTOMATION_WORKFLOW.md`
+- `docs/AI_ART_TEMPLATE_PACK.md`
+- `docs/AI_ASSET_WORKFLOW.md`
+
 <img width="800" height="800" alt="image" src="https://github.com/user-attachments/assets/f50265ab-67dd-47fc-8af7-55a8c1ae7fac" />
