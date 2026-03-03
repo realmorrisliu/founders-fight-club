@@ -13,7 +13,7 @@ The pipeline is built for bulk generation with model routing per asset row.
 - reads asset rows from manifest by status filter,
 - builds prompts from character briefs + asset type,
 - resolves `model_route` (for example `nano2->gpt15`),
-- calls provider APIs (Google/OpenAI),
+- calls provider APIs (Google/OpenAI/Volcengine),
 - saves outputs under `assets/generated/<character_id>/`,
 - writes metadata json per generated image,
 - optionally updates manifest status/path/review note.
@@ -25,11 +25,26 @@ Set only the keys you need for the selected route stage/provider.
 ```bash
 export GOOGLE_API_KEY="your_google_key"
 export OPENAI_API_KEY="your_openai_key"
+export VOLCENGINE_API_KEY="your_volcengine_key"
+# optional (default is Ark Beijing base URL)
+export VOLCENGINE_API_BASE_URL="https://ark.cn-beijing.volces.com/api/v3"
 ```
 
 Notes:
 - Keep keys in local shell env or local `.env` (ignored by `.gitignore`).
 - Never commit keys to repository files.
+- Volcengine key can also be provided as `ARK_API_KEY`.
+
+## 2.1) `model_route` Tokens
+
+Built-in short tokens:
+- `nano2`, `pro`, `gpt15`
+- `doubao40`, `doubao45`, `doubao5lite`
+
+Also supported:
+- full model ids (for example `gemini-3.1-flash-image-preview`, `gpt-image-1.5-2025-12-16`, `doubao-seedream-4.5`)
+- Ark endpoint IDs (for example `ep-...`)
+- explicit Volcengine route form: `volc:<model_or_endpoint_id>`
 
 ## 3) Dry Run First (No API Calls)
 
@@ -62,6 +77,8 @@ python3 scripts/tools/auto_generate_assets.py \
 Recommended:
 - start with one character first (`--characters elon_mvsk`),
 - then scale to full Wave 1.
+
+To run on Doubao directly, set manifest rows to routes like `doubao45` or `doubao45->gpt15`.
 
 ## 5) Selective Refinement Pass
 
@@ -148,6 +165,21 @@ python3 scripts/tools/auto_generate_assets.py \
   --limit 8 \
   --write-back
 ```
+
+### 9.4 Run only Doubao rows
+
+```bash
+python3 scripts/tools/auto_generate_assets.py \
+  --status queued \
+  --characters elon_mvsk \
+  --route-stage first \
+  --write-back
+```
+
+Use manifest routes such as:
+- `doubao45`
+- `doubao5lite`
+- `doubao45->gpt15`
 
 ## 10) Current Limitations
 

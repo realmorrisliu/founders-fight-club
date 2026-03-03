@@ -34,6 +34,9 @@ MODEL_TOKEN_MAP: dict[str, tuple[str, str]] = {
 	"nano2": ("google", "gemini-3.1-flash-image-preview"),
 	"pro": ("google", "gemini-3-pro-image-preview"),
 	"gpt15": ("openai", "gpt-image-1.5-2025-12-16"),
+	"doubao40": ("volcengine", "doubao-seedream-4.0"),
+	"doubao45": ("volcengine", "doubao-seedream-4.5"),
+	"doubao5lite": ("volcengine", "bytedance-seedream-5-0-lite"),
 }
 
 
@@ -56,7 +59,7 @@ def _build_parser() -> argparse.ArgumentParser:
 	parser = argparse.ArgumentParser(
 		description=(
 			"Generate game assets from manifest rows by calling provider image APIs. "
-			"Supports Google Gemini image models and OpenAI image models."
+			"Supports Google Gemini, OpenAI, and Volcengine (Doubao/Seedream) image models."
 		)
 	)
 	parser.add_argument(
@@ -327,10 +330,17 @@ def _resolve_model_spec(route_value: str, stage: str) -> ModelSpec:
 		return ModelSpec(provider="google", model=token)
 	if token.startswith("gpt-image"):
 		return ModelSpec(provider="openai", model=token)
+	if token.startswith(("doubao-seedream", "bytedance-seedream", "seedream", "ep-")):
+		return ModelSpec(provider="volcengine", model=token)
+	if token.startswith("volc:"):
+		model = token.split(":", 1)[1].strip()
+		if not model:
+			raise ValueError(f"Invalid volc route token: {token!r}")
+		return ModelSpec(provider="volcengine", model=model)
 
 	raise ValueError(
 		f"Unknown model route token: {token!r} from {route_value!r}. "
-		"Use known tokens (nano2/pro/gpt15) or full model ids."
+		"Use known tokens (nano2/pro/gpt15/doubao40/doubao45/doubao5lite) or full model ids."
 	)
 
 
@@ -358,8 +368,14 @@ def _download_binary(url: str, timeout: float = 90.0) -> bytes:
 		return response.read()
 
 
-def _call_openai_generate(model: str, prompt: str, width: int, height: int, api_key: str) -> tuple[bytes, str, dict[str, Any]]:
-	url = "https://api.openai.com/v1/images/generations"
+def _call_openai_compatible_images_generate(
+	url: str,
+	model: str,
+	prompt: str,
+	width: int,
+	height: int,
+	api_key: str,
+) -> tuple[bytes, str, dict[str, Any]]:
 	headers = {
 		"Authorization": f"Bearer {api_key}",
 		"Content-Type": "application/json",
@@ -373,16 +389,48 @@ def _call_openai_generate(model: str, prompt: str, width: int, height: int, api_
 	response_json = _json_http_post(url=url, headers=headers, payload=payload)
 	data = response_json.get("data") or []
 	if not data:
-		raise RuntimeError(f"OpenAI response missing data array: {response_json}")
+		raise RuntimeError(f"Image API response missing data array: {response_json}")
 	item = data[0]
 
 	if "b64_json" in item:
 		raw = base64.b64decode(item["b64_json"])
-		return raw, "image/png", response_json
+		mime_type = str(item.get("mime_type") or "image/png")
+		return raw, mime_type, response_json
 	if "url" in item:
 		raw = _download_binary(item["url"])
-		return raw, "image/png", response_json
-	raise RuntimeError(f"OpenAI response missing b64_json/url: {item}")
+		mime_type = str(item.get("mime_type") or "image/png")
+		return raw, mime_type, response_json
+	raise RuntimeError(f"Image API response missing b64_json/url: {item}")
+
+
+def _call_openai_generate(model: str, prompt: str, width: int, height: int, api_key: str) -> tuple[bytes, str, dict[str, Any]]:
+	return _call_openai_compatible_images_generate(
+		url="https://api.openai.com/v1/images/generations",
+		model=model,
+		prompt=prompt,
+		width=width,
+		height=height,
+		api_key=api_key,
+	)
+
+
+def _normalize_base_url(raw: str) -> str:
+	base = raw.strip().rstrip("/")
+	if not base:
+		raise ValueError("Empty base URL")
+	return base
+
+
+def _call_volcengine_generate(model: str, prompt: str, width: int, height: int, api_key: str) -> tuple[bytes, str, dict[str, Any]]:
+	base_url = _normalize_base_url(os.environ.get("VOLCENGINE_API_BASE_URL", "https://ark.cn-beijing.volces.com/api/v3"))
+	return _call_openai_compatible_images_generate(
+		url=f"{base_url}/images/generations",
+		model=model,
+		prompt=prompt,
+		width=width,
+		height=height,
+		api_key=api_key,
+	)
 
 
 def _call_google_generate(model: str, prompt: str, api_key: str) -> tuple[bytes, str, dict[str, Any]]:
@@ -479,6 +527,11 @@ def _get_api_key(provider: str) -> str:
 		if not value:
 			raise RuntimeError("GOOGLE_API_KEY is required for Google model routes.")
 		return value
+	if provider == "volcengine":
+		value = os.environ.get("VOLCENGINE_API_KEY", "").strip() or os.environ.get("ARK_API_KEY", "").strip()
+		if not value:
+			raise RuntimeError("VOLCENGINE_API_KEY (or ARK_API_KEY) is required for Volcengine model routes.")
+		return value
 	raise RuntimeError(f"Unsupported provider: {provider}")
 
 
@@ -501,6 +554,14 @@ def _generate_with_provider(
 		return _call_google_generate(
 			model=model_spec.model,
 			prompt=prompt,
+			api_key=api_key,
+		)
+	if model_spec.provider == "volcengine":
+		return _call_volcengine_generate(
+			model=model_spec.model,
+			prompt=prompt,
+			width=width,
+			height=height,
 			api_key=api_key,
 		)
 	raise RuntimeError(f"Unsupported provider: {model_spec.provider}")

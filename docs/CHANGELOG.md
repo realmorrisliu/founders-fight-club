@@ -35,6 +35,7 @@
 - **Wave 1 Character Briefs**: Added 8 production briefs under `assets/pipeline/character_briefs/` for Wave 1 generation setup.
 - **AI Asset Auto-Generator**: Added `scripts/tools/auto_generate_assets.py` for manifest-driven provider API generation and optional manifest write-back.
 - **AI Automation Workflow Doc**: Added `docs/AI_AUTOMATION_WORKFLOW.md` with key setup, dry-run, wave commands, and refinement flow.
+- **Doubao/Volcengine Provider Support**: Extended `auto_generate_assets.py` with Volcengine image routing (`doubao40`, `doubao45`, `doubao5lite`, `ep-...`, `volc:<model>`).
 
 ### Changed
 - **Match.gd**: Heavily refactored to handle camera, walls, input, and hitstop.
