@@ -1,7 +1,9 @@
 extends Control
 
 const GameSettingsStore := preload("res://scripts/GameSettings.gd")
+const SessionStateStore := preload("res://scripts/SessionState.gd")
 const VS_SCENE_PATH := "res://scenes/Main.tscn"
+const STORY_SCENE_PATH := "res://scenes/Story.tscn"
 const TRAINING_SCENE_PATH := "res://scenes/Training.tscn"
 const TRANSLATION_PATHS := [
 	"res://i18n/en.tres",
@@ -96,10 +98,33 @@ const SESSION_KEY_P2_TABLE_PATH := "ffc_selected_player_2_attack_table_path"
 const SESSION_KEY_P1_NAME := "ffc_selected_player_1_name"
 const SESSION_KEY_P2_NAME := "ffc_selected_player_2_name"
 const SESSION_KEY_MATCH_MODE := "ffc_match_mode"
+const STORY_SESSION_KEY_ROUND_INDEX := "ffc_story_round_index"
+const ARCHETYPE_BY_CHARACTER_ID := {
+	"elon_mvsk": "zoner",
+	"mark_zuck": "counter",
+	"sam_altmyn": "all_rounder",
+	"peter_thyell": "zoner",
+	"zef_bezos": "bruiser",
+	"bill_geytz": "zoner",
+	"sundar_pichoy": "all_rounder",
+	"jensen_hwang": "bruiser",
+	"larry_pagyr": "zoner",
+	"sergey_brinn": "rushdown",
+	"satya_nadello": "counter",
+	"tim_cuke": "all_rounder",
+	"jack_dorsee": "rushdown",
+	"travis_kalanik": "rushdown",
+	"reed_hestings": "counter",
+	"steve_jobz": "bruiser",
+	"prototype_p1": "all_rounder",
+	"prototype_p2": "all_rounder",
+	"prototype": "all_rounder"
+}
 
 static var _translations_registered := false
 var current_control_preset := GameSettingsStore.CONTROL_PRESET_MODERN
 var main_menu_interactive := true
+var character_profile_cache: Array[Dictionary] = []
 
 @onready var title_label := $CenterPanel/TitleLabel
 @onready var subtitle_label := $CenterPanel/SubtitleLabel
@@ -107,7 +132,10 @@ var main_menu_interactive := true
 @onready var p2_character_label := $CenterPanel/P2CharacterLabel
 @onready var p1_character_option := $CenterPanel/P1CharacterOption
 @onready var p2_character_option := $CenterPanel/P2CharacterOption
+@onready var p1_profile_label := $CenterPanel/P1ProfileLabel
+@onready var p2_profile_label := $CenterPanel/P2ProfileLabel
 @onready var versus_button := $CenterPanel/VersusButton
+@onready var story_button := $CenterPanel/StoryButton
 @onready var training_button := $CenterPanel/TrainingButton
 @onready var control_style_label := $CenterPanel/ControlStyleLabel
 @onready var control_style_button := $CenterPanel/ControlStyleButton
@@ -126,10 +154,13 @@ func _ready() -> void:
 	if not locale.begins_with("en") and not locale.begins_with("zh"):
 		TranslationServer.set_locale("en")
 	versus_button.pressed.connect(_on_versus_pressed)
+	story_button.pressed.connect(_on_story_pressed)
 	training_button.pressed.connect(_on_training_pressed)
 	control_style_button.pressed.connect(_on_control_style_button_pressed)
 	lang_en_button.pressed.connect(func(): _set_locale("en"))
 	lang_zh_button.pressed.connect(func(): _set_locale("zh"))
+	p1_character_option.item_selected.connect(func(_index: int): _refresh_character_profile_preview())
+	p2_character_option.item_selected.connect(func(_index: int): _refresh_character_profile_preview())
 	first_launch_classic_button.pressed.connect(func(): _on_first_launch_preset_selected(GameSettingsStore.CONTROL_PRESET_CLASSIC))
 	first_launch_modern_button.pressed.connect(func(): _on_first_launch_preset_selected(GameSettingsStore.CONTROL_PRESET_MODERN))
 	_populate_character_options()
@@ -143,6 +174,10 @@ func _notification(what: int) -> void:
 func _on_versus_pressed() -> void:
 	_store_character_selection("vs")
 	get_tree().change_scene_to_file(VS_SCENE_PATH)
+
+func _on_story_pressed() -> void:
+	_store_character_selection("story")
+	get_tree().change_scene_to_file(STORY_SCENE_PATH)
 
 func _on_training_pressed() -> void:
 	_store_character_selection("training")
@@ -158,8 +193,11 @@ func _refresh_text() -> void:
 	title_label.text = tr("MENU_TITLE")
 	subtitle_label.text = tr("MENU_SUBTITLE")
 	p1_character_label.text = _resolve_menu_text("MENU_P1_CHARACTER", "P1 Character")
-	p2_character_label.text = _resolve_menu_text("MENU_P2_CHARACTER", "Opponent Character")
+	p2_character_label.text = _resolve_menu_text("MENU_P2_CHARACTER", "P2 Character")
+	p1_profile_label.text = _resolve_menu_text("MENU_PROFILE_LOADING", "Loading profile...")
+	p2_profile_label.text = _resolve_menu_text("MENU_PROFILE_LOADING", "Loading profile...")
 	versus_button.text = tr("MENU_VERSUS")
+	story_button.text = _resolve_menu_text("MENU_STORY", "Story Mode")
 	training_button.text = tr("MENU_TRAINING")
 	control_style_label.text = tr("MENU_CONTROL_STYLE")
 	control_style_button.text = _resolve_control_preset_label(current_control_preset)
@@ -174,10 +212,12 @@ func _refresh_text() -> void:
 	lang_en_button.disabled = not main_menu_interactive or locale.begins_with("en")
 	lang_zh_button.disabled = not main_menu_interactive or locale.begins_with("zh")
 	versus_button.disabled = not main_menu_interactive
+	story_button.disabled = not main_menu_interactive
 	training_button.disabled = not main_menu_interactive
 	control_style_button.disabled = not main_menu_interactive
 	p1_character_option.disabled = not main_menu_interactive
 	p2_character_option.disabled = not main_menu_interactive
+	_refresh_character_profile_preview()
 
 func _ensure_translations_registered() -> void:
 	if _translations_registered:
@@ -191,16 +231,117 @@ func _ensure_translations_registered() -> void:
 func _populate_character_options() -> void:
 	p1_character_option.clear()
 	p2_character_option.clear()
+	character_profile_cache.clear()
 	for character in CHARACTER_OPTIONS:
 		var label := str(character.get("name", "Unknown"))
 		p1_character_option.add_item(label)
 		p2_character_option.add_item(label)
+		character_profile_cache.append(_build_character_profile(character))
 	if p1_character_option.item_count > 0:
 		p1_character_option.select(0)
 	if p2_character_option.item_count > 1:
 		p2_character_option.select(1)
 	elif p2_character_option.item_count > 0:
 		p2_character_option.select(0)
+	_refresh_character_profile_preview()
+
+func _build_character_profile(character: Dictionary) -> Dictionary:
+	var character_id := str(character.get("id", "")).strip_edges()
+	var display_name := str(character.get("name", "Unknown")).strip_edges()
+	var attack_table_path := str(character.get("attack_table_path", "")).strip_edges()
+	var profile := {
+		"character_id": character_id,
+		"display_name": display_name,
+		"archetype_key": str(ARCHETYPE_BY_CHARACTER_ID.get(character_id, "all_rounder")),
+		"archetype_hint_key": _resolve_archetype_hint_key(str(ARCHETYPE_BY_CHARACTER_ID.get(character_id, "all_rounder"))),
+		"signature_primary": "Signature A",
+		"signature_alt": "Signature B"
+	}
+	if attack_table_path == "" or not ResourceLoader.exists(attack_table_path):
+		return profile
+	var resource := load(attack_table_path) as Resource
+	if resource == null:
+		return profile
+	var attacks: Dictionary = {}
+	if resource.has_method("get_runtime_attacks"):
+		var attacks_value: Variant = resource.call("get_runtime_attacks")
+		if typeof(attacks_value) == TYPE_DICTIONARY:
+			attacks = (attacks_value as Dictionary).duplicate(true)
+	else:
+		var raw_attacks: Variant = resource.get("attacks")
+		if typeof(raw_attacks) == TYPE_DICTIONARY:
+			attacks = (raw_attacks as Dictionary).duplicate(true)
+	if attacks.has("special"):
+		var special_value: Variant = attacks.get("special", {})
+		if typeof(special_value) == TYPE_DICTIONARY:
+			var special := special_value as Dictionary
+			var primary := str(special.get("signature_primary", "")).strip_edges()
+			var alt := str(special.get("signature_alt", "")).strip_edges()
+			if primary != "":
+				profile["signature_primary"] = primary
+			if alt != "":
+				profile["signature_alt"] = alt
+	return profile
+
+func _refresh_character_profile_preview() -> void:
+	if p1_profile_label == null or p2_profile_label == null:
+		return
+	p1_profile_label.text = _build_profile_preview_text(p1_character_option.selected)
+	p2_profile_label.text = _build_profile_preview_text(p2_character_option.selected)
+	p1_profile_label.tooltip_text = _build_profile_hint_text(p1_character_option.selected)
+	p2_profile_label.tooltip_text = _build_profile_hint_text(p2_character_option.selected)
+
+func _build_profile_preview_text(index: int) -> String:
+	if index < 0 or index >= character_profile_cache.size():
+		return "-"
+	var profile := character_profile_cache[index]
+	var archetype_key := str(profile.get("archetype_key", "all_rounder"))
+	var archetype_label := _resolve_archetype_label(archetype_key)
+	var signature_primary := str(profile.get("signature_primary", "Signature A"))
+	var signature_alt := str(profile.get("signature_alt", "Signature B"))
+	var row_template := tr("MENU_PROFILE_ROW")
+	if row_template.find("%") == -1:
+		row_template = "%s | %s / %s"
+	var hint_template := tr("MENU_PROFILE_HINT_ROW")
+	if hint_template.find("%") == -1:
+		hint_template = "%s"
+	var hint_text := tr(str(profile.get("archetype_hint_key", "ARCHETYPE_HINT_ALL_ROUNDER")))
+	return "%s\n%s" % [
+		row_template % [archetype_label, signature_primary, signature_alt],
+		hint_template % [hint_text]
+	]
+
+func _build_profile_hint_text(index: int) -> String:
+	if index < 0 or index >= character_profile_cache.size():
+		return ""
+	var profile := character_profile_cache[index]
+	return tr(str(profile.get("archetype_hint_key", "ARCHETYPE_HINT_ALL_ROUNDER")))
+
+func _resolve_archetype_label(archetype_key: String) -> String:
+	match archetype_key:
+		"rushdown":
+			return _resolve_menu_text("ARCHETYPE_RUSHDOWN", "Rushdown")
+		"zoner":
+			return _resolve_menu_text("ARCHETYPE_ZONER", "Zoner")
+		"bruiser":
+			return _resolve_menu_text("ARCHETYPE_BRUISER", "Bruiser")
+		"counter":
+			return _resolve_menu_text("ARCHETYPE_COUNTER", "Counter")
+		_:
+			return _resolve_menu_text("ARCHETYPE_ALL_ROUNDER", "All-rounder")
+
+func _resolve_archetype_hint_key(archetype_key: String) -> String:
+	match archetype_key:
+		"rushdown":
+			return "ARCHETYPE_HINT_RUSHDOWN"
+		"zoner":
+			return "ARCHETYPE_HINT_ZONER"
+		"bruiser":
+			return "ARCHETYPE_HINT_BRUISER"
+		"counter":
+			return "ARCHETYPE_HINT_COUNTER"
+		_:
+			return "ARCHETYPE_HINT_ALL_ROUNDER"
 
 func _store_character_selection(match_mode: String) -> void:
 	if CHARACTER_OPTIONS.is_empty():
@@ -209,20 +350,23 @@ func _store_character_selection(match_mode: String) -> void:
 	var p2_index := clampi(p2_character_option.selected, 0, CHARACTER_OPTIONS.size() - 1)
 	var p1_character: Dictionary = CHARACTER_OPTIONS[p1_index]
 	var p2_character: Dictionary = CHARACTER_OPTIONS[p2_index]
-	Engine.set_meta(SESSION_KEY_MATCH_MODE, match_mode)
-	Engine.set_meta(SESSION_KEY_P1_ID, str(p1_character.get("id", "")))
-	Engine.set_meta(SESSION_KEY_P2_ID, str(p2_character.get("id", "")))
-	Engine.set_meta(SESSION_KEY_P1_TABLE_PATH, str(p1_character.get("attack_table_path", "")))
-	Engine.set_meta(SESSION_KEY_P2_TABLE_PATH, str(p2_character.get("attack_table_path", "")))
-	Engine.set_meta(SESSION_KEY_P1_NAME, str(p1_character.get("name", "Player 1")))
-	Engine.set_meta(SESSION_KEY_P2_NAME, str(p2_character.get("name", "Player 2")))
+	SessionStateStore.set_value(SESSION_KEY_MATCH_MODE, match_mode)
+	SessionStateStore.set_value(SESSION_KEY_P1_ID, str(p1_character.get("id", "")))
+	SessionStateStore.set_value(SESSION_KEY_P2_ID, str(p2_character.get("id", "")))
+	SessionStateStore.set_value(SESSION_KEY_P1_TABLE_PATH, str(p1_character.get("attack_table_path", "")))
+	SessionStateStore.set_value(SESSION_KEY_P2_TABLE_PATH, str(p2_character.get("attack_table_path", "")))
+	SessionStateStore.set_value(SESSION_KEY_P1_NAME, str(p1_character.get("name", "Player 1")))
+	SessionStateStore.set_value(SESSION_KEY_P2_NAME, str(p2_character.get("name", "Player 2")))
+	if match_mode == "story":
+		SessionStateStore.set_value(STORY_SESSION_KEY_ROUND_INDEX, 0)
+	else:
+		SessionStateStore.clear_keys(PackedStringArray([STORY_SESSION_KEY_ROUND_INDEX]))
 
 func _initialize_control_preset() -> void:
 	var saved_preset := GameSettingsStore.get_control_preset()
 	if saved_preset == "":
 		first_launch_overlay.visible = true
 		_set_main_menu_interactive(false)
-		GameSettingsStore.apply_control_preset(GameSettingsStore.CONTROL_PRESET_MODERN)
 		current_control_preset = GameSettingsStore.CONTROL_PRESET_MODERN
 		return
 	_apply_control_preset(saved_preset, false)
@@ -243,6 +387,7 @@ func _on_first_launch_preset_selected(preset: String) -> void:
 func _set_main_menu_interactive(enabled: bool) -> void:
 	main_menu_interactive = enabled
 	versus_button.disabled = not enabled
+	story_button.disabled = not enabled
 	training_button.disabled = not enabled
 	control_style_button.disabled = not enabled
 	lang_en_button.disabled = not enabled or TranslationServer.get_locale().begins_with("en")

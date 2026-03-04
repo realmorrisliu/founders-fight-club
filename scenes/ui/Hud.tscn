@@ -94,6 +94,15 @@ theme_override_colors/font_color = Color(0.85, 0.92, 1, 1)
 clip_text = true
 text = "CD A0 B0 C0 U0"
 
+[node name="P1ProfileLabel" type="Label" parent="."]
+offset_left = 20.0
+offset_top = 104.0
+offset_right = 248.0
+offset_bottom = 122.0
+theme_override_colors/font_color = Color(0.82, 0.9, 0.98, 1)
+clip_text = true
+text = "-"
+
 [node name="P2HypeLabel" type="Label" parent="."]
 offset_left = 392.0
 offset_top = 56.0
@@ -123,19 +132,29 @@ horizontal_alignment = 2
 clip_text = true
 text = "CD A0 B0 C0 U0"
 
+[node name="P2ProfileLabel" type="Label" parent="."]
+offset_left = 392.0
+offset_top = 104.0
+offset_right = 620.0
+offset_bottom = 122.0
+theme_override_colors/font_color = Color(0.82, 0.9, 0.98, 1)
+horizontal_alignment = 2
+clip_text = true
+text = "-"
+
 [node name="ResultChip" type="TextureRect" parent="."]
 visible = false
 offset_left = 130.0
-offset_top = 58.0
+offset_top = 60.0
 offset_right = 510.0
-offset_bottom = 96.0
+offset_bottom = 98.0
 texture = ExtResource("3")
 
 [node name="ResultLabel" type="Label" parent="."]
 offset_left = 138.0
-offset_top = 64.0
+offset_top = 66.0
 offset_right = 502.0
-offset_bottom = 106.0
+offset_bottom = 108.0
 theme_override_colors/font_color = Color(1, 0.95, 0.77, 1)
 horizontal_alignment = 1
 text = ""
@@ -218,6 +237,19 @@ offset_top = 60.0
 offset_right = 326.0
 offset_bottom = 82.0
 text = "Adv Detail: Off"
+
+[node name="TrainingQuickHintLabel" type="Label" parent="TrainingPanel"]
+offset_left = 160.0
+offset_top = 86.0
+offset_right = 326.0
+offset_bottom = 112.0
+theme_override_colors/font_color = Color(0.78, 0.88, 0.98, 1)
+theme_override_colors/font_shadow_color = Color(0.05, 0.06, 0.1, 0.85)
+theme_override_constants/shadow_offset_x = 1
+theme_override_constants/shadow_offset_y = 1
+autowrap_mode = 2
+clip_text = true
+text = "Quick: WASD Move ..."
 
 [node name="TrainingSummaryLabel" type="Label" parent="TrainingPanel"]
 offset_left = 10.0
@@ -337,25 +369,32 @@ offset_right = 240.0
 offset_bottom = 144.0
 text = "Restart"
 
+[node name="BackMenuButton" type="Button" parent="PausePanel"]
+offset_left = 80.0
+offset_top = 154.0
+offset_right = 240.0
+offset_bottom = 186.0
+text = "Back to Menu"
+
 [node name="LanguageLabel" type="Label" parent="PausePanel"]
 offset_left = 80.0
-offset_top = 160.0
+offset_top = 196.0
 offset_right = 240.0
-offset_bottom = 180.0
+offset_bottom = 216.0
 theme_override_colors/font_color = Color(0.94, 0.97, 1, 1)
 horizontal_alignment = 1
 text = "Language"
 
 [node name="LangEnButton" type="Button" parent="PausePanel"]
 offset_left = 80.0
-offset_top = 190.0
+offset_top = 226.0
 offset_right = 156.0
-offset_bottom = 220.0
+offset_bottom = 256.0
 text = "English"
 
 [node name="LangZhButton" type="Button" parent="PausePanel"]
 offset_left = 164.0
-offset_top = 190.0
+offset_top = 226.0
 offset_right = 240.0
-offset_bottom = 220.0
+offset_bottom = 256.0
 text = "中文"

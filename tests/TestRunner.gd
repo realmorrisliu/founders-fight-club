@@ -1,26 +1,97 @@
 extends SceneTree
 
 const GameSettingsStore := preload("res://scripts/GameSettings.gd")
+const SessionStateStore := preload("res://scripts/SessionState.gd")
 const REQUIRED_BASE_ATTACKS := ["light", "heavy", "special", "throw"]
+const SUITE_SMOKE := "smoke"
+const SUITE_FULL := "full"
 
 var _failures: Array[String] = []
 var _passes := 0
+var _suite := SUITE_SMOKE
 
 func _initialize() -> void:
+	_suite = _resolve_suite_from_args(OS.get_cmdline_user_args())
 	call_deferred("_run")
 
 func _run() -> void:
+	_assert_true(_resolve_suite_from_args(["--suite", "smoke"]) == SUITE_SMOKE, "suite parser reads --suite smoke")
+	_assert_true(_resolve_suite_from_args(["--suite=full"]) == SUITE_FULL, "suite parser reads --suite=full")
+	_assert_true(_resolve_suite_from_args(["unknown"]) == SUITE_SMOKE, "suite parser falls back to smoke for unknown values")
+	print("Running suite: %s" % _suite)
+	if _suite == SUITE_FULL:
+		await _run_full_suite()
+	else:
+		await _run_smoke_suite()
+	_finish()
+
+func _run_smoke_suite() -> void:
 	await _test_character_attack_tables_are_valid()
 	await _test_core_scenes_boot()
+	await _test_main_scene_prototype_signature_coverage()
+	await _test_main_scene_runtime_match_flow()
+	await _test_main_scene_stock_ring_out_flow()
+	await _test_menu_selection_session_flow()
+	await _test_character_profile_surface_in_menu_and_hud()
+	await _test_main_scene_vs_mode_local_control_flow()
+	await _test_story_mode_sets_ai_opponent()
+	await _test_story_mode_round_progression_override()
+	await _test_main_scene_stage_bounds_sync()
+	await _test_arena_extra_platform_colliders()
+	await _test_main_scene_ledge_recovery_flow()
+	await _test_platform_drop_through_collision_mask()
+	await _test_ledge_slot_occupancy_arbitration()
+	await _test_pause_panel_menu_route()
+	await _test_training_timer_visibility()
+	await _test_training_quick_start_hint_renders()
 	await _test_control_preset_profiles()
+	await _test_directional_attack_variants()
+	await _test_local_dual_gamepad_input_actions()
+	await _test_forward_tap_triggers_ground_dash()
+	await _test_jump_leniency_and_fast_fall()
+	await _test_short_hop_jump_cut()
+	await _test_aerial_landing_lag_and_auto_cancel()
+	await _test_shield_resource_and_break_flow()
+	await _test_defensive_dodge_layer()
+	await _test_double_jump_and_ledge_getup_options()
 	await _test_hitstop_overlap_recovery()
+	await _test_camera_zoom_response()
+	await _test_camera_vertical_framing_response()
+	await _test_training_toggle_keeps_dummy_non_ai()
+	await _test_character_visual_readability_tinting()
+	await _test_double_ko_resolution()
 	await _test_player_damage_and_block_flow()
+	await _test_throw_tech_and_ai_defense_windows()
+	await _test_knockback_growth_and_di_response()
+	await _test_hitstop_tier_resolution()
+
+func _run_full_suite() -> void:
+	await _run_smoke_suite()
 	await _test_skill_runtime_primitives()
 	await _test_motion_feel_primitives()
 	await _test_ai_behavior_profiles()
 	await _test_wave1_vertical_slice_skills()
 	await _test_full_roster_signature_coverage()
-	_finish()
+
+func _resolve_suite_from_args(args: PackedStringArray) -> String:
+	var requested := ""
+	for index in range(args.size()):
+		var arg := str(args[index]).strip_edges()
+		if arg == "--suite" and index + 1 < args.size():
+			requested = str(args[index + 1]).strip_edges().to_lower()
+			break
+		if arg.begins_with("--suite="):
+			requested = arg.substr(8).strip_edges().to_lower()
+			break
+	if requested == "" and args.size() > 0:
+		var fallback_arg := str(args[0]).strip_edges().to_lower()
+		if not fallback_arg.begins_with("--"):
+			requested = fallback_arg
+	if requested == SUITE_FULL or requested == "all":
+		return SUITE_FULL
+	if requested == SUITE_SMOKE:
+		return SUITE_SMOKE
+	return SUITE_SMOKE
 
 func _assert_true(condition: bool, message: String) -> void:
 	if condition:
@@ -78,6 +149,7 @@ func _test_character_attack_tables_are_valid() -> void:
 			_assert_true(entry_dict.has("startup"), "%s.%s has startup" % [file_name, key])
 			_assert_true(entry_dict.has("active"), "%s.%s has active" % [file_name, key])
 			_assert_true(entry_dict.has("recovery"), "%s.%s has recovery" % [file_name, key])
+			_assert_attack_entry_shape(file_name, key, entry_dict)
 	dir.list_dir_end()
 	_assert_true(table_count >= 16, "character roster has at least 16 attack tables")
 
@@ -93,9 +165,25 @@ func _resolve_attacks_dictionary(resource: Resource) -> Dictionary:
 		return (raw as Dictionary).duplicate(true)
 	return {}
 
+func _assert_attack_entry_shape(file_name: String, key: String, entry: Dictionary) -> void:
+	for number_key in ["startup", "active", "recovery", "damage", "hitstun", "blockstun"]:
+		var value: Variant = entry.get(number_key, null)
+		_assert_true(value is int or value is float, "%s.%s.%s is numeric" % [file_name, key, number_key])
+	for vector_key in [
+		"hitbox_size_ground",
+		"hitbox_size_air",
+		"hitbox_offset_ground",
+		"hitbox_offset_air",
+		"knockback_ground",
+		"knockback_air"
+	]:
+		var vector_value: Variant = entry.get(vector_key, null)
+		_assert_true(vector_value is Vector2, "%s.%s.%s is Vector2" % [file_name, key, vector_key])
+
 func _test_core_scenes_boot() -> void:
 	await _assert_scene_boot("res://scenes/Menu.tscn")
 	await _assert_scene_boot("res://scenes/Main.tscn")
+	await _assert_scene_boot("res://scenes/Story.tscn")
 	await _assert_scene_boot("res://scenes/Training.tscn")
 
 func _assert_scene_boot(path: String) -> void:
@@ -112,7 +200,502 @@ func _assert_scene_boot(path: String) -> void:
 		instance.queue_free()
 	await process_frame
 
+func _test_main_scene_prototype_signature_coverage() -> void:
+	var packed := load("res://scenes/Main.tscn")
+	_assert_true(packed is PackedScene, "main scene loads for prototype signature coverage test")
+	if packed is not PackedScene:
+		return
+	var match_node := (packed as PackedScene).instantiate()
+	get_root().add_child(match_node)
+	await process_frame
+	await process_frame
+	var p1 := match_node.get_node_or_null("Player1")
+	var p2 := match_node.get_node_or_null("Player2")
+	_assert_true(p1 != null and p2 != null, "prototype signature coverage resolves both players")
+	if p1 != null and p2 != null:
+		for key in ["signature_a", "signature_b", "signature_c", "ultimate"]:
+			_assert_true(bool(p1.call("_has_attack_kind", key)), "Main Player1 runtime has %s" % key)
+			_assert_true(bool(p2.call("_has_attack_kind", key)), "Main Player2 runtime has %s" % key)
+		p1.set("attack_state", "")
+		p1.set("skill_cooldowns", {})
+		p1.call("_start_attack", "signature_a")
+		_assert_true(str(p1.get("attack_state")) == "signature_a", "Main Player1 can start signature_a")
+		p2.set("attack_state", "")
+		p2.set("skill_cooldowns", {})
+		p2.set("hype_meter", 100.0)
+		p2.call("_start_attack", "ultimate")
+		_assert_true(str(p2.get("attack_state")) == "ultimate", "Main Player2 can start ultimate")
+	if is_instance_valid(match_node):
+		match_node.queue_free()
+	await process_frame
+
+func _test_main_scene_runtime_match_flow() -> void:
+	var packed := load("res://scenes/Main.tscn")
+	_assert_true(packed is PackedScene, "main scene loads for runtime match flow test")
+	if packed is not PackedScene:
+		return
+	var match_node := (packed as PackedScene).instantiate()
+	get_root().add_child(match_node)
+	await process_frame
+	await process_frame
+	var p1 := match_node.get_node_or_null("Player1")
+	var p2 := match_node.get_node_or_null("Player2")
+	var result_label := match_node.get_node_or_null("Hud/ResultLabel")
+	_assert_true(p1 != null and p2 != null, "runtime match flow test resolves both fighters")
+	_assert_true(result_label is Label, "runtime match flow test resolves HUD result label")
+	if p2 != null:
+		p2.set("is_ai", false)
+		var initial_stocks := int((match_node.get("stocks") as Dictionary).get("p2", 0))
+		_assert_true(initial_stocks >= 1, "runtime match flow starts with stock count")
+		p2.call("apply_damage", 999, Vector2(180, -24), 0.14, "heavy", {})
+		await process_frame
+		await process_frame
+		var remaining_after_first_ko := int((match_node.get("stocks") as Dictionary).get("p2", 0))
+		_assert_true(remaining_after_first_ko == initial_stocks - 1, "stock mode consumes one stock after KO")
+		for _idx in range(maxi(0, remaining_after_first_ko)):
+			p2.position = Vector2(1300.0, p2.position.y)
+			await process_frame
+			await process_frame
+		_assert_true(bool(match_node.get("match_over")), "runtime match flow ends match after stocks are exhausted")
+		_assert_true(str(match_node.get("match_result_key")) == "p1_win", "runtime match flow resolves KO winner as p1")
+	if result_label is Label:
+		_assert_true((result_label as Label).text.strip_edges() != "", "runtime match flow shows result text on HUD")
+	if is_instance_valid(match_node):
+		match_node.queue_free()
+	await process_frame
+
+func _test_main_scene_stock_ring_out_flow() -> void:
+	var packed := load("res://scenes/Main.tscn")
+	_assert_true(packed is PackedScene, "main scene loads for stock ring-out test")
+	if packed is not PackedScene:
+		return
+	var match_node := (packed as PackedScene).instantiate()
+	get_root().add_child(match_node)
+	await process_frame
+	await process_frame
+	var p2 := match_node.get_node_or_null("Player2")
+	_assert_true(p2 != null, "stock ring-out test resolves player2")
+	if p2 != null:
+		p2.set("is_ai", false)
+		var before := int((match_node.get("stocks") as Dictionary).get("p2", 0))
+		p2.position = Vector2(1300.0, p2.position.y)
+		await process_frame
+		await process_frame
+		var after := int((match_node.get("stocks") as Dictionary).get("p2", 0))
+		_assert_true(after == before - 1, "exiting blast zone consumes one stock")
+		var spawn_points := match_node.get("spawn_points") as Dictionary
+		var expected_spawn_value: Variant = spawn_points.get("p2", Vector2(600.0, 300.0))
+		var expected_spawn: Vector2 = expected_spawn_value if expected_spawn_value is Vector2 else Vector2(600.0, 300.0)
+		_assert_true(p2.global_position.distance_to(expected_spawn) <= 1.0, "ring-out respawns fighter at spawn point")
+	if is_instance_valid(match_node):
+		match_node.queue_free()
+	await process_frame
+
+func _test_pause_panel_menu_route() -> void:
+	var packed := load("res://scenes/ui/Hud.tscn")
+	_assert_true(packed is PackedScene, "hud scene loads for pause menu route test")
+	if packed is not PackedScene:
+		return
+	var hud_node := (packed as PackedScene).instantiate()
+	get_root().add_child(hud_node)
+	await process_frame
+	_assert_true(hud_node.has_signal("menu_requested"), "hud exposes menu_requested signal")
+	_assert_true(hud_node.get_node_or_null("PausePanel/BackMenuButton") != null, "pause panel has BackMenuButton")
+	if is_instance_valid(hud_node):
+		hud_node.queue_free()
+	await process_frame
+
+func _test_menu_selection_session_flow() -> void:
+	var menu_packed := load("res://scenes/Menu.tscn")
+	_assert_true(menu_packed is PackedScene, "menu scene loads for session flow test")
+	if menu_packed is not PackedScene:
+		return
+	var menu_node := (menu_packed as PackedScene).instantiate()
+	get_root().add_child(menu_node)
+	await process_frame
+	await process_frame
+	menu_node.call("_store_character_selection", "vs")
+	if is_instance_valid(menu_node):
+		menu_node.queue_free()
+	await process_frame
+
+	var match_packed := load("res://scenes/Main.tscn")
+	_assert_true(match_packed is PackedScene, "main scene loads for session flow test")
+	if match_packed is not PackedScene:
+		return
+	var match_node := (match_packed as PackedScene).instantiate()
+	get_root().add_child(match_node)
+	await process_frame
+	await process_frame
+	var selected_ids_value: Variant = match_node.get("selected_character_ids")
+	var selected_names_value: Variant = match_node.get("selected_character_names")
+	_assert_true(typeof(selected_ids_value) == TYPE_DICTIONARY, "session flow exposes selected character ids")
+	_assert_true(typeof(selected_names_value) == TYPE_DICTIONARY, "session flow exposes selected character names")
+	if typeof(selected_ids_value) == TYPE_DICTIONARY:
+		var selected_ids := selected_ids_value as Dictionary
+		_assert_true(str(selected_ids.get("p1", "")) != "", "session flow resolves p1 id")
+		_assert_true(str(selected_ids.get("p2", "")) != "", "session flow resolves p2 id")
+	if typeof(selected_names_value) == TYPE_DICTIONARY:
+		var selected_names := selected_names_value as Dictionary
+		_assert_true(str(selected_names.get("p1", "")) != "", "session flow resolves p1 name")
+		_assert_true(str(selected_names.get("p2", "")) != "", "session flow resolves p2 name")
+	if is_instance_valid(match_node):
+		match_node.queue_free()
+	await process_frame
+
+func _test_character_profile_surface_in_menu_and_hud() -> void:
+	var menu_packed := load("res://scenes/Menu.tscn")
+	_assert_true(menu_packed is PackedScene, "menu scene loads for character profile surface test")
+	if menu_packed is not PackedScene:
+		return
+	var menu_node := (menu_packed as PackedScene).instantiate()
+	get_root().add_child(menu_node)
+	await process_frame
+	await process_frame
+	var p1_profile_label := menu_node.get_node_or_null("CenterPanel/P1ProfileLabel")
+	var p2_profile_label := menu_node.get_node_or_null("CenterPanel/P2ProfileLabel")
+	_assert_true(p1_profile_label is Label and p2_profile_label is Label, "menu profile labels resolve for both players")
+	if p1_profile_label is Label:
+		_assert_true((p1_profile_label as Label).text.strip_edges() != "", "menu p1 profile preview text is populated")
+		_assert_true((p1_profile_label as Label).tooltip_text.strip_edges() != "", "menu p1 archetype hint is exposed")
+	if p2_profile_label is Label:
+		_assert_true((p2_profile_label as Label).text.strip_edges() != "", "menu p2 profile preview text is populated")
+		_assert_true((p2_profile_label as Label).tooltip_text.strip_edges() != "", "menu p2 archetype hint is exposed")
+	menu_node.call("_store_character_selection", "vs")
+	if is_instance_valid(menu_node):
+		menu_node.queue_free()
+	await process_frame
+
+	var main_packed := load("res://scenes/Main.tscn")
+	_assert_true(main_packed is PackedScene, "main scene loads for character profile hud surface test")
+	if main_packed is not PackedScene:
+		return
+	var match_node := (main_packed as PackedScene).instantiate()
+	get_root().add_child(match_node)
+	await process_frame
+	await process_frame
+	var hud_node := match_node.get_node_or_null("Hud")
+	_assert_true(hud_node != null, "profile surface test resolves HUD instance")
+	if hud_node != null:
+		var hud_p1_profile := hud_node.get_node_or_null("P1ProfileLabel")
+		var hud_p2_profile := hud_node.get_node_or_null("P2ProfileLabel")
+		_assert_true(hud_p1_profile is Label and hud_p2_profile is Label, "hud profile labels resolve for both players")
+		if hud_p1_profile is Label:
+			_assert_true((hud_p1_profile as Label).text.strip_edges() != "-", "hud displays p1 profile metadata row")
+		if hud_p2_profile is Label:
+			_assert_true((hud_p2_profile as Label).text.strip_edges() != "-", "hud displays p2 profile metadata row")
+		var profiles_value: Variant = match_node.get("selected_character_profiles")
+		if typeof(profiles_value) == TYPE_DICTIONARY:
+			var profiles := profiles_value as Dictionary
+			var p1_profile := profiles.get("p1", {}) as Dictionary
+			var signature_names := p1_profile.get("signature_names", {}) as Dictionary
+			var expected_name := str(signature_names.get("signature_a", ""))
+			var resolved_name := str(hud_node.call("_resolve_training_attack_label", "signature_a", "p1"))
+			_assert_true(resolved_name == expected_name, "training move label resolves to selected fighter signature name")
+	if is_instance_valid(match_node):
+		match_node.queue_free()
+	await process_frame
+
+func _test_main_scene_vs_mode_local_control_flow() -> void:
+	SessionStateStore.set_value("ffc_match_mode", "vs")
+	var packed := load("res://scenes/Main.tscn")
+	_assert_true(packed is PackedScene, "main scene loads for vs mode local control test")
+	if packed is not PackedScene:
+		SessionStateStore.clear_keys(PackedStringArray(["ffc_match_mode"]))
+		return
+	var match_node := (packed as PackedScene).instantiate()
+	get_root().add_child(match_node)
+	await process_frame
+	await process_frame
+	var p1 := match_node.get_node_or_null("Player1")
+	var p2 := match_node.get_node_or_null("Player2")
+	_assert_true(p1 != null and p2 != null, "vs mode local control test resolves both fighters")
+	if p1 != null:
+		_assert_true(not bool(p1.get("is_ai")), "vs mode keeps player1 as local fighter")
+	if p2 != null:
+		_assert_true(not bool(p2.get("is_ai")), "vs mode disables player2 ai for local versus")
+	SessionStateStore.clear_keys(PackedStringArray(["ffc_match_mode"]))
+	if is_instance_valid(match_node):
+		match_node.queue_free()
+	await process_frame
+
+func _test_story_mode_sets_ai_opponent() -> void:
+	SessionStateStore.set_value("ffc_match_mode", "story")
+	var packed := load("res://scenes/Story.tscn")
+	_assert_true(packed is PackedScene, "story scene loads for single-player ai mode test")
+	if packed is not PackedScene:
+		SessionStateStore.clear_keys(PackedStringArray(["ffc_match_mode"]))
+		return
+	var match_node := (packed as PackedScene).instantiate()
+	get_root().add_child(match_node)
+	await process_frame
+	await process_frame
+	var p1 := match_node.get_node_or_null("Player1")
+	var p2 := match_node.get_node_or_null("Player2")
+	_assert_true(p1 != null and p2 != null, "story mode test resolves both fighters")
+	if p1 != null:
+		_assert_true(not bool(p1.get("is_ai")), "story mode keeps player1 local")
+	if p2 != null:
+		_assert_true(bool(p2.get("is_ai")), "story mode enables player2 ai")
+	SessionStateStore.clear_keys(PackedStringArray(["ffc_match_mode"]))
+
+func _test_story_mode_round_progression_override() -> void:
+	SessionStateStore.set_value("ffc_match_mode", "story")
+	SessionStateStore.set_value("ffc_selected_player_1_character_id", "mark_zuck")
+	SessionStateStore.set_value("ffc_selected_player_1_name", "Mark Zuck")
+	SessionStateStore.set_value("ffc_selected_player_1_attack_table_path", "res://assets/data/characters/MarkZuckAttackTable.tres")
+	SessionStateStore.set_value("ffc_story_round_index", 1)
+	var packed := load("res://scenes/Story.tscn")
+	_assert_true(packed is PackedScene, "story scene loads for round progression override test")
+	if packed is not PackedScene:
+		SessionStateStore.clear_keys(PackedStringArray([
+			"ffc_match_mode",
+			"ffc_selected_player_1_character_id",
+			"ffc_selected_player_1_name",
+			"ffc_selected_player_1_attack_table_path",
+			"ffc_story_round_index"
+		]))
+		return
+	var match_node := (packed as PackedScene).instantiate()
+	get_root().add_child(match_node)
+	await process_frame
+	await process_frame
+	var selected_ids_value: Variant = match_node.get("selected_character_ids")
+	_assert_true(typeof(selected_ids_value) == TYPE_DICTIONARY, "story round override exposes selected ids")
+	if typeof(selected_ids_value) == TYPE_DICTIONARY:
+		var selected_ids := selected_ids_value as Dictionary
+		_assert_true(str(selected_ids.get("p2", "")) != str(selected_ids.get("p1", "")), "story round override picks AI opponent distinct from p1")
+	_assert_true(int(match_node.get("story_round_index")) >= 0, "story round override resolves a valid story round index")
+	if is_instance_valid(match_node):
+		match_node.queue_free()
+	await process_frame
+	SessionStateStore.clear_keys(PackedStringArray([
+		"ffc_match_mode",
+		"ffc_selected_player_1_character_id",
+		"ffc_selected_player_1_name",
+		"ffc_selected_player_1_attack_table_path",
+		"ffc_story_round_index"
+	]))
+	if is_instance_valid(match_node):
+		match_node.queue_free()
+	await process_frame
+
+func _test_main_scene_stage_bounds_sync() -> void:
+	var packed := load("res://scenes/Main.tscn")
+	_assert_true(packed is PackedScene, "main scene loads for stage bounds sync test")
+	if packed is not PackedScene:
+		return
+	var match_node := (packed as PackedScene).instantiate()
+	get_root().add_child(match_node)
+	await process_frame
+	await process_frame
+	var p1 := match_node.get_node_or_null("Player1")
+	var p2 := match_node.get_node_or_null("Player2")
+	_assert_true(p1 != null and p2 != null, "stage bounds sync test resolves both fighters")
+	var stage_left := float(match_node.get("stage_left_x"))
+	var stage_right := float(match_node.get("stage_right_x"))
+	var stage_floor := float(match_node.get("stage_floor_y"))
+	_assert_true(stage_right > stage_left, "match stage bounds resolve valid range")
+	_assert_true(stage_floor > -200.0 and stage_floor < 800.0, "match stage floor resolves plausible value")
+	if p1 != null:
+		_assert_true(is_equal_approx(float(p1.get("stage_left_x")), stage_left), "player1 receives stage left bound from match")
+		_assert_true(is_equal_approx(float(p1.get("stage_right_x")), stage_right), "player1 receives stage right bound from match")
+		_assert_true(is_equal_approx(float(p1.get("stage_floor_y")), stage_floor), "player1 receives stage floor from match")
+	if p2 != null:
+		_assert_true(is_equal_approx(float(p2.get("stage_left_x")), stage_left), "player2 receives stage left bound from match")
+		_assert_true(is_equal_approx(float(p2.get("stage_right_x")), stage_right), "player2 receives stage right bound from match")
+		_assert_true(is_equal_approx(float(p2.get("stage_floor_y")), stage_floor), "player2 receives stage floor from match")
+	if is_instance_valid(match_node):
+		match_node.queue_free()
+	await process_frame
+
+func _test_arena_extra_platform_colliders() -> void:
+	var packed := load("res://scenes/Arena.tscn")
+	_assert_true(packed is PackedScene, "arena scene loads for extra platform collider test")
+	if packed is not PackedScene:
+		return
+	var arena_node := (packed as PackedScene).instantiate()
+	get_root().add_child(arena_node)
+	await process_frame
+	var ground_shape := arena_node.get_node_or_null("Ground/CollisionShape2D")
+	_assert_true(ground_shape is CollisionShape2D, "arena test resolves ground collision shape")
+	var ground_y := 360.0
+	if ground_shape is CollisionShape2D:
+		ground_y = float((ground_shape as CollisionShape2D).global_position.y)
+	for platform_name in ["PlatformLeft", "PlatformRight"]:
+		var platform_node := arena_node.get_node_or_null(platform_name)
+		_assert_true(platform_node is StaticBody2D, "arena exposes %s platform body" % platform_name)
+		if platform_node is not StaticBody2D:
+			continue
+		var platform_shape_node := (platform_node as StaticBody2D).get_node_or_null("CollisionShape2D")
+		_assert_true(platform_shape_node is CollisionShape2D, "%s exposes collision shape" % platform_name)
+		if platform_shape_node is not CollisionShape2D:
+			continue
+		var platform_shape := platform_shape_node as CollisionShape2D
+		_assert_true(platform_shape.shape is RectangleShape2D, "%s collider uses rectangle shape" % platform_name)
+		if platform_shape.shape is RectangleShape2D:
+			var rect := platform_shape.shape as RectangleShape2D
+			_assert_true(rect.size.x >= 120.0 and rect.size.y >= 10.0, "%s collider has platform-sized dimensions" % platform_name)
+		_assert_true(platform_shape.one_way_collision, "%s collider uses one-way collision" % platform_name)
+		_assert_true(float(platform_shape.global_position.y) < ground_y - 20.0, "%s collider is elevated above floor" % platform_name)
+	if is_instance_valid(arena_node):
+		arena_node.queue_free()
+	await process_frame
+
+func _test_main_scene_ledge_recovery_flow() -> void:
+	var packed := load("res://scenes/Main.tscn")
+	_assert_true(packed is PackedScene, "main scene loads for ledge recovery test")
+	if packed is not PackedScene:
+		return
+	var match_node := (packed as PackedScene).instantiate()
+	get_root().add_child(match_node)
+	await process_frame
+	await process_frame
+	var p1 := match_node.get_node_or_null("Player1")
+	_assert_true(p1 != null, "ledge recovery test resolves player1")
+	if p1 != null:
+		p1.set("is_ai", false)
+		var stage_right := float(match_node.get("stage_right_x"))
+		var stage_floor := float(match_node.get("stage_floor_y"))
+		p1.global_position = Vector2(stage_right + 10.0, stage_floor + 30.0)
+		p1.set("velocity", Vector2(0.0, 120.0))
+		p1.call("_physics_process", 1.0 / 60.0)
+		_assert_true(bool(p1.get("is_ledge_hanging")), "off-stage descent near edge enters ledge hang")
+		if bool(p1.get("is_ledge_hanging")):
+			p1.call("_launch_from_ledge")
+			_assert_true(not bool(p1.get("is_ledge_hanging")), "ledge launch exits ledge hang state")
+			var velocity_value: Variant = p1.get("velocity")
+			_assert_true(velocity_value is Vector2, "ledge launch exposes velocity vector")
+			if velocity_value is Vector2:
+				var launch_velocity := velocity_value as Vector2
+				_assert_true(launch_velocity.y < -20.0, "ledge launch gives upward recovery velocity")
+				_assert_true(launch_velocity.x < -20.0, "right-side ledge launch pushes fighter toward stage")
+	if is_instance_valid(match_node):
+		match_node.queue_free()
+	await process_frame
+
+func _test_platform_drop_through_collision_mask() -> void:
+	var setup: Dictionary = await _spawn_test_players()
+	var p1 := setup.get("p1") as CharacterBody2D
+	var host := setup.get("host") as Node2D
+	if p1 == null or host == null:
+		return
+	p1.call("set_stage_geometry", 0.0, 900.0, 340.0)
+	p1.global_position = Vector2(270.0, 250.0)
+	_assert_true(bool(p1.call("_is_on_drop_through_platform")), "platform drop-through helper detects elevated one-way platform height")
+	p1.set("platform_drop_through_time", 0.12)
+	p1.call("_update_platform_collision_mask")
+	_assert_true(not p1.get_collision_mask_value(2), "platform drop-through disables platform collision layer")
+	p1.set("platform_drop_through_time", 0.0)
+	p1.call("_update_platform_collision_mask")
+	_assert_true(p1.get_collision_mask_value(2), "platform collision layer is restored after drop-through timer")
+	host.queue_free()
+	await process_frame
+
+func _test_ledge_slot_occupancy_arbitration() -> void:
+	var setup: Dictionary = await _spawn_test_players()
+	var p1 := setup.get("p1") as CharacterBody2D
+	var p2 := setup.get("p2") as CharacterBody2D
+	var host := setup.get("host") as Node2D
+	if p1 == null or p2 == null or host == null:
+		return
+	p1.call("_start_ledge_hang", 1)
+	_assert_true(bool(p1.get("is_ledge_hanging")), "ledge occupancy test enters hang for first fighter")
+	_assert_true(not bool(p2.call("_is_ledge_slot_available", 1)), "occupied ledge slot blocks second fighter from grabbing same edge")
+	p1.call("_end_ledge_hang")
+	_assert_true(bool(p2.call("_is_ledge_slot_available", 1)), "ledge slot becomes available after first fighter releases edge")
+	host.queue_free()
+	await process_frame
+
+func _test_training_timer_visibility() -> void:
+	var training_packed := load("res://scenes/Training.tscn")
+	_assert_true(training_packed is PackedScene, "training scene loads for timer visibility test")
+	if training_packed is not PackedScene:
+		return
+	var training_node := (training_packed as PackedScene).instantiate()
+	get_root().add_child(training_node)
+	await process_frame
+	await process_frame
+	var training_hud := training_node.get_node_or_null("Hud")
+	_assert_true(training_hud != null, "training timer visibility test resolves hud")
+	if training_hud != null:
+		var training_timer_label := training_hud.get_node_or_null("TimerLabel")
+		var training_timer_chip := training_hud.get_node_or_null("TimerChip")
+		_assert_true(training_timer_label is CanvasItem and not (training_timer_label as CanvasItem).visible, "training scene hides timer label when round timer is disabled")
+		_assert_true(training_timer_chip is CanvasItem and not (training_timer_chip as CanvasItem).visible, "training scene hides timer chip when round timer is disabled")
+	if is_instance_valid(training_node):
+		training_node.queue_free()
+	await process_frame
+
+	var main_packed := load("res://scenes/Main.tscn")
+	_assert_true(main_packed is PackedScene, "main scene loads for timer visibility test")
+	if main_packed is not PackedScene:
+		return
+	var main_node := (main_packed as PackedScene).instantiate()
+	get_root().add_child(main_node)
+	await process_frame
+	await process_frame
+	var main_hud := main_node.get_node_or_null("Hud")
+	_assert_true(main_hud != null, "main timer visibility test resolves hud")
+	if main_hud != null:
+		var main_timer_label := main_hud.get_node_or_null("TimerLabel")
+		_assert_true(main_timer_label is CanvasItem and (main_timer_label as CanvasItem).visible, "main scene keeps timer label visible when stock timer is enabled")
+	if is_instance_valid(main_node):
+		main_node.queue_free()
+	await process_frame
+
+func _test_training_quick_start_hint_renders() -> void:
+	var previous_locale := TranslationServer.get_locale()
+	var training_packed := load("res://scenes/Training.tscn")
+	_assert_true(training_packed is PackedScene, "training scene loads for quick-start hint test")
+	if training_packed is not PackedScene:
+		return
+	var training_node := (training_packed as PackedScene).instantiate()
+	get_root().add_child(training_node)
+	await process_frame
+	await process_frame
+	var training_hud := training_node.get_node_or_null("Hud")
+	_assert_true(training_hud != null, "training quick-start hint test resolves hud")
+	if training_hud != null:
+		var hint_label := training_hud.get_node_or_null("TrainingPanel/TrainingQuickHintLabel")
+		_assert_true(hint_label is Label, "training panel exposes quick-start hint label")
+		if hint_label is Label:
+			TranslationServer.set_locale("en")
+			await process_frame
+			var en_hint := (hint_label as Label).text.strip_edges()
+			TranslationServer.set_locale("zh")
+			await process_frame
+			var zh_hint := (hint_label as Label).text.strip_edges()
+			_assert_true(en_hint != "" and en_hint != "HUD_TRAINING_QUICK_HINT", "quick-start hint renders English localized text")
+			_assert_true(zh_hint != "" and zh_hint != "HUD_TRAINING_QUICK_HINT", "quick-start hint renders Chinese localized text")
+			_assert_true(en_hint != zh_hint, "quick-start hint changes with locale switch")
+	if is_instance_valid(training_node):
+		training_node.queue_free()
+	await process_frame
+	TranslationServer.set_locale(previous_locale)
+	await process_frame
+
 func _test_control_preset_profiles() -> void:
+	_replace_action_keyboard_keys("jump", [KEY_Z])
+	_replace_action_keyboard_keys("block", [KEY_X])
+	var settings_path := ProjectSettings.globalize_path(GameSettingsStore.SETTINGS_PATH)
+	if FileAccess.file_exists(settings_path):
+		DirAccess.remove_absolute(settings_path)
+	if Engine.has_meta(GameSettingsStore.ENGINE_META_KEY):
+		Engine.remove_meta(GameSettingsStore.ENGINE_META_KEY)
+	var menu_packed := load("res://scenes/Menu.tscn")
+	_assert_true(menu_packed is PackedScene, "menu scene loads for first-launch control selection test")
+	if menu_packed is PackedScene:
+		var menu_node := (menu_packed as PackedScene).instantiate()
+		get_root().add_child(menu_node)
+		await process_frame
+		await process_frame
+		_assert_true(_action_has_keyboard_key("jump", KEY_Z), "first-launch flow does not auto-apply modern jump mapping")
+		_assert_true(_action_has_keyboard_key("block", KEY_X), "first-launch flow does not auto-apply modern block mapping")
+		if is_instance_valid(menu_node):
+			menu_node.queue_free()
+		await process_frame
+
 	GameSettingsStore.apply_control_preset(GameSettingsStore.CONTROL_PRESET_MODERN)
 	_assert_true(_action_has_keyboard_key("jump", KEY_SPACE), "modern preset keeps jump on Space")
 	_assert_true(_action_has_keyboard_key("block", KEY_H), "modern preset keeps dedicated block key")
@@ -145,8 +728,20 @@ func _action_has_any_keyboard_key(action_name: String) -> bool:
 			return true
 	return false
 
+func _replace_action_keyboard_keys(action_name: String, keycodes: Array) -> void:
+	if not InputMap.has_action(action_name):
+		return
+	for event in InputMap.action_get_events(action_name):
+		if event is InputEventKey:
+			InputMap.action_erase_event(action_name, event)
+	for keycode_value in keycodes:
+		var keycode := int(keycode_value)
+		var key_event := InputEventKey.new()
+		key_event.keycode = keycode
+		key_event.physical_keycode = keycode
+		InputMap.action_add_event(action_name, key_event)
+
 func _test_hitstop_overlap_recovery() -> void:
-	Engine.time_scale = 1.0
 	var packed := load("res://scenes/Main.tscn")
 	_assert_true(packed is PackedScene, "main scene loads for hitstop overlap test")
 	if packed is not PackedScene:
@@ -155,16 +750,158 @@ func _test_hitstop_overlap_recovery() -> void:
 	get_root().add_child(match_node)
 	await process_frame
 	await process_frame
+	var p1 := match_node.get_node_or_null("Player1")
+	var p2 := match_node.get_node_or_null("Player2")
+	_assert_true(p1 != null and p2 != null, "hitstop overlap test resolves both fighters")
 	match_node.call("_apply_hitstop", 0.03)
 	match_node.call("_apply_hitstop", 0.09)
-	_assert_true(Engine.time_scale < 0.5, "overlapping hitstop requests enter slow scale")
+	if p1 != null and p2 != null:
+		_assert_true(bool(p1.get("hitstop_active")) and bool(p2.get("hitstop_active")), "overlapping hitstop requests freeze both fighters")
 	await create_timer(0.14, true, false, true).timeout
 	await process_frame
-	_assert_true(is_equal_approx(Engine.time_scale, 1.0), "overlapping hitstop requests recover to normal speed")
+	if p1 != null and p2 != null:
+		_assert_true(not bool(p1.get("hitstop_active")) and not bool(p2.get("hitstop_active")), "overlapping hitstop requests recover fighter motion state")
 	if is_instance_valid(match_node):
 		match_node.queue_free()
 	await process_frame
-	Engine.time_scale = 1.0
+
+func _test_camera_zoom_response() -> void:
+	var packed := load("res://scenes/Main.tscn")
+	_assert_true(packed is PackedScene, "main scene loads for camera zoom response test")
+	if packed is not PackedScene:
+		return
+	var match_node := (packed as PackedScene).instantiate()
+	get_root().add_child(match_node)
+	await process_frame
+	await process_frame
+	var p1 := match_node.get_node_or_null("Player1")
+	var p2 := match_node.get_node_or_null("Player2")
+	var camera_value: Variant = match_node.get("camera")
+	_assert_true(p1 != null and p2 != null and camera_value is Camera2D, "camera zoom test resolves fighters and camera")
+	if p1 != null and p2 != null and camera_value is Camera2D:
+		var camera_node := camera_value as Camera2D
+		p1.position = Vector2(320, p1.position.y)
+		p2.position = Vector2(420, p2.position.y)
+		match_node.call("_update_camera", 1.0)
+		var near_zoom := float(camera_node.zoom.x)
+		p1.position = Vector2(80, p1.position.y)
+		p2.position = Vector2(820, p2.position.y)
+		match_node.call("_update_camera", 1.0)
+		var far_zoom := float(camera_node.zoom.x)
+		_assert_true(far_zoom > near_zoom + 0.05, "camera zooms out when fighters are far apart")
+	if is_instance_valid(match_node):
+		match_node.queue_free()
+	await process_frame
+
+func _test_camera_vertical_framing_response() -> void:
+	var packed := load("res://scenes/Main.tscn")
+	_assert_true(packed is PackedScene, "main scene loads for camera vertical framing test")
+	if packed is not PackedScene:
+		return
+	var match_node := (packed as PackedScene).instantiate()
+	get_root().add_child(match_node)
+	await process_frame
+	await process_frame
+	var p1 := match_node.get_node_or_null("Player1")
+	var p2 := match_node.get_node_or_null("Player2")
+	var camera_value: Variant = match_node.get("camera")
+	_assert_true(p1 != null and p2 != null and camera_value is Camera2D, "camera vertical framing test resolves fighters and camera")
+	if p1 != null and p2 != null and camera_value is Camera2D:
+		var camera_node := camera_value as Camera2D
+		p1.position = Vector2(330.0, 320.0)
+		p2.position = Vector2(430.0, 320.0)
+		match_node.call("_update_camera", 1.0)
+		var base_y := float(camera_node.position.y)
+		var base_zoom := float(camera_node.zoom.x)
+		p1.position = Vector2(340.0, 20.0)
+		p2.position = Vector2(420.0, 40.0)
+		match_node.call("_update_camera", 1.0)
+		var lifted_y := float(camera_node.position.y)
+		_assert_true(lifted_y < base_y - 35.0, "camera shifts upward when both fighters are launched high")
+		p1.position = Vector2(380.0, 40.0)
+		p2.position = Vector2(390.0, 520.0)
+		match_node.call("_update_camera", 1.0)
+		var vertical_spread_zoom := float(camera_node.zoom.x)
+		_assert_true(vertical_spread_zoom > base_zoom + 0.03, "camera zoom responds to vertical fighter separation")
+	if is_instance_valid(match_node):
+		match_node.queue_free()
+	await process_frame
+
+func _test_training_toggle_keeps_dummy_non_ai() -> void:
+	var packed := load("res://scenes/Training.tscn")
+	_assert_true(packed is PackedScene, "training scene loads for dummy ai toggle test")
+	if packed is not PackedScene:
+		return
+	var training_node := (packed as PackedScene).instantiate()
+	get_root().add_child(training_node)
+	await process_frame
+	await process_frame
+	var p2 := training_node.get_node_or_null("Player2")
+	_assert_true(p2 != null, "training dummy ai toggle test resolves player2")
+	if p2 != null:
+		_assert_true(not bool(p2.get("is_ai")), "training scene keeps dummy non-ai by default")
+		training_node.call("_on_hud_training_options_changed", {
+			"enabled": false,
+			"dummy_mode": "stand",
+			"show_detail": false
+		})
+		await process_frame
+		_assert_true(not bool(p2.get("is_ai")), "disabling training options does not re-enable dummy ai")
+		training_node.call("_on_hud_training_options_changed", {
+			"enabled": true,
+			"dummy_mode": "random_block",
+			"show_detail": true
+		})
+		await process_frame
+		_assert_true(not bool(p2.get("is_ai")), "re-enabling training options keeps dummy non-ai")
+	if is_instance_valid(training_node):
+		training_node.queue_free()
+	await process_frame
+
+func _test_character_visual_readability_tinting() -> void:
+	var setup: Dictionary = await _spawn_test_players()
+	var p1 := setup.get("p1") as CharacterBody2D
+	var p2 := setup.get("p2") as CharacterBody2D
+	var host := setup.get("host") as Node2D
+	if p1 == null or p2 == null or host == null:
+		return
+	p1.call("_update_visual")
+	p2.call("_update_visual")
+	var p1_visual := p1.get_node_or_null("Visual")
+	var p2_visual := p2.get_node_or_null("Visual")
+	_assert_true(p1_visual is CanvasItem and p2_visual is CanvasItem, "player visuals resolve for readability tint test")
+	if p1_visual is CanvasItem and p2_visual is CanvasItem:
+		var c1 := (p1_visual as CanvasItem).modulate
+		var c2 := (p2_visual as CanvasItem).modulate
+		var tint_delta := absf(c1.r - c2.r) + absf(c1.g - c2.g) + absf(c1.b - c2.b)
+		_assert_true(tint_delta > 0.06, "different character profiles produce distinct readability tint")
+	host.queue_free()
+	await process_frame
+
+func _test_double_ko_resolution() -> void:
+	var packed := load("res://scenes/Main.tscn")
+	_assert_true(packed is PackedScene, "main scene loads for double-KO resolution test")
+	if packed is not PackedScene:
+		return
+	var match_node := (packed as PackedScene).instantiate()
+	get_root().add_child(match_node)
+	await process_frame
+	await process_frame
+	var p1 := match_node.get_node_or_null("Player1")
+	var p2 := match_node.get_node_or_null("Player2")
+	_assert_true(p1 != null and p2 != null, "double-KO test can resolve both fighters")
+	if p1 != null and p2 != null:
+		match_node.set("stocks", {"p1": 1, "p2": 1})
+		p1.set("current_hp", 0)
+		p2.set("current_hp", 0)
+		p1.emit_signal("defeated")
+		await process_frame
+		await process_frame
+		var result_key := str(match_node.get("match_result_key"))
+		_assert_true(result_key == "draw", "double-KO resolves to draw instead of winner override")
+	if is_instance_valid(match_node):
+		match_node.queue_free()
+	await process_frame
 
 func _test_player_damage_and_block_flow() -> void:
 	var player_scene := load("res://scenes/Player.tscn")
@@ -222,6 +959,151 @@ func _test_player_damage_and_block_flow() -> void:
 	_assert_true(int(p2.get("current_hp")) == 100, "light attack block deals zero chip")
 
 	host.queue_free()
+	await process_frame
+
+func _test_throw_tech_and_ai_defense_windows() -> void:
+	var setup: Dictionary = await _spawn_test_players()
+	var p1 := setup.get("p1") as CharacterBody2D
+	var p2 := setup.get("p2") as CharacterBody2D
+	var host := setup.get("host") as Node2D
+	if p1 == null or p2 == null or host == null:
+		return
+
+	p1.set("is_ai", false)
+	p2.set("is_ai", false)
+	p2.set("current_hp", 100)
+	p2.set("hitstun_time", 0.0)
+	p2.set("blockstun_time", 0.0)
+	p2.set("is_knocked_down", false)
+	p2.set("getup_time", 0.0)
+	p2.set("wake_invuln_time", 0.0)
+
+	var throw_meta := {
+		"throw_techable": true,
+		"block_type": "throw",
+		"air_blockable": false
+	}
+	p2.set("throw_tech_buffer_time", 0.08)
+	var tech_result: Dictionary = p2.call("apply_damage", 10, Vector2(110, -16), 0.12, "throw", throw_meta)
+	_assert_true(bool(tech_result.get("throw_teched", false)), "throw tech succeeds inside tighter input buffer window")
+
+	p2.set("current_hp", 100)
+	p2.set("throw_tech_buffer_time", 0.0)
+	var no_tech_result: Dictionary = p2.call("apply_damage", 10, Vector2(110, -16), 0.12, "throw", throw_meta)
+	_assert_true(not bool(no_tech_result.get("throw_teched", false)), "throw tech fails when buffer is not primed")
+
+	p2.set("is_ai", true)
+	p2.set("ai_block_time", 0.0)
+	p2.set("is_blocking", false)
+	p2.set("hitstun_time", 0.0)
+	p2.set("blockstun_time", 0.0)
+	p2.set("is_knocked_down", false)
+	p2.set("getup_time", 0.0)
+	p2.set("wake_invuln_time", 0.0)
+	p2.set("ai_style_profile", {
+		"block_chance": 1.0,
+		"block_hold_time": 0.12
+	})
+
+	p1.set("attack_state", "heavy")
+	p1.set("attack_phase", "startup")
+	p1.set("attack_time", 0.02)
+	p1.set("attack_startup_duration", 0.20)
+	var early_block_roll := bool(p2.call("_should_ai_block", 40.0))
+	_assert_true(not early_block_roll, "ai does not pre-block at very early startup")
+
+	p2.set("ai_block_time", 0.0)
+	p1.set("attack_time", 0.16)
+	var late_startup_block_roll := bool(p2.call("_should_ai_block", 40.0))
+	_assert_true(late_startup_block_roll, "ai can block when startup nears active threat")
+
+	p2.set("ai_block_time", 0.0)
+	p1.set("attack_phase", "active")
+	var active_block_roll := bool(p2.call("_should_ai_block", 40.0))
+	_assert_true(active_block_roll, "ai blocks reliably during active threat window")
+
+	host.queue_free()
+	await process_frame
+
+func _test_knockback_growth_and_di_response() -> void:
+	var setup: Dictionary = await _spawn_test_players()
+	var p1 := setup.get("p1") as CharacterBody2D
+	var p2 := setup.get("p2") as CharacterBody2D
+	var host := setup.get("host") as Node2D
+	if p1 == null or p2 == null or host == null:
+		return
+
+	p1.set("is_ai", false)
+	p2.set("is_ai", false)
+	p2.set("hitstun_time", 0.0)
+	p2.set("blockstun_time", 0.0)
+	p2.set("is_knocked_down", false)
+	p2.set("getup_time", 0.0)
+	p2.set("wake_invuln_time", 0.0)
+
+	var base_knockback := Vector2(180.0, -88.0)
+	p2.set("current_hp", 100)
+	p2.call("apply_damage", 6, base_knockback, 0.12, "heavy", {})
+	var low_damage_velocity := p2.get("velocity") as Vector2
+
+	p2.set("hitstun_time", 0.0)
+	p2.set("blockstun_time", 0.0)
+	p2.set("is_knocked_down", false)
+	p2.set("getup_time", 0.0)
+	p2.set("wake_invuln_time", 0.0)
+	p2.set("current_hp", 30)
+	p2.call("apply_damage", 6, base_knockback, 0.12, "heavy", {})
+	var high_damage_velocity := p2.get("velocity") as Vector2
+	_assert_true(high_damage_velocity.length() > low_damage_velocity.length() + 8.0, "knockback growth scales with accumulated damage")
+
+	p2.set("hitstun_time", 0.0)
+	p2.set("blockstun_time", 0.0)
+	p2.set("is_knocked_down", false)
+	p2.set("getup_time", 0.0)
+	p2.set("wake_invuln_time", 0.0)
+	p2.set("current_hp", 90)
+	p2.call("apply_damage", 4, base_knockback, 0.12, "heavy", {"di_override": Vector2(-1.0, 0.0)})
+	var left_di_velocity := p2.get("velocity") as Vector2
+
+	p2.set("hitstun_time", 0.0)
+	p2.set("blockstun_time", 0.0)
+	p2.set("is_knocked_down", false)
+	p2.set("getup_time", 0.0)
+	p2.set("wake_invuln_time", 0.0)
+	p2.set("current_hp", 90)
+	p2.call("apply_damage", 4, base_knockback, 0.12, "heavy", {"di_override": Vector2(1.0, 0.0)})
+	var right_di_velocity := p2.get("velocity") as Vector2
+
+	_assert_true(absf(left_di_velocity.x - right_di_velocity.x) > 18.0, "directional influence changes launch trajectory")
+	_assert_true(absf(left_di_velocity.y - right_di_velocity.y) > 6.0, "directional influence affects vertical launch component")
+
+	host.queue_free()
+	await process_frame
+
+func _test_hitstop_tier_resolution() -> void:
+	var packed := load("res://scenes/Main.tscn")
+	_assert_true(packed is PackedScene, "main scene loads for hitstop tier resolution test")
+	if packed is not PackedScene:
+		return
+	var match_node := (packed as PackedScene).instantiate()
+	get_root().add_child(match_node)
+	await process_frame
+	await process_frame
+
+	var light_hitstop := float(match_node.call("_resolve_hitstop_duration", "light", false, 1))
+	var heavy_hitstop := float(match_node.call("_resolve_hitstop_duration", "heavy_up", false, 1))
+	var signature_hitstop := float(match_node.call("_resolve_hitstop_duration", "signature_b", false, 1))
+	var ultimate_hitstop := float(match_node.call("_resolve_hitstop_duration", "ultimate", false, 1))
+	_assert_true(heavy_hitstop > light_hitstop, "heavy hitstop tier is stronger than light tier")
+	_assert_true(signature_hitstop > heavy_hitstop, "signature hitstop tier is stronger than heavy tier")
+	_assert_true(ultimate_hitstop > signature_hitstop, "ultimate hitstop tier is strongest")
+
+	var light_blockstop := float(match_node.call("_resolve_blockstop_duration", "light"))
+	var ultimate_blockstop := float(match_node.call("_resolve_blockstop_duration", "ultimate"))
+	_assert_true(ultimate_blockstop > light_blockstop, "blockstop tier scales up for ultimate attacks")
+
+	if is_instance_valid(match_node):
+		match_node.queue_free()
 	await process_frame
 
 func _test_skill_runtime_primitives() -> void:
@@ -332,6 +1214,34 @@ func _test_skill_runtime_primitives() -> void:
 		p1.call("_apply_skill_entity_hit", p2, payload)
 	_assert_true(int(p2.get("current_hp")) < 100, "runtime projectile entity can hit opponent")
 
+	p1.position = Vector2(888.0, p1.position.y)
+	p2.position = Vector2(899.0, p2.position.y)
+	p1.call("_update_facing")
+	p1.set("attack_state", "")
+	p1.set("skill_cooldowns", {})
+	p1.call("_start_attack", "signature_a")
+	p1.call("_update_attack", 0.09)
+	p1.call("_update_skill_entities", 0.25)
+	var wall_entities := p1.get("skill_entities") as Array
+	var wall_bound_ok := wall_entities.is_empty()
+	if not wall_entities.is_empty():
+		var wall_entry := wall_entities[0] as Dictionary
+		var wall_pos_value: Variant = wall_entry.get("position", Vector2.ZERO)
+		if wall_pos_value is Vector2:
+			wall_bound_ok = (wall_pos_value as Vector2).x <= 900.0
+	_assert_true(wall_bound_ok, "skill entities respect stage wall bounds")
+
+	p1.position = Vector2(890.0, p1.position.y)
+	p2.position = Vector2(899.0, p2.position.y)
+	p1.set("facing", 1)
+	p1.call("_apply_mobility_effect", {"mode": "teleport", "distance": 240.0})
+	_assert_true(p1.global_position.x <= 888.0 + 0.001, "teleport mobility clamps at right stage bound")
+	p1.position = Vector2(10.0, p1.position.y)
+	p2.position = Vector2(0.0, p2.position.y)
+	p1.set("facing", -1)
+	p1.call("_apply_mobility_effect", {"mode": "teleport", "distance": 240.0})
+	_assert_true(p1.global_position.x >= 12.0 - 0.001, "teleport mobility clamps at left stage bound")
+
 	host.queue_free()
 	await process_frame
 
@@ -365,6 +1275,333 @@ func _test_motion_feel_primitives() -> void:
 	p1.set("attack_phase", "")
 	var neutral_speed := float(p1.call("_resolve_attack_animation_speed_scale", StringName("idle")))
 	_assert_true(is_equal_approx(neutral_speed, 1.0), "neutral animation speed scale remains default")
+
+	host.queue_free()
+	await process_frame
+
+func _test_directional_attack_variants() -> void:
+	var setup: Dictionary = await _spawn_test_players()
+	var p1 := setup.get("p1") as CharacterBody2D
+	var p2 := setup.get("p2") as CharacterBody2D
+	var host := setup.get("host") as Node2D
+	if p1 == null or p2 == null or host == null:
+		return
+	_assert_true(bool(p1.call("_has_attack_kind", "light_up")), "runtime attack data includes light_up variant")
+	_assert_true(bool(p1.call("_has_attack_kind", "light_down")), "runtime attack data includes light_down variant")
+	_assert_true(bool(p1.call("_has_attack_kind", "heavy_up")), "runtime attack data includes heavy_up variant")
+	_assert_true(bool(p1.call("_has_attack_kind", "heavy_down")), "runtime attack data includes heavy_down variant")
+	var grounded := p1.is_on_floor()
+	var neutral_light_expected := "light" if grounded else "light_air"
+	var up_light_expected := "light_up" if grounded else "light_air"
+	var down_light_expected := "light_down" if grounded else "light_air"
+	var up_heavy_expected := "heavy_up" if grounded else "heavy_air"
+	var down_heavy_expected := "heavy_down" if grounded else "heavy_air"
+	_assert_true(str(p1.call("_resolve_basic_attack_variant", "light")) == neutral_light_expected, "neutral light input resolves to expected variant")
+	p1.set("up_input_buffer_time", 0.08)
+	_assert_true(str(p1.call("_resolve_basic_attack_variant", "light")) == up_light_expected, "up input resolves light to expected variant")
+	p1.set("up_input_buffer_time", 0.0)
+	p1.set("down_input_buffer_time", 0.08)
+	_assert_true(str(p1.call("_resolve_basic_attack_variant", "light")) == down_light_expected, "down input resolves light to expected variant")
+	p1.set("down_input_buffer_time", 0.0)
+	p1.set("up_input_buffer_time", 0.08)
+	_assert_true(str(p1.call("_resolve_basic_attack_variant", "heavy")) == up_heavy_expected, "up input resolves heavy to expected variant")
+	p1.set("up_input_buffer_time", 0.0)
+	p1.set("down_input_buffer_time", 0.08)
+	_assert_true(str(p1.call("_resolve_basic_attack_variant", "heavy")) == down_heavy_expected, "down input resolves heavy to expected variant")
+	_assert_true(str(p2.call("_resolve_input_action", "move_left")) == "p2_move_left", "player2 resolves movement action through dedicated input channel")
+	_assert_true(InputMap.has_action("p2_move_left"), "player2 dedicated input actions are registered")
+	host.queue_free()
+	await process_frame
+
+func _test_local_dual_gamepad_input_actions() -> void:
+	var setup: Dictionary = await _spawn_test_players()
+	var p1 := setup.get("p1") as CharacterBody2D
+	var p2 := setup.get("p2") as CharacterBody2D
+	var host := setup.get("host") as Node2D
+	if p1 == null or p2 == null or host == null:
+		return
+	_assert_true(str(p1.call("_resolve_input_action", "move_left")) == "p1_move_left", "player1 resolves movement action through dedicated local channel")
+	_assert_true(str(p2.call("_resolve_input_action", "move_left")) == "p2_move_left", "player2 resolves movement action through dedicated local channel")
+	_assert_true(InputMap.has_action("p1_move_left"), "player1 dedicated input actions are registered")
+	_assert_true(InputMap.has_action("p2_move_left"), "player2 dedicated input actions are registered")
+	var p1_device_id := int(p1.get("local_gamepad_device"))
+	var p2_device_id := int(p2.get("local_gamepad_device"))
+	var p1_device_mapped := false
+	var p2_device_mapped := false
+	for event in InputMap.action_get_events("p1_move_left"):
+		if event is InputEventJoypadButton and (event as InputEventJoypadButton).device == p1_device_id:
+			p1_device_mapped = true
+		elif event is InputEventJoypadMotion and (event as InputEventJoypadMotion).device == p1_device_id:
+			p1_device_mapped = true
+	for event in InputMap.action_get_events("p2_move_left"):
+		if event is InputEventJoypadButton and (event as InputEventJoypadButton).device == p2_device_id:
+			p2_device_mapped = true
+		elif event is InputEventJoypadMotion and (event as InputEventJoypadMotion).device == p2_device_id:
+			p2_device_mapped = true
+	_assert_true(p1_device_mapped, "player1 local channel binds resolved gamepad device")
+	_assert_true(p2_device_mapped, "player2 local channel binds resolved gamepad device")
+	host.queue_free()
+	await process_frame
+
+func _test_forward_tap_triggers_ground_dash() -> void:
+	var setup: Dictionary = await _spawn_test_players()
+	var p1 := setup.get("p1") as CharacterBody2D
+	var host := setup.get("host") as Node2D
+	if p1 == null or host == null:
+		return
+	p1.set("facing", 1)
+	p1.set("is_dashing", false)
+	p1.set("attack_state", "")
+	p1.set("dash_cooldown_timer", 0.0)
+	p1.set("hitstun_time", 0.0)
+	p1.set("blockstun_time", 0.0)
+	p1.set("is_knocked_down", false)
+	p1.set("getup_time", 0.0)
+	p1.set("shield_break_time", 0.0)
+	p1.set("coyote_time", 0.08)
+	p1.set("position", Vector2(200, 300))
+	var floor := StaticBody2D.new()
+	var floor_shape_node := CollisionShape2D.new()
+	var floor_shape := RectangleShape2D.new()
+	floor_shape.size = Vector2(900.0, 40.0)
+	floor_shape_node.shape = floor_shape
+	floor.add_child(floor_shape_node)
+	floor.position = Vector2(450.0, 344.0)
+	host.add_child(floor)
+	await process_frame
+	var forward_action := str(p1.call("_resolve_input_action", "move_right"))
+	Input.action_press(forward_action, 1.0)
+	p1.call("_process_player_input", 0.016)
+	Input.action_release(forward_action)
+	_assert_true(bool(p1.get("is_dashing")), "forward tap starts ground dash without dedicated dash button")
+	host.queue_free()
+	await process_frame
+
+func _test_jump_leniency_and_fast_fall() -> void:
+	var setup: Dictionary = await _spawn_test_players()
+	var p1 := setup.get("p1") as CharacterBody2D
+	var host := setup.get("host") as Node2D
+	if p1 == null or host == null:
+		return
+
+	p1.set("velocity", Vector2(0.0, 64.0))
+	p1.set("coyote_time", 0.08)
+	p1.set("jump_buffer_time", 0.10)
+	var coyote_jump_triggered := bool(p1.call("_try_consume_buffered_jump"))
+	_assert_true(coyote_jump_triggered, "coyote jump window consumes buffered jump input")
+	var coyote_velocity_value: Variant = p1.get("velocity")
+	if coyote_velocity_value is Vector2:
+		var coyote_velocity := coyote_velocity_value as Vector2
+		_assert_true(coyote_velocity.y <= -300.0, "coyote jump applies upward launch velocity")
+	_assert_true(float(p1.get("jump_buffer_time")) <= 0.0, "jump buffer clears after successful jump")
+	_assert_true(float(p1.get("coyote_time")) <= 0.0, "coyote timer is consumed by jump")
+
+	p1.set("is_ai", false)
+	p1.set("velocity", Vector2(0.0, 120.0))
+	p1.set("fast_fall_active", false)
+	p1.set("down_input_buffer_time", 0.0)
+	p1.call("_apply_air_gravity", 0.10)
+	var normal_fall_velocity := (p1.get("velocity") as Vector2).y
+
+	p1.set("velocity", Vector2(0.0, 120.0))
+	p1.set("fast_fall_active", false)
+	p1.set("down_input_buffer_time", 0.08)
+	p1.call("_apply_air_gravity", 0.10)
+	var fast_fall_velocity := (p1.get("velocity") as Vector2).y
+	_assert_true(bool(p1.get("fast_fall_active")), "down input in descent enables fast-fall state")
+	_assert_true(fast_fall_velocity > normal_fall_velocity + 30.0, "fast-fall increases downward velocity versus normal gravity")
+
+	host.queue_free()
+	await process_frame
+
+func _test_short_hop_jump_cut() -> void:
+	var setup: Dictionary = await _spawn_test_players()
+	var p1 := setup.get("p1") as CharacterBody2D
+	var host := setup.get("host") as Node2D
+	if p1 == null or host == null:
+		return
+
+	p1.set("is_ai", false)
+	p1.set("velocity", Vector2.ZERO)
+	p1.set("coyote_time", 0.08)
+	p1.set("jump_buffer_time", 0.10)
+	var jump_started := bool(p1.call("_try_consume_buffered_jump"))
+	_assert_true(jump_started, "jump cut test starts from successful buffered jump")
+	_assert_true(bool(p1.get("jump_cut_available")), "successful jump enables jump-cut window")
+	var before_cut := (p1.get("velocity") as Vector2).y
+	p1.call("_apply_jump_cut")
+	var after_cut := (p1.get("velocity") as Vector2).y
+	_assert_true(after_cut > before_cut + 80.0, "releasing jump shortens ascent via jump-cut velocity")
+	_assert_true(not bool(p1.get("jump_cut_available")), "jump-cut window is consumed after short-hop cut")
+
+	host.queue_free()
+	await process_frame
+
+func _test_aerial_landing_lag_and_auto_cancel() -> void:
+	var setup: Dictionary = await _spawn_test_players()
+	var p1 := setup.get("p1") as CharacterBody2D
+	var host := setup.get("host") as Node2D
+	if p1 == null or host == null:
+		return
+
+	p1.set("attack_state", "heavy")
+	p1.set("attack_phase", "active")
+	p1.set("attack_time", 0.02)
+	p1.set("attack_recovery_duration", 0.26)
+	p1.set("attack_started_in_air", true)
+	p1.set("fast_fall_active", true)
+	p1.set("landing_lag_time", 0.0)
+	p1.call("_on_landed_from_air")
+	var fast_fall_lag := float(p1.get("landing_lag_time"))
+	_assert_true(fast_fall_lag >= 0.12, "aerial landing lag adds fast-fall penalty when not auto-canceled")
+	_assert_true(str(p1.get("attack_state")) == "", "landing during aerial attack clears attack state")
+
+	p1.set("attack_state", "heavy")
+	p1.set("attack_phase", "startup")
+	p1.set("attack_time", 0.01)
+	p1.set("attack_started_in_air", true)
+	p1.set("fast_fall_active", false)
+	p1.set("landing_lag_time", 0.0)
+	p1.call("_on_landed_from_air")
+	var startup_auto_cancel_lag := float(p1.get("landing_lag_time"))
+	_assert_true(startup_auto_cancel_lag <= 0.04, "startup landing uses low auto-cancel lag")
+
+	p1.set("attack_state", "heavy")
+	p1.set("attack_phase", "recovery")
+	p1.set("attack_recovery_duration", 0.26)
+	p1.set("attack_time", 0.20)
+	p1.set("attack_started_in_air", true)
+	p1.set("fast_fall_active", false)
+	p1.set("landing_lag_time", 0.0)
+	p1.call("_on_landed_from_air")
+	var late_recovery_auto_cancel_lag := float(p1.get("landing_lag_time"))
+	_assert_true(late_recovery_auto_cancel_lag <= 0.04, "late recovery landing enters auto-cancel window")
+
+	p1.set("attack_state", "heavy")
+	p1.set("attack_phase", "recovery")
+	p1.set("attack_recovery_duration", 0.26)
+	p1.set("attack_time", 0.05)
+	p1.set("attack_started_in_air", true)
+	p1.set("fast_fall_active", false)
+	p1.set("landing_lag_time", 0.0)
+	p1.call("_on_landed_from_air")
+	var early_recovery_lag := float(p1.get("landing_lag_time"))
+	_assert_true(early_recovery_lag > late_recovery_auto_cancel_lag + 0.06, "early recovery landing keeps full landing lag")
+
+	p1.set("attack_state", "")
+	p1.set("is_dashing", false)
+	p1.set("is_knocked_down", false)
+	p1.set("getup_time", 0.0)
+	p1.set("hitstun_time", 0.0)
+	p1.set("blockstun_time", 0.0)
+	p1.set("landing_lag_time", 0.03)
+	_assert_true(not bool(p1.call("_can_start_attack")), "landing lag blocks immediate grounded attack")
+	p1.set("landing_lag_time", 0.0)
+	_assert_true(bool(p1.call("_can_start_attack")), "attack can start again when landing lag expires")
+
+	host.queue_free()
+	await process_frame
+
+func _test_shield_resource_and_break_flow() -> void:
+	var setup: Dictionary = await _spawn_test_players()
+	var p1 := setup.get("p1") as CharacterBody2D
+	var host := setup.get("host") as Node2D
+	if p1 == null or host == null:
+		return
+
+	p1.set("shield_meter", 4.0)
+	p1.set("is_blocking", true)
+	p1.call("_apply_block_impact", 20, Vector2(120.0, 0.0), 0.12, "heavy", {"blockstun": 0.12})
+	_assert_true(float(p1.get("shield_break_time")) > 0.80, "shield depletes into shield-break stun")
+	_assert_true(not bool(p1.get("is_blocking")), "shield break exits block state")
+	_assert_true(not bool(p1.call("_can_enter_block")), "shield break prevents immediate blocking")
+
+	p1.call("_physics_process", 1.20)
+	_assert_true(float(p1.get("shield_break_time")) <= 0.0, "shield break stun expires after duration")
+	_assert_true(float(p1.get("shield_meter")) >= 30.0, "shield break restores minimum shield resource on recovery")
+
+	p1.set("is_blocking", false)
+	p1.set("shield_regen_delay", 0.0)
+	p1.set("shield_meter", 50.0)
+	p1.call("_update_shield_state", 0.50)
+	_assert_true(float(p1.get("shield_meter")) > 50.0, "shield regenerates while idle")
+
+	p1.set("shield_meter", 80.0)
+	p1.set("shield_break_time", 0.0)
+	p1.set("shield_broken", false)
+	p1.set("is_blocking", true)
+	p1.call("_update_shield_state", 0.50)
+	_assert_true(float(p1.get("shield_meter")) < 80.0, "holding block drains shield over time")
+
+	host.queue_free()
+	await process_frame
+
+func _test_defensive_dodge_layer() -> void:
+	var setup: Dictionary = await _spawn_test_players()
+	var p1 := setup.get("p1") as CharacterBody2D
+	var host := setup.get("host") as Node2D
+	if p1 == null or host == null:
+		return
+
+	p1.set("current_hp", 100)
+	p1.call("_start_spot_dodge")
+	_assert_true(str(p1.get("dodge_state")) == "spot", "spot dodge enters dodge state")
+	_assert_true(float(p1.get("dodge_time")) > 0.0, "spot dodge sets active dodge timer")
+	var spot_result: Variant = p1.call("apply_damage", 12, Vector2(120.0, 0.0), 0.12, "light", {})
+	if typeof(spot_result) == TYPE_DICTIONARY:
+		_assert_true(bool((spot_result as Dictionary).get("ignored", false)), "spot dodge invulnerability ignores incoming hit")
+
+	p1.call("_start_roll_dodge", -1)
+	_assert_true(str(p1.get("dodge_state")) == "roll", "roll dodge enters roll state")
+	var roll_velocity_value: Variant = p1.get("velocity")
+	if roll_velocity_value is Vector2:
+		_assert_true((roll_velocity_value as Vector2).x < -10.0, "roll dodge moves in requested direction")
+
+	p1.set("air_dodge_available", true)
+	var air_dodge_started := bool(p1.call("_start_air_dodge", 1.0, 0.0))
+	_assert_true(air_dodge_started, "air dodge starts when resource is available")
+	_assert_true(not bool(p1.get("air_dodge_available")), "air dodge consumes airtime dodge resource")
+	var second_air_dodge := bool(p1.call("_start_air_dodge", 1.0, 0.0))
+	_assert_true(not second_air_dodge, "air dodge cannot be started twice before refresh")
+
+	p1.set("dodge_time", 0.12)
+	_assert_true(not bool(p1.call("_can_start_attack")), "active dodge prevents attack startup")
+
+	host.queue_free()
+	await process_frame
+
+func _test_double_jump_and_ledge_getup_options() -> void:
+	var setup: Dictionary = await _spawn_test_players()
+	var p1 := setup.get("p1") as CharacterBody2D
+	var host := setup.get("host") as Node2D
+	if p1 == null or host == null:
+		return
+
+	p1.set("air_jumps_remaining", 1)
+	p1.set("coyote_time", 0.0)
+	p1.set("jump_buffer_time", 0.10)
+	p1.set("velocity", Vector2.ZERO)
+	var first_air_jump := bool(p1.call("_try_consume_buffered_jump"))
+	_assert_true(first_air_jump, "air jump can be consumed when coyote is unavailable")
+	_assert_true(int(p1.get("air_jumps_remaining")) == 0, "air jump use decrements remaining jump resource")
+	p1.set("jump_buffer_time", 0.10)
+	var second_air_jump := bool(p1.call("_try_consume_buffered_jump"))
+	_assert_true(not second_air_jump, "air jump cannot be used again when resource is exhausted")
+
+	p1.set("stage_left_x", 0.0)
+	p1.set("stage_right_x", 900.0)
+	p1.set("stage_floor_y", 340.0)
+	p1.call("_start_ledge_hang", 1)
+	_assert_true(bool(p1.get("is_ledge_hanging")), "ledge getup test enters ledge hang state")
+	p1.call("_roll_getup_from_ledge")
+	_assert_true(not bool(p1.get("is_ledge_hanging")), "ledge roll getup exits ledge hang")
+	_assert_true(str(p1.get("dodge_state")) == "roll", "ledge roll getup transitions into roll dodge state")
+
+	p1.call("_start_ledge_hang", -1)
+	p1.set("attack_state", "")
+	p1.call("_attack_getup_from_ledge")
+	_assert_true(not bool(p1.get("is_ledge_hanging")), "ledge attack getup exits ledge hang")
+	_assert_true(str(p1.get("attack_state")) == "light", "ledge attack getup starts grounded attack")
 
 	host.queue_free()
 	await process_frame

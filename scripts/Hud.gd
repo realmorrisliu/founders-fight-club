@@ -2,6 +2,7 @@ extends CanvasLayer
 
 signal resume_requested
 signal restart_requested
+signal menu_requested
 signal locale_changed(locale: String)
 signal training_options_changed(options: Dictionary)
 
@@ -9,10 +10,13 @@ const TRANSLATION_PATHS := [
 	"res://i18n/en.tres",
 	"res://i18n/zh.tres"
 ]
+const MATCH_UI_MODE_HP_TIMER := "hp_timer"
+const MATCH_UI_MODE_STOCK := "stock"
 
 static var _translations_registered := false
 
 @onready var timer_label := $TimerLabel
+@onready var timer_chip := $TimerChip
 @onready var p1_hp_label := $P1HpLabel
 @onready var p2_hp_label := $P2HpLabel
 @onready var p1_hype_label := $P1HypeLabel
@@ -21,6 +25,8 @@ static var _translations_registered := false
 @onready var p2_hype_bar := $P2HypeBar
 @onready var p1_state_label := $P1StateLabel
 @onready var p2_state_label := $P2StateLabel
+@onready var p1_profile_label := $P1ProfileLabel
+@onready var p2_profile_label := $P2ProfileLabel
 @onready var result_label := $ResultLabel
 @onready var p1_hp_bar := $P1HpBar
 @onready var p2_hp_bar := $P2HpBar
@@ -33,6 +39,7 @@ static var _translations_registered := false
 @onready var training_mode_button := $TrainingPanel/TrainingModeButton
 @onready var training_dummy_button := $TrainingPanel/TrainingDummyButton
 @onready var training_detail_button := $TrainingPanel/TrainingDetailButton
+@onready var training_quick_hint_label := $TrainingPanel/TrainingQuickHintLabel
 @onready var training_summary_label := $TrainingPanel/TrainingSummaryLabel
 @onready var training_stun_label := $TrainingPanel/TrainingStunLabel
 @onready var training_recovery_label := $TrainingPanel/TrainingRecoveryLabel
@@ -44,6 +51,7 @@ static var _translations_registered := false
 @onready var pause_title_label := $PausePanel/PauseTitleLabel
 @onready var resume_button := $PausePanel/ResumeButton
 @onready var restart_button := $PausePanel/RestartButton
+@onready var back_menu_button := $PausePanel/BackMenuButton
 @onready var language_label := $PausePanel/LanguageLabel
 @onready var lang_en_button := $PausePanel/LangEnButton
 @onready var lang_zh_button := $PausePanel/LangZhButton
@@ -52,8 +60,13 @@ var cached_timer_seconds := 60.0
 var cached_p1_hp := 100
 var cached_p2_hp := 100
 var cached_max_hp := 100
+var cached_p1_stocks := 0
+var cached_p2_stocks := 0
+var match_ui_mode := MATCH_UI_MODE_HP_TIMER
 var cached_p1_combat_state := {}
 var cached_p2_combat_state := {}
+var cached_p1_character_profile := {}
+var cached_p2_character_profile := {}
 var callout_message_key := ""
 var callout_message_value := 0
 var callout_uses_value := false
@@ -71,7 +84,7 @@ var training_options := {
 var training_panel_visible := true
 var training_controls_visible := true
 var training_log_entries: Array[Dictionary] = []
-const TRAINING_LOG_MAX_ENTRIES := 5
+const TRAINING_LOG_MAX_ENTRIES := 8
 
 func _ready() -> void:
 	_ensure_translations_registered()
@@ -87,6 +100,7 @@ func _ready() -> void:
 		dialogue_label.visible = false
 	resume_button.pressed.connect(_on_resume_pressed)
 	restart_button.pressed.connect(_on_restart_pressed)
+	back_menu_button.pressed.connect(_on_back_menu_pressed)
 	lang_en_button.pressed.connect(_on_lang_en_pressed)
 	lang_zh_button.pressed.connect(_on_lang_zh_pressed)
 	training_mode_button.pressed.connect(_on_training_mode_pressed)
@@ -136,17 +150,45 @@ func set_timer_seconds(seconds_left: float) -> void:
 	var display_seconds := int(ceil(seconds_left))
 	timer_label.text = _format_stat(tr("HUD_TIMER"), "Time: %d", display_seconds)
 
+func set_timer_visible(is_visible: bool) -> void:
+	timer_label.visible = is_visible
+	if timer_chip:
+		timer_chip.visible = is_visible
+
 func set_health(p1_hp: int, p2_hp: int) -> void:
 	cached_p1_hp = p1_hp
 	cached_p2_hp = p2_hp
-	p1_hp_label.text = _format_stat(tr("HUD_P1_HP"), "P1 HP: %d", p1_hp)
-	p2_hp_label.text = _format_stat(tr("HUD_P2_HP"), "P2 HP: %d", p2_hp)
+	var p1_hp_text := _format_stat(tr("HUD_P1_HP"), "P1 HP: %d", p1_hp)
+	var p2_hp_text := _format_stat(tr("HUD_P2_HP"), "P2 HP: %d", p2_hp)
+	if match_ui_mode == MATCH_UI_MODE_STOCK:
+		var p1_stock_text := _format_stat(tr("HUD_P1_STOCK"), "Stock: %d", cached_p1_stocks)
+		var p2_stock_text := _format_stat(tr("HUD_P2_STOCK"), "Stock: %d", cached_p2_stocks)
+		var p1_damage_percent := clampi(cached_max_hp - p1_hp, 0, 999)
+		var p2_damage_percent := clampi(cached_max_hp - p2_hp, 0, 999)
+		var p1_damage_text := _format_stat(tr("HUD_P1_DAMAGE"), "P1 DMG: %d%%", p1_damage_percent)
+		var p2_damage_text := _format_stat(tr("HUD_P2_DAMAGE"), "P2 DMG: %d%%", p2_damage_percent)
+		p1_hp_label.text = "%s | %s" % [p1_stock_text, p1_damage_text]
+		p2_hp_label.text = "%s | %s" % [p2_stock_text, p2_damage_text]
+	else:
+		p1_hp_label.text = p1_hp_text
+		p2_hp_label.text = p2_hp_text
 	if p1_hp_bar:
 		p1_hp_bar.max_value = cached_max_hp
 		p1_hp_bar.value = clampf(float(p1_hp), 0.0, float(cached_max_hp))
+		p1_hp_bar.visible = match_ui_mode != MATCH_UI_MODE_STOCK
 	if p2_hp_bar:
 		p2_hp_bar.max_value = cached_max_hp
 		p2_hp_bar.value = clampf(float(p2_hp), 0.0, float(cached_max_hp))
+		p2_hp_bar.visible = match_ui_mode != MATCH_UI_MODE_STOCK
+
+func set_stocks(p1_stocks: int, p2_stocks: int) -> void:
+	cached_p1_stocks = maxi(0, p1_stocks)
+	cached_p2_stocks = maxi(0, p2_stocks)
+	set_health(cached_p1_hp, cached_p2_hp)
+
+func set_match_ui_mode(mode: String) -> void:
+	match_ui_mode = mode if mode in [MATCH_UI_MODE_HP_TIMER, MATCH_UI_MODE_STOCK] else MATCH_UI_MODE_HP_TIMER
+	set_health(cached_p1_hp, cached_p2_hp)
 
 func set_result(result_text: String) -> void:
 	result_label.text = result_text
@@ -242,6 +284,7 @@ func _refresh_ui_text() -> void:
 	set_timer_seconds(cached_timer_seconds)
 	set_health(cached_p1_hp, cached_p2_hp)
 	_refresh_combat_state_ui()
+	_refresh_character_profile_labels()
 	if combat_callout_label.visible:
 		combat_callout_label.text = _resolve_callout_text()
 	if hit_type_callout_label and hit_type_callout_label.visible and hit_type_callout_message_key != "":
@@ -250,6 +293,7 @@ func _refresh_ui_text() -> void:
 	pause_title_label.text = tr("PAUSE_TITLE")
 	resume_button.text = tr("PAUSE_RESUME")
 	restart_button.text = tr("PAUSE_RESTART")
+	back_menu_button.text = tr("PAUSE_BACK_TO_MENU")
 	language_label.text = tr("PAUSE_LANGUAGE")
 	lang_en_button.text = tr("PAUSE_LANG_EN")
 	lang_zh_button.text = tr("PAUSE_LANG_ZH")
@@ -259,6 +303,11 @@ func set_combat_state(p1_state: Dictionary, p2_state: Dictionary) -> void:
 	cached_p1_combat_state = p1_state.duplicate(true)
 	cached_p2_combat_state = p2_state.duplicate(true)
 	_refresh_combat_state_ui()
+
+func set_character_profiles(p1_profile: Dictionary, p2_profile: Dictionary) -> void:
+	cached_p1_character_profile = p1_profile.duplicate(true)
+	cached_p2_character_profile = p2_profile.duplicate(true)
+	_refresh_character_profile_labels()
 
 func _refresh_combat_state_ui() -> void:
 	_refresh_side_combat_state(
@@ -296,26 +345,71 @@ func _refresh_side_combat_state(
 	var cooldowns := {}
 	if typeof(cooldowns_value) == TYPE_DICTIONARY:
 		cooldowns = (cooldowns_value as Dictionary).duplicate(true)
-	var cd_line := "CD A%s B%s C%s U%s" % [
+	var cd_template := tr("HUD_COOLDOWN_ROW")
+	if cd_template.find("%") == -1:
+		cd_template = "CD A%s B%s C%s U%s"
+	var cd_line := cd_template % [
 		_format_cd_value(float(cooldowns.get("signature_a", 0.0))),
 		_format_cd_value(float(cooldowns.get("signature_b", 0.0))),
 		_format_cd_value(float(cooldowns.get("signature_c", 0.0))),
 		_format_cd_value(float(cooldowns.get("ultimate", 0.0)))
 	]
+	var shield_max := maxf(1.0, float(state.get("shield_max", 100.0)))
+	var shield_value := clampf(float(state.get("shield", shield_max)), 0.0, shield_max)
+	var shield_percent := int(round((shield_value / shield_max) * 100.0))
+	var shield_prefix := _tr_or_fallback("HUD_SHIELD", "SH")
+	var shield_line := "%s %d" % [shield_prefix, shield_percent]
 	var tags: Array[String] = []
+	if bool(state.get("shield_broken", false)) or float(state.get("shield_break_seconds", 0.0)) > 0.0:
+		tags.append(_tr_or_fallback("HUD_STATUS_SHIELD_BREAK", "BREAK"))
 	if float(state.get("silence_seconds", 0.0)) > 0.0:
-		tags.append("SIL")
+		tags.append(_tr_or_fallback("HUD_STATUS_SILENCE", "SIL"))
 	if float(state.get("slow_seconds", 0.0)) > 0.0:
-		tags.append("SLOW")
+		tags.append(_tr_or_fallback("HUD_STATUS_SLOW", "SLOW"))
 	if float(state.get("root_seconds", 0.0)) > 0.0:
-		tags.append("ROOT")
+		tags.append(_tr_or_fallback("HUD_STATUS_ROOT", "ROOT"))
 	if float(state.get("install_seconds", 0.0)) > 0.0:
-		tags.append("BUFF")
+		tags.append(_tr_or_fallback("HUD_STATUS_BUFF", "BUFF"))
 	var status_suffix := ""
 	if not tags.is_empty():
 		status_suffix = " | %s" % " ".join(tags)
-	state_label.text = cd_line + status_suffix
+	state_label.text = "%s | %s%s" % [cd_line, shield_line, status_suffix]
 	state_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT if right_align else HORIZONTAL_ALIGNMENT_LEFT
+
+func _refresh_character_profile_labels() -> void:
+	if p1_profile_label:
+		p1_profile_label.text = _format_character_profile_line(cached_p1_character_profile)
+		p1_profile_label.tooltip_text = _resolve_archetype_hint(cached_p1_character_profile)
+	if p2_profile_label:
+		p2_profile_label.text = _format_character_profile_line(cached_p2_character_profile)
+		p2_profile_label.tooltip_text = _resolve_archetype_hint(cached_p2_character_profile)
+
+func _format_character_profile_line(profile: Dictionary) -> String:
+	if profile.is_empty():
+		return "-"
+	var archetype_label := _resolve_archetype_label(profile)
+	var signature_primary := str(profile.get("signature_primary", "")).strip_edges()
+	var signature_alt := str(profile.get("signature_alt", "")).strip_edges()
+	if signature_primary == "":
+		signature_primary = _tr_or_fallback("HUD_SIGNATURE_PRIMARY_FALLBACK", "Signature A")
+	if signature_alt == "":
+		signature_alt = _tr_or_fallback("HUD_SIGNATURE_ALT_FALLBACK", "Signature B")
+	var format_template := tr("HUD_PROFILE_ROW")
+	if format_template.find("%") == -1:
+		format_template = "%s | %s / %s"
+	return format_template % [archetype_label, signature_primary, signature_alt]
+
+func _resolve_archetype_label(profile: Dictionary) -> String:
+	var key := str(profile.get("archetype_label_key", "")).strip_edges()
+	if key == "":
+		key = "ARCHETYPE_ALL_ROUNDER"
+	return _tr_or_fallback(key, "All-rounder")
+
+func _resolve_archetype_hint(profile: Dictionary) -> String:
+	var key := str(profile.get("archetype_hint_key", "")).strip_edges()
+	if key == "":
+		key = "ARCHETYPE_HINT_ALL_ROUNDER"
+	return _tr_or_fallback(key, "Balanced toolkit across ranges.")
 
 func _format_cd_value(value: float) -> String:
 	if value <= 0.0:
@@ -332,6 +426,11 @@ func _refresh_training_panel() -> void:
 		return
 	training_title_label.text = tr("HUD_TRAINING_TITLE")
 	training_log_title_label.text = tr("HUD_TRAINING_LOG_TITLE")
+	if training_quick_hint_label:
+		training_quick_hint_label.text = _tr_or_fallback(
+			"HUD_TRAINING_QUICK_HINT",
+			"Quick: WASD Move | Space Jump | H Guard | J/K/I/U Attack | L Dodge"
+		)
 	_refresh_training_option_buttons()
 	if cached_training_info.is_empty():
 		training_summary_label.text = tr("HUD_TRAINING_NO_DATA")
@@ -345,13 +444,14 @@ func _refresh_training_panel() -> void:
 
 	var event_type := str(cached_training_info.get("event_type", ""))
 	var attack_kind := str(cached_training_info.get("attack_kind", ""))
+	var attacker_key := str(cached_training_info.get("attacker_key", "p1"))
 	var guard_mode := str(cached_training_info.get("guard_mode", "none"))
 	var combo_count := int(cached_training_info.get("combo_count", 0))
 	var is_counter := bool(cached_training_info.get("is_counter", false))
 	var summary_parts: PackedStringArray = []
 	summary_parts.append(_resolve_training_event_label(event_type))
 	if attack_kind != "":
-		summary_parts.append(_resolve_training_attack_label(attack_kind))
+		summary_parts.append(_resolve_training_attack_label(attack_kind, attacker_key))
 	if event_type == "block" and guard_mode != "none":
 		summary_parts.append(_resolve_training_guard_label(guard_mode))
 	if event_type == "throw_tech":
@@ -403,7 +503,10 @@ func _refresh_training_detail_label() -> void:
 		training_detail_label.text = tr("HUD_TRAINING_NO_DATA")
 		return
 	var event_label := _resolve_training_event_label(str(cached_training_info.get("event_type", "")))
-	var move_label := _resolve_training_attack_label(str(cached_training_info.get("attack_kind", "")))
+	var move_label := _resolve_training_attack_label(
+		str(cached_training_info.get("attack_kind", "")),
+		str(cached_training_info.get("attacker_key", "p1"))
+	)
 	var block_type := str(cached_training_info.get("block_type", "mid"))
 	var guard_mode := str(cached_training_info.get("guard_mode", "none"))
 	var guard_label := _resolve_training_guard_label(guard_mode) if guard_mode != "none" else _resolve_training_guard_label(block_type)
@@ -481,7 +584,17 @@ func _resolve_training_event_label(event_type: String) -> String:
 			return tr("HUD_TRAINING_EVENT_THROW_TECH")
 	return tr("HUD_TRAINING_EVENT_HIT")
 
-func _resolve_training_attack_label(attack_kind: String) -> String:
+func _resolve_training_attack_label(attack_kind: String, attacker_key: String = "p1") -> String:
+	if attack_kind in ["signature_a", "signature_b", "signature_c", "ultimate"]:
+		var profile := cached_p1_character_profile
+		if attacker_key == "p2":
+			profile = cached_p2_character_profile
+		var signature_names_value: Variant = profile.get("signature_names", {})
+		if typeof(signature_names_value) == TYPE_DICTIONARY:
+			var signature_names := signature_names_value as Dictionary
+			var mapped_name := str(signature_names.get(attack_kind, "")).strip_edges()
+			if mapped_name != "":
+				return mapped_name
 	match attack_kind:
 		"light":
 			return tr("HUD_TRAINING_MOVE_LIGHT")
@@ -491,6 +604,14 @@ func _resolve_training_attack_label(attack_kind: String) -> String:
 			return tr("HUD_TRAINING_MOVE_SPECIAL")
 		"throw":
 			return tr("HUD_TRAINING_MOVE_THROW")
+		"signature_a":
+			return _tr_or_fallback("HUD_TRAINING_MOVE_SIGNATURE_A", "SIGNATURE A")
+		"signature_b":
+			return _tr_or_fallback("HUD_TRAINING_MOVE_SIGNATURE_B", "SIGNATURE B")
+		"signature_c":
+			return _tr_or_fallback("HUD_TRAINING_MOVE_SIGNATURE_C", "SIGNATURE C")
+		"ultimate":
+			return _tr_or_fallback("HUD_TRAINING_MOVE_ULTIMATE", "ULTIMATE")
 	return attack_kind.to_upper()
 
 func _resolve_training_guard_label(guard_mode: String) -> String:
@@ -511,7 +632,10 @@ func _resolve_training_guard_label(guard_mode: String) -> String:
 
 func _resolve_training_log_line(entry: Dictionary) -> String:
 	var event_label := _resolve_training_event_label(str(entry.get("event_type", "")))
-	var move_label := _resolve_training_attack_label(str(entry.get("attack_kind", "")))
+	var move_label := _resolve_training_attack_label(
+		str(entry.get("attack_kind", "")),
+		str(entry.get("attacker_key", "p1"))
+	)
 	var block_type := str(entry.get("block_type", "mid"))
 	var block_tag := ""
 	if block_type == "overhead" or block_type == "high":
@@ -525,12 +649,18 @@ func _resolve_training_log_line(entry: Dictionary) -> String:
 	var hp_before := int(entry.get("hp_before", 0))
 	var hp_after := int(entry.get("hp_after", 0))
 	var chip_damage := int(entry.get("chip_damage", 0))
+	var adv_short := _tr_or_fallback("HUD_TRAINING_LOG_ADV_SHORT", "Adv")
+	var damage_short := _tr_or_fallback("HUD_TRAINING_LOG_DAMAGE_SHORT", "D")
+	var combo_short := _tr_or_fallback("HUD_TRAINING_LOG_COMBO_SHORT", "C")
+	var hp_short := _tr_or_fallback("HUD_TRAINING_LOG_HP_SHORT", "HP")
+	var chip_short := _tr_or_fallback("HUD_TRAINING_LOG_CHIP_SHORT", "Chip")
 	var line := "%s %s" % [event_label, move_label]
 	if block_tag != "":
 		line += " %s" % block_tag
-	line += " %s D%d C%d HP%d>%d" % [adv_text, damage_total, combo_damage, hp_before, hp_after]
+	line += " %s %s" % [adv_short, adv_text]
+	line += " %s%d %s%d %s%d>%d" % [damage_short, damage_total, combo_short, combo_damage, hp_short, hp_before, hp_after]
 	if chip_damage > 0:
-		line += " chip%d" % chip_damage
+		line += " %s%d" % [chip_short, chip_damage]
 	return line
 
 func _resolve_dummy_mode_label(mode: String) -> String:
@@ -552,6 +682,9 @@ func _on_resume_pressed() -> void:
 
 func _on_restart_pressed() -> void:
 	restart_requested.emit()
+
+func _on_back_menu_pressed() -> void:
+	menu_requested.emit()
 
 func _on_training_mode_pressed() -> void:
 	training_options["enabled"] = not bool(training_options.get("enabled", true))
@@ -588,6 +721,12 @@ func _set_locale(locale: String) -> void:
 	TranslationServer.set_locale(locale)
 	locale_changed.emit(locale)
 	_refresh_ui_text()
+
+func _tr_or_fallback(key: String, fallback: String) -> String:
+	var value := tr(key)
+	if value == key:
+		return fallback
+	return value
 
 func _format_stat(template: String, fallback_template: String, value: int) -> String:
 	if template.find("%") == -1:

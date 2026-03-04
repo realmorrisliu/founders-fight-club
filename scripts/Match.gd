@@ -1,22 +1,36 @@
 extends Node2D
 
+const SessionStateStore := preload("res://scripts/SessionState.gd")
+
 const ROUND_TIME_SECONDS := 60.0
+const WIN_RULE_HP_TIMER := "hp_timer"
+const WIN_RULE_STOCK := "stock"
+const DEFAULT_STAGE_LEFT_X := 0.0
+const DEFAULT_STAGE_RIGHT_X := 900.0
+const DEFAULT_STAGE_FLOOR_Y := 340.0
+const BLAST_ZONE_SIDE_MARGIN := 120.0
+const BLAST_ZONE_TOP_Y := -260.0
+const BLAST_ZONE_BOTTOM_Y := 620.0
 const RESULT_TO_TEXT_KEY := {
 	"p1_win": "RESULT_P1_WIN",
 	"p2_win": "RESULT_P2_WIN",
 	"draw": "RESULT_DRAW"
 }
-const HITSTOP_BY_ATTACK := {
-	"light": 0.06,
-	"heavy": 0.09,
-	"special": 0.10,
-	"throw": 0.08
+const HITSTOP_BY_TIER := {
+	"light": 0.055,
+	"heavy": 0.090,
+	"special": 0.102,
+	"throw": 0.078,
+	"signature": 0.118,
+	"ultimate": 0.142
 }
-const BLOCKSTOP_BY_ATTACK := {
-	"light": 0.03,
-	"heavy": 0.05,
-	"special": 0.06,
-	"throw": 0.0
+const BLOCKSTOP_BY_TIER := {
+	"light": 0.028,
+	"heavy": 0.050,
+	"special": 0.061,
+	"throw": 0.0,
+	"signature": 0.073,
+	"ultimate": 0.089
 }
 const CAMERA_SHAKE_BY_ATTACK := {
 	"light": {"duration": 0.08, "strength": 2.2},
@@ -32,7 +46,46 @@ const CAMERA_SHAKE_BY_BLOCK := {
 }
 const COUNTER_HITSTOP_BONUS := 0.03
 const COUNTER_SHAKE_MULTIPLIER := 1.28
-const HITSTOP_SLOW_SCALE := 0.01
+const MENU_SCENE_PATH := "res://scenes/Menu.tscn"
+const STORY_SCENE_PATH := "res://scenes/Story.tscn"
+const STORY_SCENE_MODE := "story"
+const STORY_SESSION_KEY_ROUND_INDEX := "ffc_story_round_index"
+const STORY_ROUND_TRANSITION_SECONDS := 1.35
+const STORY_OPPONENT_POOL := [
+	{"id": "mark_zuck", "name": "Mark Zuck", "attack_table_path": "res://assets/data/characters/MarkZuckAttackTable.tres"},
+	{"id": "sam_altmyn", "name": "Sam Altmyn", "attack_table_path": "res://assets/data/characters/SamAltmynAttackTable.tres"},
+	{"id": "peter_thyell", "name": "Peter Thyell", "attack_table_path": "res://assets/data/characters/PeterThyellAttackTable.tres"},
+	{"id": "zef_bezos", "name": "Zef Bezos", "attack_table_path": "res://assets/data/characters/ZefBezosAttackTable.tres"},
+	{"id": "bill_geytz", "name": "Bill Geytz", "attack_table_path": "res://assets/data/characters/BillGeytzAttackTable.tres"},
+	{"id": "sundar_pichoy", "name": "Sundar Pichoy", "attack_table_path": "res://assets/data/characters/SundarPichoyAttackTable.tres"},
+	{"id": "jensen_hwang", "name": "Jensen Hwang", "attack_table_path": "res://assets/data/characters/JensenHwangAttackTable.tres"},
+	{"id": "larry_pagyr", "name": "Larry Pagyr", "attack_table_path": "res://assets/data/characters/LarryPagyrAttackTable.tres"},
+	{"id": "sergey_brinn", "name": "Sergey Brinn", "attack_table_path": "res://assets/data/characters/SergeyBrinnAttackTable.tres"},
+	{"id": "satya_nadello", "name": "Satya Nadello", "attack_table_path": "res://assets/data/characters/SatyaNadelloAttackTable.tres"},
+	{"id": "tim_cuke", "name": "Tim Cuke", "attack_table_path": "res://assets/data/characters/TimCukeAttackTable.tres"},
+	{"id": "jack_dorsee", "name": "Jack Dorsee", "attack_table_path": "res://assets/data/characters/JackDorseeAttackTable.tres"},
+	{"id": "travis_kalanik", "name": "Travis Kalanik", "attack_table_path": "res://assets/data/characters/TravisKalanikAttackTable.tres"},
+	{"id": "reed_hestings", "name": "Reed Hestings", "attack_table_path": "res://assets/data/characters/ReedHestingsAttackTable.tres"},
+	{"id": "steve_jobz", "name": "Steve Jobz", "attack_table_path": "res://assets/data/characters/SteveJobzAttackTable.tres"}
+]
+const SFX_PLAYER_POOL_SIZE := 12
+const MAX_ACTIVE_IMPACTS := 24
+const CAMERA_TRACK_BASE_Y := 270.0
+const CAMERA_TRACK_TOP_Y := 128.0
+const CAMERA_TRACK_BOTTOM_Y := 360.0
+const CAMERA_TRACK_X_SMOOTH_SPEED := 7.8
+const CAMERA_TRACK_Y_SMOOTH_SPEED := 6.2
+const CAMERA_EDGE_BIAS_DISTANCE := 72.0
+const CAMERA_EDGE_BIAS_WEIGHT := 0.24
+const CAMERA_HORIZONTAL_NEAR_DISTANCE := 180.0
+const CAMERA_HORIZONTAL_FAR_DISTANCE := 640.0
+const CAMERA_VERTICAL_NEAR_DISTANCE := 72.0
+const CAMERA_VERTICAL_FAR_DISTANCE := 360.0
+const CAMERA_VERTICAL_ZOOM_WEIGHT := 0.86
+const CAMERA_VERTICAL_FOCUS_RANGE := 240.0
+const CAMERA_ZOOM_NEAR := 0.96
+const CAMERA_ZOOM_FAR := 1.22
+const CAMERA_ZOOM_SMOOTH_SPEED := 6.0
 const TRAINING_DEFAULT_OPTIONS := {
 	"enabled": true,
 	"dummy_mode": "stand",
@@ -62,14 +115,23 @@ const SFX_VOLUME_DB := {
 	"tech": -10.0
 }
 const DIALOGUE_PACK_PATH := "res://assets/data/dialogue/DialoguePackV1.json"
+const DIALOGUE_LINE_DELAY_SECONDS := 0.45
 const SESSION_KEY_P1_ID := "ffc_selected_player_1_character_id"
 const SESSION_KEY_P2_ID := "ffc_selected_player_2_character_id"
 const SESSION_KEY_P1_TABLE_PATH := "ffc_selected_player_1_attack_table_path"
 const SESSION_KEY_P2_TABLE_PATH := "ffc_selected_player_2_attack_table_path"
 const SESSION_KEY_P1_NAME := "ffc_selected_player_1_name"
 const SESSION_KEY_P2_NAME := "ffc_selected_player_2_name"
+const SESSION_KEY_MATCH_MODE := "ffc_match_mode"
 
 var time_left := ROUND_TIME_SECONDS
+var stocks := {"p1": 0, "p2": 0}
+var spawn_points := {"p1": Vector2(200, 300), "p2": Vector2(600, 300)}
+var stage_left_x := DEFAULT_STAGE_LEFT_X
+var stage_right_x := DEFAULT_STAGE_RIGHT_X
+var stage_floor_y := DEFAULT_STAGE_FLOOR_Y
+var blast_zone_left_x := DEFAULT_STAGE_LEFT_X - BLAST_ZONE_SIDE_MARGIN
+var blast_zone_right_x := DEFAULT_STAGE_RIGHT_X + BLAST_ZONE_SIDE_MARGIN
 var match_over := false
 var match_result_key := ""
 var camera_shake_time := 0.0
@@ -78,9 +140,12 @@ var camera_shake_strength := 0.0
 var camera_rng := RandomNumberGenerator.new()
 var hitstop_active := false
 var hitstop_end_msec := 0
-var hitstop_restore_scale := 1.0
+var sfx_player_pool: Array[AudioStreamPlayer] = []
+var sfx_player_pool_cursor := 0
 
 @export var round_timer_enabled := true
+@export_enum("hp_timer", "stock") var win_rule := WIN_RULE_STOCK
+@export_range(1, 7, 1) var stock_count := 3
 @export var training_scene_enabled := false
 @export var training_panel_enabled := false
 @export var training_controls_enabled := false
@@ -98,14 +163,32 @@ var sfx_streams := {}
 var training_options := TRAINING_DEFAULT_OPTIONS.duplicate(true)
 var selected_character_ids := {"p1": "", "p2": ""}
 var selected_character_names := {"p1": "Player 1", "p2": "Player 2"}
+var selected_character_profiles := {"p1": {}, "p2": {}}
 var dialogue_pack := {}
 var dialogue_rng := RandomNumberGenerator.new()
+var story_mode_active := false
+var story_round_index := 0
+var story_roster: Array[Dictionary] = []
+var story_round_transition_time := 0.0
+var camera_track_x := 0.0
+var camera_track_y := CAMERA_TRACK_BASE_Y
+var dialogue_timer: Timer
+var pending_dialogue_text := ""
+var pending_dialogue_duration := 0.0
+var pending_dialogue_tint := Color(1.0, 1.0, 1.0, 1.0)
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_clear_hitstop()
 	camera_rng.randomize()
 	dialogue_rng.randomize()
+	_resolve_stage_bounds_from_scene()
+	_apply_stage_bounds_to_players()
+	if player_1:
+		spawn_points["p1"] = player_1.position
+	if player_2:
+		spawn_points["p2"] = player_2.position
+	_reset_stocks()
 	training_options["enabled"] = training_scene_enabled
 	training_options["dummy_mode"] = training_dummy_default_mode
 	training_options["show_detail"] = training_detail_default_visible
@@ -114,13 +197,18 @@ func _ready() -> void:
 	_setup_effects_layer()
 	_load_impact_sprite_frames()
 	_load_sfx_streams()
+	_setup_sfx_player_pool()
 	_apply_selected_character_tables()
+	_apply_session_match_mode()
 	_load_dialogue_pack()
+	_setup_dialogue_timer()
 
-	player_1.health_changed.connect(_on_player_health_changed)
-	player_2.health_changed.connect(_on_player_health_changed)
-	player_1.defeated.connect(func(): _end_match("p2_win"))
-	player_2.defeated.connect(func(): _end_match("p1_win"))
+	if player_1:
+		player_1.health_changed.connect(_on_player_health_changed)
+		player_1.defeated.connect(func(): _on_player_defeated("p1"))
+	if player_2:
+		player_2.health_changed.connect(_on_player_health_changed)
+		player_2.defeated.connect(func(): _on_player_defeated("p2"))
 	
 	if player_1.has_signal("hit_landed"):
 		player_1.hit_landed.connect(_on_hit_landed)
@@ -144,12 +232,16 @@ func _ready() -> void:
 			hud.resume_requested.connect(_on_hud_resume_requested)
 		if hud.has_signal("restart_requested"):
 			hud.restart_requested.connect(_on_hud_restart_requested)
+		if hud.has_signal("menu_requested"):
+			hud.menu_requested.connect(_on_hud_menu_requested)
 		if hud.has_signal("locale_changed"):
 			hud.locale_changed.connect(_on_locale_changed)
 		if hud.has_signal("training_options_changed"):
 			hud.training_options_changed.connect(_on_hud_training_options_changed)
 		if hud.has_method("set_pause_visible"):
 			hud.set_pause_visible(false)
+		if hud.has_method("set_timer_visible"):
+			hud.set_timer_visible(round_timer_enabled)
 		if hud.has_method("set_training_panel_visible"):
 			hud.set_training_panel_visible(training_panel_enabled)
 		if hud.has_method("set_training_controls_visible"):
@@ -159,6 +251,13 @@ func _ready() -> void:
 	_update_hud()
 	_refresh_result_text()
 	_trigger_pre_fight_dialogue()
+
+func _exit_tree() -> void:
+	_clear_hitstop()
+	if dialogue_timer and is_instance_valid(dialogue_timer):
+		dialogue_timer.stop()
+	pending_dialogue_text = ""
+	pending_dialogue_duration = 0.0
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("restart"):
@@ -171,6 +270,22 @@ func _process(delta: float) -> void:
 	if get_tree().paused:
 		return
 	if match_over:
+		_update_story_round_transition(delta)
+		return
+	if _uses_stock_rule():
+		_update_stock_ring_out_state()
+		if match_over:
+			_update_hud()
+			_update_camera(delta)
+			return
+		if round_timer_enabled:
+			if time_left <= 0.0:
+				time_left = 0.0
+				_end_match(_resolve_timeout())
+				return
+			time_left = maxf(0.0, time_left - delta)
+		_update_hud()
+		_update_camera(delta)
 		return
 	if not round_timer_enabled:
 		_update_hud()
@@ -187,14 +302,24 @@ func _process(delta: float) -> void:
 func _setup_camera() -> void:
 	camera = Camera2D.new()
 	add_child(camera)
-	camera.zoom = Vector2(1.1, 1.1)
+	camera.zoom = Vector2(1.08, 1.08)
 	camera.position_smoothing_enabled = false
-	camera.limit_left = 0
-	camera.limit_right = 900
-	camera.limit_bottom = 500
-	camera.limit_top = -200
+	camera_track_x = (player_1.position.x + player_2.position.x) * 0.5 if player_1 and player_2 else (stage_left_x + stage_right_x) * 0.5
+	camera_track_y = CAMERA_TRACK_BASE_Y
+	if _uses_stock_rule():
+		camera.limit_left = int(floor(blast_zone_left_x))
+		camera.limit_right = int(ceil(blast_zone_right_x))
+		camera.limit_bottom = int(ceil(BLAST_ZONE_BOTTOM_Y))
+		camera.limit_top = int(floor(BLAST_ZONE_TOP_Y))
+	else:
+		camera.limit_left = int(floor(stage_left_x))
+		camera.limit_right = int(ceil(stage_right_x))
+		camera.limit_bottom = 500
+		camera.limit_top = -200
 
 func _setup_walls() -> void:
+	if _uses_stock_rule():
+		return
 	var walls = StaticBody2D.new()
 	add_child(walls)
 	
@@ -202,14 +327,14 @@ func _setup_walls() -> void:
 	var left_rect = RectangleShape2D.new()
 	left_rect.size = Vector2(40, 1000)
 	left_shape.shape = left_rect
-	left_shape.position = Vector2(-20, 300)
+	left_shape.position = Vector2(stage_left_x - 20.0, 300)
 	walls.add_child(left_shape)
 	
 	var right_shape = CollisionShape2D.new()
 	var right_rect = RectangleShape2D.new()
 	right_rect.size = Vector2(40, 1000)
 	right_shape.shape = right_rect
-	right_shape.position = Vector2(920, 300)
+	right_shape.position = Vector2(stage_right_x + 20.0, 300)
 	walls.add_child(right_shape)
 
 func _setup_effects_layer() -> void:
@@ -235,10 +360,51 @@ func _load_sfx_streams() -> void:
 		else:
 			push_warning("SFX missing or invalid: %s (%s)" % [key, path])
 
+func _setup_sfx_player_pool() -> void:
+	for player in sfx_player_pool:
+		if is_instance_valid(player):
+			player.queue_free()
+	sfx_player_pool.clear()
+	sfx_player_pool_cursor = 0
+	for _index in range(SFX_PLAYER_POOL_SIZE):
+		var player := AudioStreamPlayer.new()
+		add_child(player)
+		sfx_player_pool.append(player)
+
 func _update_camera(delta: float) -> void:
 	if player_1 and player_2 and camera:
-		var center_x = (player_1.position.x + player_2.position.x) / 2.0
-		var camera_pos := Vector2(round(center_x), 270.0)
+		var center_x: float = (player_1.position.x + player_2.position.x) / 2.0
+		var center_y: float = (player_1.position.y + player_2.position.y) / 2.0
+		var distance_x: float = absf(player_1.position.x - player_2.position.x)
+		var distance_y: float = absf(player_1.position.y - player_2.position.y)
+		var zoom_t_horizontal: float = clampf(
+			(distance_x - CAMERA_HORIZONTAL_NEAR_DISTANCE) / maxf(1.0, CAMERA_HORIZONTAL_FAR_DISTANCE - CAMERA_HORIZONTAL_NEAR_DISTANCE),
+			0.0,
+			1.0
+		)
+		var zoom_t_vertical: float = clampf(
+			(distance_y - CAMERA_VERTICAL_NEAR_DISTANCE) / maxf(1.0, CAMERA_VERTICAL_FAR_DISTANCE - CAMERA_VERTICAL_NEAR_DISTANCE),
+			0.0,
+			1.0
+		)
+		var zoom_t: float = maxf(zoom_t_horizontal, zoom_t_vertical * CAMERA_VERTICAL_ZOOM_WEIGHT)
+		var target_zoom: float = lerpf(CAMERA_ZOOM_NEAR, CAMERA_ZOOM_FAR, zoom_t)
+		var zoom_blend: float = clampf(delta * CAMERA_ZOOM_SMOOTH_SPEED, 0.0, 1.0)
+		var next_zoom: float = lerpf(camera.zoom.x, target_zoom, zoom_blend)
+		camera.zoom = Vector2(next_zoom, next_zoom)
+
+		var p1_near_stage: bool = player_1.position.x >= stage_left_x - CAMERA_EDGE_BIAS_DISTANCE and player_1.position.x <= stage_right_x + CAMERA_EDGE_BIAS_DISTANCE
+		var p2_near_stage: bool = player_2.position.x >= stage_left_x - CAMERA_EDGE_BIAS_DISTANCE and player_2.position.x <= stage_right_x + CAMERA_EDGE_BIAS_DISTANCE
+		if p1_near_stage != p2_near_stage:
+			var stage_anchor_x: float = player_1.position.x if p1_near_stage else player_2.position.x
+			center_x = lerpf(center_x, stage_anchor_x, CAMERA_EDGE_BIAS_WEIGHT)
+		var x_blend: float = clampf(delta * CAMERA_TRACK_X_SMOOTH_SPEED, 0.0, 1.0)
+		camera_track_x = lerpf(camera_track_x, center_x, x_blend)
+
+		var target_track_y: float = _resolve_camera_track_y_target(center_y)
+		var y_blend: float = clampf(delta * CAMERA_TRACK_Y_SMOOTH_SPEED, 0.0, 1.0)
+		camera_track_y = lerpf(camera_track_y, target_track_y, y_blend)
+		var camera_pos := Vector2(round(camera_track_x), round(camera_track_y))
 		if camera_shake_time > 0.0:
 			camera_shake_time = maxf(0.0, camera_shake_time - delta)
 			var falloff := 0.0
@@ -249,7 +415,21 @@ func _update_camera(delta: float) -> void:
 			camera_pos.y = round(camera_pos.y + camera_rng.randf_range(-strength, strength))
 		camera.position = camera_pos
 
+func _resolve_camera_track_y_target(center_y: float) -> float:
+	var up_t := clampf((CAMERA_TRACK_BASE_Y - center_y) / maxf(1.0, CAMERA_VERTICAL_FOCUS_RANGE), 0.0, 1.0)
+	if up_t > 0.0:
+		return lerpf(CAMERA_TRACK_BASE_Y, CAMERA_TRACK_TOP_Y, up_t)
+	var down_t := clampf((center_y - CAMERA_TRACK_BASE_Y) / maxf(1.0, CAMERA_VERTICAL_FOCUS_RANGE), 0.0, 1.0)
+	return lerpf(CAMERA_TRACK_BASE_Y, CAMERA_TRACK_BOTTOM_Y, down_t * 0.72)
+
 func _resolve_timeout() -> String:
+	if _uses_stock_rule():
+		var p1_stock := int(stocks.get("p1", 0))
+		var p2_stock := int(stocks.get("p2", 0))
+		if p1_stock > p2_stock:
+			return "p1_win"
+		if p2_stock > p1_stock:
+			return "p2_win"
 	if player_1.current_hp > player_2.current_hp:
 		return "p1_win"
 	if player_2.current_hp > player_1.current_hp:
@@ -257,6 +437,8 @@ func _resolve_timeout() -> String:
 	return "draw"
 
 func _end_match(result_key: String) -> void:
+	if match_over:
+		return
 	match_over = true
 	match_result_key = result_key
 	_clear_hitstop()
@@ -264,9 +446,37 @@ func _end_match(result_key: String) -> void:
 	if hud and hud.has_method("set_pause_visible"):
 		hud.set_pause_visible(false)
 	_refresh_result_text()
+	_queue_story_progression(result_key)
 	_trigger_victory_dialogue(result_key)
 
+func _queue_story_progression(result_key: String) -> void:
+	story_round_transition_time = 0.0
+	if not story_mode_active:
+		return
+	if result_key != "p1_win":
+		SessionStateStore.clear_keys(PackedStringArray([STORY_SESSION_KEY_ROUND_INDEX]))
+		return
+	if story_round_index + 1 >= story_roster.size():
+		SessionStateStore.clear_keys(PackedStringArray([STORY_SESSION_KEY_ROUND_INDEX]))
+		return
+	SessionStateStore.set_value(STORY_SESSION_KEY_ROUND_INDEX, story_round_index + 1)
+	story_round_transition_time = STORY_ROUND_TRANSITION_SECONDS
+
+func _update_story_round_transition(delta: float) -> void:
+	if not story_mode_active:
+		return
+	if story_round_transition_time <= 0.0:
+		return
+	story_round_transition_time = maxf(0.0, story_round_transition_time - delta)
+	if story_round_transition_time > 0.0:
+		return
+	if match_result_key != "p1_win":
+		return
+	get_tree().change_scene_to_file(STORY_SCENE_PATH)
+
 func _restart_match() -> void:
+	if story_mode_active:
+		SessionStateStore.set_value(STORY_SESSION_KEY_ROUND_INDEX, 0)
 	_clear_hitstop()
 	get_tree().paused = false
 	get_tree().reload_current_scene()
@@ -277,12 +487,186 @@ func _toggle_pause() -> void:
 	if hud and hud.has_method("set_pause_visible"):
 		hud.set_pause_visible(get_tree().paused)
 
+func _uses_stock_rule() -> bool:
+	return win_rule == WIN_RULE_STOCK
+
+func _reset_stocks() -> void:
+	var initial := maxi(1, stock_count)
+	stocks["p1"] = initial
+	stocks["p2"] = initial
+
+func _update_stock_ring_out_state() -> void:
+	var p1_out := player_1 and _is_outside_blast_zone(player_1.global_position)
+	var p2_out := player_2 and _is_outside_blast_zone(player_2.global_position)
+	if p1_out and p2_out:
+		_lose_stocks_simultaneously()
+		return
+	if p1_out:
+		_lose_stock("p1")
+	if p2_out:
+		_lose_stock("p2")
+
+func _is_outside_blast_zone(world_position: Vector2) -> bool:
+	if world_position.x < blast_zone_left_x:
+		return true
+	if world_position.x > blast_zone_right_x:
+		return true
+	if world_position.y < BLAST_ZONE_TOP_Y:
+		return true
+	if world_position.y > BLAST_ZONE_BOTTOM_Y:
+		return true
+	return false
+
+func _resolve_stage_bounds_from_scene() -> void:
+	var fallback := Vector2(DEFAULT_STAGE_LEFT_X, DEFAULT_STAGE_RIGHT_X)
+	stage_left_x = fallback.x
+	stage_right_x = fallback.y
+	stage_floor_y = DEFAULT_STAGE_FLOOR_Y
+	var shape_node := get_node_or_null("Arena/Ground/CollisionShape2D")
+	if shape_node == null:
+		_refresh_blast_zone_bounds()
+		return
+	if shape_node is not CollisionShape2D:
+		_refresh_blast_zone_bounds()
+		return
+	var collision_shape := shape_node as CollisionShape2D
+	var rect_shape := collision_shape.shape as RectangleShape2D
+	if rect_shape == null:
+		_refresh_blast_zone_bounds()
+		return
+	var world_center := collision_shape.global_position
+	var world_center_x := world_center.x
+	var half_width := rect_shape.size.x * 0.5 * absf(collision_shape.global_scale.x)
+	var half_height := rect_shape.size.y * 0.5 * absf(collision_shape.global_scale.y)
+	if half_width <= 0.0 or half_height <= 0.0:
+		_refresh_blast_zone_bounds()
+		return
+	stage_left_x = world_center_x - half_width
+	stage_right_x = world_center_x + half_width
+	stage_floor_y = world_center.y - half_height
+	_refresh_blast_zone_bounds()
+
+func _refresh_blast_zone_bounds() -> void:
+	blast_zone_left_x = stage_left_x - BLAST_ZONE_SIDE_MARGIN
+	blast_zone_right_x = stage_right_x + BLAST_ZONE_SIDE_MARGIN
+
+func _apply_stage_bounds_to_players() -> void:
+	if player_1:
+		if player_1.has_method("set_stage_geometry"):
+			player_1.call("set_stage_geometry", stage_left_x, stage_right_x, stage_floor_y)
+		elif player_1.has_method("set_stage_bounds"):
+			player_1.call("set_stage_bounds", stage_left_x, stage_right_x)
+	if player_2:
+		if player_2.has_method("set_stage_geometry"):
+			player_2.call("set_stage_geometry", stage_left_x, stage_right_x, stage_floor_y)
+		elif player_2.has_method("set_stage_bounds"):
+			player_2.call("set_stage_bounds", stage_left_x, stage_right_x)
+
+func _lose_stock(player_key: String) -> void:
+	if not _uses_stock_rule():
+		return
+	if match_over:
+		return
+	var current := int(stocks.get(player_key, 0))
+	if current <= 0:
+		return
+	stocks[player_key] = current - 1
+	var p1_stock := int(stocks.get("p1", 0))
+	var p2_stock := int(stocks.get("p2", 0))
+	if p1_stock <= 0 and p2_stock <= 0:
+		_end_match("draw")
+		return
+	if p1_stock <= 0:
+		_end_match("p2_win")
+		return
+	if p2_stock <= 0:
+		_end_match("p1_win")
+		return
+	_respawn_player_by_key(player_key)
+	_update_hud()
+
+func _lose_stocks_simultaneously() -> void:
+	if not _uses_stock_rule():
+		return
+	if match_over:
+		return
+	var p1_stock := maxi(0, int(stocks.get("p1", 0)) - 1)
+	var p2_stock := maxi(0, int(stocks.get("p2", 0)) - 1)
+	stocks["p1"] = p1_stock
+	stocks["p2"] = p2_stock
+	if p1_stock <= 0 and p2_stock <= 0:
+		_end_match("draw")
+		return
+	if p1_stock <= 0:
+		_end_match("p2_win")
+		return
+	if p2_stock <= 0:
+		_end_match("p1_win")
+		return
+	_respawn_player_by_key("p1")
+	_respawn_player_by_key("p2")
+	_update_hud()
+
+func _respawn_player_by_key(player_key: String) -> void:
+	var fighter := _get_player_by_key(player_key)
+	if fighter == null:
+		return
+	var spawn_value: Variant = spawn_points.get(player_key, Vector2(200, 300))
+	var spawn: Vector2 = Vector2(200, 300)
+	if spawn_value is Vector2:
+		spawn = spawn_value
+	var facing_direction := 1 if player_key == "p1" else -1
+	if fighter.has_method("force_respawn"):
+		fighter.call("force_respawn", spawn, facing_direction)
+	else:
+		fighter.global_position = spawn
+		fighter.set("current_hp", 100)
+
+func _get_player_by_key(player_key: String) -> CharacterBody2D:
+	if player_key == "p1":
+		return player_1
+	if player_key == "p2":
+		return player_2
+	return null
+
 func _on_player_health_changed() -> void:
 	_update_hud()
+
+func _on_player_defeated(loser_key: String) -> void:
+	if match_over:
+		return
+	if _uses_stock_rule():
+		var p1_defeated: bool = player_1 != null and int(player_1.current_hp) <= 0
+		var p2_defeated: bool = player_2 != null and int(player_2.current_hp) <= 0
+		if p1_defeated and p2_defeated:
+			if loser_key != "p1":
+				return
+			_lose_stocks_simultaneously()
+			return
+		_lose_stock(loser_key)
+		return
+	var p1_defeated: bool = player_1 != null and int(player_1.current_hp) <= 0
+	var p2_defeated: bool = player_2 != null and int(player_2.current_hp) <= 0
+	if p1_defeated and p2_defeated:
+		_end_match("draw")
+		return
+	if loser_key == "p1":
+		_end_match("p2_win")
+		return
+	_end_match("p1_win")
 
 func _update_hud() -> void:
 	if hud and hud.has_method("set_timer_seconds"):
 		hud.set_timer_seconds(time_left)
+	if hud and hud.has_method("set_stocks"):
+		hud.set_stocks(int(stocks.get("p1", 0)), int(stocks.get("p2", 0)))
+	if hud and hud.has_method("set_match_ui_mode"):
+		hud.set_match_ui_mode(win_rule)
+	if hud and hud.has_method("set_character_profiles"):
+		hud.set_character_profiles(
+			selected_character_profiles.get("p1", {}),
+			selected_character_profiles.get("p2", {})
+		)
 	if hud and hud.has_method("set_health"):
 		hud.set_health(player_1.current_hp, player_2.current_hp)
 	if hud and hud.has_method("set_combat_state"):
@@ -308,12 +692,16 @@ func _refresh_result_text() -> void:
 	if result_text_key == "":
 		hud.set_result(match_result_key)
 		return
-	hud.set_result(tr(result_text_key) + tr("RESULT_RESTART_HINT"))
+	var hint_key := "RESULT_RESTART_HINT"
+	if story_mode_active:
+		if match_result_key == "p1_win":
+			hint_key = "RESULT_STORY_CLEAR_HINT" if story_round_index + 1 >= story_roster.size() else "RESULT_STORY_NEXT_HINT"
+		else:
+			hint_key = "RESULT_STORY_FAIL_HINT"
+	hud.set_result(tr(result_text_key) + tr(hint_key))
 
 func _on_hit_landed(_attacker, _target, _kind, _is_counter: bool, _combo_count: int) -> void:
-	var hitstop := float(HITSTOP_BY_ATTACK.get(_kind, 0.07))
-	if _is_counter:
-		hitstop += COUNTER_HITSTOP_BONUS
+	var hitstop := _resolve_hitstop_duration(_kind, _is_counter, _combo_count)
 	_apply_hitstop(hitstop)
 	_play_attack_sfx("hit", _kind)
 	_start_camera_shake(_kind, false, _is_counter)
@@ -329,7 +717,7 @@ func _on_hit_landed(_attacker, _target, _kind, _is_counter: bool, _combo_count: 
 	_show_hit_type_feedback(training_info, false)
 
 func _on_block_landed(_attacker, target, _kind) -> void:
-	var blockstop := float(BLOCKSTOP_BY_ATTACK.get(_kind, 0.04))
+	var blockstop := _resolve_blockstop_duration(_kind)
 	_apply_hitstop(blockstop)
 	_play_attack_sfx("block", _kind)
 	_start_camera_shake(_kind, true)
@@ -367,17 +755,43 @@ func _on_tech_recovered(fighter, tech_kind: String) -> void:
 			0.8 if tech_kind == "quick" else 0.92
 		)
 
+func _resolve_hitstop_duration(attack_kind: String, is_counter: bool, combo_count: int) -> float:
+	var tier := _resolve_attack_tier(attack_kind)
+	var duration := float(HITSTOP_BY_TIER.get(tier, HITSTOP_BY_TIER.get("special", 0.10)))
+	if combo_count >= 3:
+		var combo_scale := maxf(0.86, 1.0 - float(combo_count - 2) * 0.04)
+		duration *= combo_scale
+	if is_counter:
+		duration += COUNTER_HITSTOP_BONUS
+	return duration
+
+func _resolve_blockstop_duration(attack_kind: String) -> float:
+	var tier := _resolve_attack_tier(attack_kind)
+	return float(BLOCKSTOP_BY_TIER.get(tier, BLOCKSTOP_BY_TIER.get("special", 0.05)))
+
+func _resolve_attack_tier(attack_kind: String) -> String:
+	if attack_kind == "ultimate":
+		return "ultimate"
+	if attack_kind.begins_with("signature_"):
+		return "signature"
+	if attack_kind.begins_with("heavy"):
+		return "heavy"
+	if attack_kind.begins_with("light"):
+		return "light"
+	if attack_kind == "throw":
+		return "throw"
+	if attack_kind == "special":
+		return "special"
+	return "special"
+
 func _apply_hitstop(duration: float) -> void:
 	if duration <= 0.0:
 		return
 	var now_msec := Time.get_ticks_msec()
 	var request_end_msec := now_msec + int(ceil(duration * 1000.0))
 	if not hitstop_active:
-		hitstop_restore_scale = Engine.time_scale
-		if hitstop_restore_scale <= 0.0:
-			hitstop_restore_scale = 1.0
-		Engine.time_scale = HITSTOP_SLOW_SCALE
 		hitstop_active = true
+		_set_players_hitstop_active(true)
 		hitstop_end_msec = request_end_msec
 		return
 	hitstop_end_msec = maxi(hitstop_end_msec, request_end_msec)
@@ -390,13 +804,15 @@ func _update_hitstop_state() -> void:
 	_clear_hitstop()
 
 func _clear_hitstop() -> void:
-	if hitstop_active:
-		Engine.time_scale = hitstop_restore_scale if hitstop_restore_scale > 0.0 else 1.0
-	else:
-		Engine.time_scale = 1.0
+	_set_players_hitstop_active(false)
 	hitstop_active = false
 	hitstop_end_msec = 0
-	hitstop_restore_scale = 1.0
+
+func _set_players_hitstop_active(active: bool) -> void:
+	if player_1 and player_1.has_method("set_hitstop_active"):
+		player_1.call("set_hitstop_active", active)
+	if player_2 and player_2.has_method("set_hitstop_active"):
+		player_2.call("set_hitstop_active", active)
 
 func _on_hud_resume_requested() -> void:
 	if get_tree().paused:
@@ -404,6 +820,13 @@ func _on_hud_resume_requested() -> void:
 
 func _on_hud_restart_requested() -> void:
 	_restart_match()
+
+func _on_hud_menu_requested() -> void:
+	_clear_hitstop()
+	if story_mode_active:
+		SessionStateStore.clear_keys(PackedStringArray([STORY_SESSION_KEY_ROUND_INDEX]))
+	get_tree().paused = false
+	get_tree().change_scene_to_file(MENU_SCENE_PATH)
 
 func _on_locale_changed(_locale: String) -> void:
 	_update_hud()
@@ -434,10 +857,20 @@ func _push_training_info(fighter: Node) -> Dictionary:
 	if typeof(info_value) != TYPE_DICTIONARY:
 		return {}
 	var info := (info_value as Dictionary).duplicate(true)
+	var attacker_key := _resolve_player_key_for_node(fighter)
+	if attacker_key != "":
+		info["attacker_key"] = attacker_key
 	hud.set_training_data(info)
 	if hud.has_method("add_training_log_entry"):
 		hud.add_training_log_entry(info)
 	return info
+
+func _resolve_player_key_for_node(node: Node) -> String:
+	if node == player_1:
+		return "p1"
+	if node == player_2:
+		return "p2"
+	return ""
 
 func _show_hit_type_feedback(training_info: Dictionary, is_block_event: bool) -> void:
 	if training_info.is_empty():
@@ -473,6 +906,11 @@ func _apply_training_options() -> void:
 		player_2.call("set_training_dummy_options", enabled, dummy_mode)
 	if player_1 and player_1.has_method("set_training_dummy_options"):
 		player_1.call("set_training_dummy_options", false, "stand")
+	if training_scene_enabled:
+		if player_2 != null:
+			player_2.set("is_ai", false)
+		if player_1 != null:
+			player_1.set("is_ai", false)
 
 func _on_hud_training_options_changed(options: Dictionary) -> void:
 	training_options["enabled"] = bool(options.get("enabled", training_options.get("enabled", true)))
@@ -504,17 +942,18 @@ func _play_sfx_key(key: String, volume_override_db: float = INF, pitch_scale: fl
 	_play_sfx_stream(stream, volume_db, pitch_scale)
 
 func _play_sfx_stream(stream: AudioStream, volume_db: float, pitch_scale: float) -> void:
-	var player := AudioStreamPlayer.new()
+	if sfx_player_pool.is_empty():
+		_setup_sfx_player_pool()
+	if sfx_player_pool.is_empty():
+		return
+	var player := sfx_player_pool[sfx_player_pool_cursor]
+	sfx_player_pool_cursor = (sfx_player_pool_cursor + 1) % sfx_player_pool.size()
+	if player == null or not is_instance_valid(player):
+		return
+	player.stop()
 	player.stream = stream
 	player.volume_db = volume_db
 	player.pitch_scale = pitch_scale
-	add_child(player)
-	player.finished.connect(
-		func():
-			if is_instance_valid(player):
-				player.queue_free(),
-		CONNECT_ONE_SHOT
-	)
 	player.play()
 
 func _start_camera_shake(attack_kind: String, is_block: bool, is_counter: bool = false) -> void:
@@ -558,6 +997,10 @@ func _spawn_impact_animation(
 		return
 	if not impact_sprite_frames.has_animation(animation_name):
 		return
+	while effects_layer.get_child_count() >= MAX_ACTIVE_IMPACTS:
+		var oldest := effects_layer.get_child(0)
+		if oldest:
+			oldest.queue_free()
 	var spark := AnimatedSprite2D.new()
 	spark.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	spark.sprite_frames = impact_sprite_frames
@@ -597,6 +1040,8 @@ func _apply_selected_character_tables() -> void:
 		SESSION_KEY_P2_NAME,
 		"p2"
 	)
+	if _is_story_session_mode():
+		_apply_story_opponent_round()
 
 func _apply_selected_character_table_for_player(
 	player: Node,
@@ -610,8 +1055,8 @@ func _apply_selected_character_table_for_player(
 	if not (player is CharacterBody2D):
 		return
 	var selected_table_path := ""
-	if Engine.has_meta(table_path_key):
-		selected_table_path = str(Engine.get_meta(table_path_key, ""))
+	if SessionStateStore.has_value(table_path_key):
+		selected_table_path = str(SessionStateStore.get_value(table_path_key, ""))
 	var loaded_resource: Resource = null
 	if selected_table_path != "":
 		var loaded := load(selected_table_path)
@@ -621,20 +1066,101 @@ func _apply_selected_character_table_for_player(
 		player.call("apply_attack_table", loaded_resource)
 
 	var character_id := ""
-	if Engine.has_meta(character_id_key):
-		character_id = str(Engine.get_meta(character_id_key, ""))
+	if SessionStateStore.has_value(character_id_key):
+		character_id = str(SessionStateStore.get_value(character_id_key, ""))
 	if character_id == "" and player.has_method("get_character_id"):
 		character_id = str(player.call("get_character_id"))
 	selected_character_ids[player_key] = character_id
 
 	var display_name := ""
-	if Engine.has_meta(character_name_key):
-		display_name = str(Engine.get_meta(character_name_key, ""))
+	if SessionStateStore.has_value(character_name_key):
+		display_name = str(SessionStateStore.get_value(character_name_key, ""))
 	if display_name == "" and player.has_method("get_character_display_name"):
 		display_name = str(player.call("get_character_display_name"))
 	if display_name == "":
 		display_name = "Player 1" if player_key == "p1" else "Player 2"
 	selected_character_names[player_key] = display_name
+	var profile := {}
+	if player.has_method("get_character_profile"):
+		var profile_value: Variant = player.call("get_character_profile")
+		if typeof(profile_value) == TYPE_DICTIONARY:
+			profile = (profile_value as Dictionary).duplicate(true)
+	if profile.is_empty():
+		profile = {
+			"character_id": character_id,
+			"display_name": display_name,
+			"archetype_key": "all_rounder",
+			"archetype_label_key": "ARCHETYPE_ALL_ROUNDER",
+			"archetype_hint_key": "ARCHETYPE_HINT_ALL_ROUNDER",
+			"signature_primary": "Signature A",
+			"signature_alt": "Signature B",
+			"signature_names": {
+				"signature_a": "Signature A",
+				"signature_b": "Signature B",
+				"signature_c": "Mix Signature",
+				"ultimate": "Ultimate"
+			}
+		}
+	selected_character_profiles[player_key] = profile
+
+func _is_story_session_mode() -> bool:
+	if not SessionStateStore.has_value(SESSION_KEY_MATCH_MODE):
+		return false
+	return str(SessionStateStore.get_value(SESSION_KEY_MATCH_MODE, "")).to_lower() == STORY_SCENE_MODE
+
+func _build_story_roster() -> Array[Dictionary]:
+	var p1_id := str(selected_character_ids.get("p1", ""))
+	var roster: Array[Dictionary] = []
+	for entry in STORY_OPPONENT_POOL:
+		if typeof(entry) != TYPE_DICTIONARY:
+			continue
+		var item := (entry as Dictionary).duplicate(true)
+		var opponent_id := str(item.get("id", ""))
+		if opponent_id == "" or opponent_id == p1_id:
+			continue
+		roster.append(item)
+	return roster
+
+func _apply_story_opponent_round() -> void:
+	story_roster = _build_story_roster()
+	if story_roster.is_empty():
+		story_round_index = 0
+		return
+	var requested_round := 0
+	if SessionStateStore.has_value(STORY_SESSION_KEY_ROUND_INDEX):
+		requested_round = int(SessionStateStore.get_value(STORY_SESSION_KEY_ROUND_INDEX, 0))
+	story_round_index = clampi(requested_round, 0, story_roster.size() - 1)
+	var opponent_data := story_roster[story_round_index]
+	var table_path := str(opponent_data.get("attack_table_path", "")).strip_edges()
+	if table_path != "":
+		var loaded := load(table_path)
+		if loaded is Resource and player_2 and player_2.has_method("apply_attack_table"):
+			player_2.call("apply_attack_table", loaded as Resource)
+	selected_character_ids["p2"] = str(opponent_data.get("id", selected_character_ids.get("p2", "")))
+	selected_character_names["p2"] = str(opponent_data.get("name", selected_character_names.get("p2", "Player 2")))
+	if player_2 and player_2.has_method("get_character_profile"):
+		var profile_value: Variant = player_2.call("get_character_profile")
+		if typeof(profile_value) == TYPE_DICTIONARY:
+			selected_character_profiles["p2"] = (profile_value as Dictionary).duplicate(true)
+
+func _apply_session_match_mode() -> void:
+	story_mode_active = false
+	story_round_transition_time = 0.0
+	var match_mode := ""
+	if SessionStateStore.has_value(SESSION_KEY_MATCH_MODE):
+		match_mode = str(SessionStateStore.get_value(SESSION_KEY_MATCH_MODE, "")).to_lower()
+	if match_mode == "vs":
+		if player_1:
+			player_1.set("is_ai", false)
+		if player_2:
+			player_2.set("is_ai", false)
+		return
+	if match_mode == STORY_SCENE_MODE:
+		story_mode_active = true
+		if player_1:
+			player_1.set("is_ai", false)
+		if player_2:
+			player_2.set("is_ai", true)
 
 func _load_dialogue_pack() -> void:
 	dialogue_pack.clear()
@@ -648,6 +1174,17 @@ func _load_dialogue_pack() -> void:
 	else:
 		push_warning("Dialogue pack JSON parse failed: %s" % DIALOGUE_PACK_PATH)
 
+func _setup_dialogue_timer() -> void:
+	if dialogue_timer and is_instance_valid(dialogue_timer):
+		return
+	dialogue_timer = Timer.new()
+	dialogue_timer.name = "DialogueDelayTimer"
+	dialogue_timer.one_shot = true
+	dialogue_timer.autostart = false
+	dialogue_timer.process_mode = Node.PROCESS_MODE_ALWAYS
+	dialogue_timer.timeout.connect(_on_dialogue_timer_timeout)
+	add_child(dialogue_timer)
+
 func _trigger_pre_fight_dialogue() -> void:
 	if dialogue_pack.is_empty():
 		return
@@ -656,7 +1193,7 @@ func _trigger_pre_fight_dialogue() -> void:
 	var text := _build_pre_fight_dialogue_text()
 	if text == "":
 		return
-	call_deferred("_show_dialogue_line_deferred", text, 2.8, Color(0.94, 0.97, 1.0, 1.0))
+	_queue_dialogue_line(text, 2.8, Color(0.94, 0.97, 1.0, 1.0))
 
 func _trigger_victory_dialogue(result_key: String) -> void:
 	if dialogue_pack.is_empty():
@@ -676,10 +1213,30 @@ func _trigger_victory_dialogue(result_key: String) -> void:
 	if win_line == "":
 		return
 	var text := "%s: %s" % [winner_name, win_line]
-	call_deferred("_show_dialogue_line_deferred", text, 3.0, Color(1.0, 0.92, 0.72, 1.0))
+	_queue_dialogue_line(text, 3.0, Color(1.0, 0.92, 0.72, 1.0))
 
-func _show_dialogue_line_deferred(text: String, duration: float, tint: Color) -> void:
-	await get_tree().create_timer(0.45).timeout
+func _queue_dialogue_line(text: String, duration: float, tint: Color) -> void:
+	pending_dialogue_text = text
+	pending_dialogue_duration = maxf(duration, 0.1)
+	pending_dialogue_tint = tint
+	if not dialogue_timer or not is_instance_valid(dialogue_timer):
+		_show_pending_dialogue_line()
+		return
+	dialogue_timer.stop()
+	dialogue_timer.wait_time = DIALOGUE_LINE_DELAY_SECONDS
+	dialogue_timer.start()
+
+func _on_dialogue_timer_timeout() -> void:
+	_show_pending_dialogue_line()
+
+func _show_pending_dialogue_line() -> void:
+	if pending_dialogue_text == "":
+		return
+	var text := pending_dialogue_text
+	var duration := pending_dialogue_duration
+	var tint := pending_dialogue_tint
+	pending_dialogue_text = ""
+	pending_dialogue_duration = 0.0
 	if hud and hud.has_method("show_dialogue_line"):
 		hud.show_dialogue_line(text, duration, tint)
 

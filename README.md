@@ -13,10 +13,10 @@ Founders Fight Club is a 2D pixel-art fighting game prototype set in a Silicon V
 - Jump: Space, Gamepad X
 - Light Attack: J, Gamepad A
 - Heavy Attack: K, Gamepad B
-- Special: I, Gamepad Right Shoulder
-- Throw: U, Gamepad Left Shoulder
+- Special: I, Gamepad Right Shoulder (RB)
+- Throw: U, Gamepad Left Shoulder (LB)
 - Dash: L, Gamepad Y
-- Block: H (hold), Gamepad Right Stick
+- Block: H (hold), Gamepad Left Trigger (LT)
 - Pause: Esc, Gamepad Start
 
 Note: The second fighter is AI-controlled in the current prototype.

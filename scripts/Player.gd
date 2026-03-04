@@ -27,15 +27,49 @@ const TECH_QUICK_KNOCKDOWN_SECONDS := 0.04
 const TECH_SLIDE_DURATION := 0.12
 const TECH_SLIDE_SPEED := 180.0
 const WAKE_INVULN_SECONDS := 0.18
-const THROW_TECH_BUFFER_SECONDS := 0.16
+const RESPAWN_INVULN_SECONDS := 0.72
+const THROW_TECH_BUFFER_SECONDS := 0.10
 const THROW_TECH_PUSHBACK := 70.0
-const THROW_TECH_AI_CHANCE := 0.34
+const THROW_TECH_AI_CHANCE := 0.20
+const AI_BLOCK_REACTION_DISTANCE := 76.0
+const AI_BLOCK_STARTUP_REACTION_THRESHOLD := 0.62
 const TRAINING_RANDOM_BLOCK_CHANCE := 0.5
 const TRAINING_RANDOM_BLOCK_HOLD_SECONDS := 0.22
 const TRAINING_BLOCK_THREAT_DISTANCE := 108.0
 const INPUT_BUFFER_SECONDS := 0.22
 const DIRECTION_INPUT_BUFFER_SECONDS := 0.10
 const ULTIMATE_CHORD_BUFFER_SECONDS := 0.12
+const JUMP_BUFFER_SECONDS := 0.12
+const COYOTE_TIME_SECONDS := 0.10
+const JUMP_CUT_VELOCITY_MULTIPLIER := 0.52
+const FAST_FALL_MIN_DESCENT_SPEED := 32.0
+const FAST_FALL_GRAVITY_MULTIPLIER := 1.90
+const FAST_FALL_MAX_SPEED := 980.0
+const AERIAL_LANDING_LAG_DEFAULT := 0.11
+const AERIAL_LANDING_LAG_AUTO_CANCEL := 0.03
+const AERIAL_AUTO_CANCEL_RECOVERY_PROGRESS := 0.60
+const AERIAL_FAST_FALL_LANDING_LAG_BONUS := 0.015
+const SHIELD_MAX := 100.0
+const SHIELD_BLOCK_MIN_REQUIRED := 2.0
+const SHIELD_DRAIN_PER_SECOND := 34.0
+const SHIELD_HIT_DAMAGE_SCALE := 1.15
+const SHIELD_REGEN_PER_SECOND := 24.0
+const SHIELD_REGEN_DELAY_SECONDS := 0.42
+const SHIELD_BREAK_STUN_SECONDS := 0.95
+const SHIELD_BREAK_RECOVER_SHIELD := 34.0
+const SHIELD_BREAK_PUSHBACK := 96.0
+const DODGE_COOLDOWN_SECONDS := 0.28
+const SPOT_DODGE_DURATION := 0.18
+const SPOT_DODGE_INVULN_SECONDS := 0.13
+const ROLL_DODGE_DURATION := 0.24
+const ROLL_DODGE_INVULN_SECONDS := 0.15
+const ROLL_DODGE_SPEED := 255.0
+const AIR_DODGE_DURATION := 0.24
+const AIR_DODGE_INVULN_SECONDS := 0.16
+const AIR_DODGE_SPEED := 220.0
+const AIR_DODGE_FALL_SPEED := 36.0
+const AIR_DODGE_END_LAG_SECONDS := 0.18
+const MAX_AIR_JUMPS := 1
 const GROUND_ACCELERATION := 1720.0
 const GROUND_DECELERATION := 2140.0
 const AIR_ACCELERATION := 980.0
@@ -82,6 +116,29 @@ const COMBO_CHAIN_TIMEOUT_SECONDS := 0.95
 const COMBO_DAMAGE_SCALING_STEP := 0.12
 const COMBO_DAMAGE_SCALING_MIN := 0.45
 const COMBO_MIN_DAMAGE := 2
+const COMBO_SCALING_PROFILE_BY_TIER := {
+	"light": {"step": 0.10, "min": 0.50},
+	"heavy": {"step": 0.14, "min": 0.42},
+	"special": {"step": 0.12, "min": 0.45},
+	"signature": {"step": 0.11, "min": 0.46},
+	"ultimate": {"step": 0.08, "min": 0.56},
+	"throw": {"step": 0.08, "min": 0.60}
+}
+const KNOCKBACK_GROWTH_PER_DAMAGE_RATIO := 0.70
+const KNOCKBACK_GROWTH_MAX_SCALE := 1.65
+const DI_INPUT_DEADZONE := 0.20
+const DI_MIN_KNOCKBACK_SPEED := 80.0
+const DI_MAX_ANGLE_DEGREES := 18.0
+const DI_SURVIVAL_SCALE := 0.10
+const AI_DI_CHANCE := 0.66
+const AI_GUARD_LOW_READ_CHANCE := 0.22
+const HURTBOX_HEAD_SCALE := Vector2(0.76, 0.40)
+const HURTBOX_TORSO_SCALE := Vector2(0.92, 0.56)
+const HURTBOX_LEGS_SCALE := Vector2(0.84, 0.38)
+const HIT_ZONE_HEAD_DAMAGE_BONUS := 1
+const HIT_ZONE_HEAD_LAUNCH_BONUS := 24.0
+const HIT_ZONE_LEGS_DAMAGE_PENALTY := 1
+const HIT_ZONE_LEGS_LAUNCH_PENALTY := 20.0
 const GUARD_COUNTER_WINDOW_SECONDS := 0.24
 const GUARD_COUNTER_DAMAGE_BONUS := 3
 const GUARD_COUNTER_HITSTUN_BONUS := 0.05
@@ -96,10 +153,57 @@ const HYPE_GAIN_ON_BLOCK := 6.0
 const HYPE_GAIN_ON_TAKING_HIT := 4.0
 const SKILL_ENTITY_TARGET_HEIGHT_OFFSET := 22.0
 const SKILL_ENTITY_MIN_SIZE := Vector2(12.0, 10.0)
+const SKILL_ENTITY_STAGE_PADDING := 2.0
+const DEFAULT_STAGE_LEFT_X := 0.0
+const DEFAULT_STAGE_RIGHT_X := 900.0
+const DEFAULT_STAGE_FLOOR_Y := 340.0
+const PLAYER_STAGE_MARGIN := 12.0
+const LEDGE_GRAB_HORIZONTAL_RANGE := 32.0
+const LEDGE_GRAB_ABOVE_FLOOR_MARGIN := 18.0
+const LEDGE_GRAB_BELOW_FLOOR_MARGIN := 70.0
+const LEDGE_HANG_X_OFFSET := 8.0
+const LEDGE_HANG_Y_OFFSET := 10.0
+const LEDGE_HOLD_MAX_SECONDS := 1.0
+const LEDGE_REGRAB_LOCK_SECONDS := 0.24
+const LEDGE_GRAB_INVULN_SECONDS := 0.12
+const LEDGE_JUMP_HORIZONTAL_SPEED := 168.0
+const LEDGE_DROP_VERTICAL_SPEED := 92.0
+const LEDGE_DROP_HORIZONTAL_SPEED := 26.0
+const LEDGE_ROLL_GETUP_INSET_X := 20.0
+const LEDGE_ATTACK_GETUP_INSET_X := 22.0
+const PLATFORM_COLLISION_LAYER_BIT := 2
+const PLATFORM_DROP_THROUGH_SECONDS := 0.18
+const PLATFORM_DROP_FLOOR_Y_MARGIN := 10.0
 const SIGNATURE_ATTACK_KEYS := ["signature_a", "signature_b", "signature_c", "ultimate"]
 const STATUS_SILENCE_CAP_SECONDS := 1.6
 const STATUS_SLOW_CAP_SECONDS := 1.2
 const STATUS_ROOT_CAP_SECONDS := 0.5
+const CHARACTER_TINT_BY_ID := {
+	"elon_mvsk": Color(0.90, 0.86, 1.0, 1.0),
+	"mark_zuck": Color(0.84, 0.96, 1.0, 1.0),
+	"sam_altmyn": Color(0.88, 1.0, 0.88, 1.0),
+	"peter_thyell": Color(0.98, 0.90, 0.80, 1.0),
+	"zef_bezos": Color(1.0, 0.90, 0.82, 1.0),
+	"bill_geytz": Color(0.86, 0.92, 1.0, 1.0),
+	"sundar_pichoy": Color(0.90, 1.0, 0.90, 1.0),
+	"jensen_hwang": Color(0.98, 0.94, 0.78, 1.0),
+	"larry_pagyr": Color(0.90, 0.86, 1.0, 1.0),
+	"sergey_brinn": Color(0.86, 1.0, 0.94, 1.0),
+	"satya_nadello": Color(0.86, 0.96, 1.0, 1.0),
+	"tim_cuke": Color(0.94, 0.92, 1.0, 1.0),
+	"jack_dorsee": Color(0.82, 0.96, 1.0, 1.0),
+	"travis_kalanik": Color(1.0, 0.88, 0.82, 1.0),
+	"reed_hestings": Color(0.90, 1.0, 0.84, 1.0),
+	"steve_jobz": Color(1.0, 0.94, 0.84, 1.0),
+	"prototype_p1": Color(0.84, 0.96, 1.0, 1.0),
+	"prototype_p2": Color(1.0, 0.88, 0.84, 1.0)
+}
+const REQUIRED_BASE_ATTACK_KEYS := ["light", "heavy", "special", "throw"]
+const ARCHETYPE_ALL_ROUNDER := "all_rounder"
+const ARCHETYPE_RUSHDOWN := "rushdown"
+const ARCHETYPE_ZONER := "zoner"
+const ARCHETYPE_BRUISER := "bruiser"
+const ARCHETYPE_COUNTER := "counter"
 const BLOCK_CHIP_BY_ATTACK := {
 	"light": 0.0,
 	"heavy": 0.08,
@@ -141,6 +245,40 @@ const ANIMATION_PROFILES := {
 	"fall": {"fps": 8.0, "loop": false},
 	"getup": {"fps": 9.0, "loop": false},
 	"ko": {"fps": 1.0, "loop": false}
+}
+const LOCAL_INPUT_ACTIONS := [
+	"move_left",
+	"move_right",
+	"move_up",
+	"move_down",
+	"jump",
+	"attack_light",
+	"attack_heavy",
+	"attack_special",
+	"throw",
+	"dash",
+	"block"
+]
+const LOCAL_INPUT_PREFIX_BY_PLAYER_ID := {
+	1: "p1",
+	2: "p2"
+}
+const LOCAL_GAMEPAD_DEVICE_BY_PLAYER_ID := {
+	1: 0,
+	2: 1
+}
+const PLAYER2_LOCAL_KEYBOARD_LAYOUT := {
+	"move_left": [KEY_F],
+	"move_right": [KEY_G],
+	"move_up": [KEY_T],
+	"move_down": [KEY_V],
+	"jump": [KEY_R],
+	"attack_light": [KEY_N],
+	"attack_heavy": [KEY_M],
+	"attack_special": [KEY_COMMA],
+	"throw": [KEY_PERIOD],
+	"dash": [KEY_SLASH],
+	"block": [KEY_B]
 }
 const ATTACK_DATA := {
 	"light": {
@@ -190,6 +328,9 @@ const ATTACK_DATA := {
 
 var current_hp := MAX_HP
 var gravity := ProjectSettings.get_setting("physics/2d/default_gravity") as float
+var stage_left_x := DEFAULT_STAGE_LEFT_X
+var stage_right_x := DEFAULT_STAGE_RIGHT_X
+var stage_floor_y := DEFAULT_STAGE_FLOOR_Y
 
 var facing := 1
 var attack_state := ""
@@ -254,10 +395,43 @@ var skill_entity_texture_cache: Dictionary = {}
 var facing_locked := false
 var facing_locked_direction := 1
 var forward_input_buffer_time := 0.0
+var forward_input_was_pressed := false
+var up_input_buffer_time := 0.0
 var down_input_buffer_time := 0.0
 var special_input_buffer_time := 0.0
 var heavy_input_buffer_time := 0.0
+var is_ledge_hanging := false
+var ledge_side := 0
+var ledge_hold_time := 0.0
+var ledge_regrab_lock_time := 0.0
+var coyote_time := 0.0
+var jump_buffer_time := 0.0
+var jump_cut_available := false
+var fast_fall_active := false
+var landing_lag_time := 0.0
+var was_on_floor_last_frame := false
+var attack_started_in_air := false
+var shield_meter := SHIELD_MAX
+var shield_regen_delay := 0.0
+var shield_break_time := 0.0
+var shield_broken := false
+var dodge_state := ""
+var dodge_time := 0.0
+var dodge_cooldown_time := 0.0
+var dodge_direction := 1
+var air_dodge_end_lag_time := 0.0
+var air_dodge_available := true
+var air_jumps_remaining := MAX_AIR_JUMPS
 var control_preset := GameSettingsStore.CONTROL_PRESET_MODERN
+var local_input_prefix := "p1"
+var local_gamepad_device := 0
+var platform_drop_through_time := 0.0
+var hitstop_active := false
+
+static var _ledge_occupancy_by_side := {
+	-1: 0,
+	1: 0
+}
 
 @onready var hitbox := $Hitbox as Area2D
 @onready var hitbox_shape := $Hitbox/CollisionShape2D
@@ -266,6 +440,7 @@ var control_preset := GameSettingsStore.CONTROL_PRESET_MODERN
 
 func _ready() -> void:
 	add_to_group("fighters")
+	_ensure_local_input_actions()
 	_sync_control_preset()
 	_setup_attack_data()
 	_refresh_ai_style_profile()
@@ -274,23 +449,51 @@ func _ready() -> void:
 	hitbox.body_entered.connect(_on_hitbox_body_entered)
 	_update_facing()
 	_update_visual()
+	was_on_floor_last_frame = is_on_floor()
+	platform_drop_through_time = 0.0
+	air_dodge_end_lag_time = 0.0
+	_update_platform_collision_mask()
+
+func _exit_tree() -> void:
+	_release_occupied_ledge()
 
 func _physics_process(delta: float) -> void:
-	if not is_on_floor():
-		velocity.y += gravity * delta
+	if hitstop_active:
+		_update_facing()
+		_update_visual()
+		return
+	platform_drop_through_time = maxf(0.0, platform_drop_through_time - delta)
+	_update_platform_collision_mask()
+	var was_on_floor := was_on_floor_last_frame
 	_update_command_input_buffers(delta)
+	_update_jump_mobility_timers(delta)
+	_apply_air_gravity(delta)
+	_apply_jump_cut()
 	guard_counter_time = maxf(0.0, guard_counter_time - delta)
 	wake_invuln_time = maxf(0.0, wake_invuln_time - delta)
+	ledge_regrab_lock_time = maxf(0.0, ledge_regrab_lock_time - delta)
+	dodge_cooldown_time = maxf(0.0, dodge_cooldown_time - delta)
+	if is_on_floor():
+		air_dodge_end_lag_time = 0.0
+	else:
+		air_dodge_end_lag_time = maxf(0.0, air_dodge_end_lag_time - delta)
 	_update_skill_runtime(delta)
 	_update_throw_tech_buffer(delta)
 	_update_attack_buffer(delta)
 	_update_combo_chain(delta)
+	_try_enter_ledge_hang()
+	if is_ledge_hanging:
+		_process_ledge_hang(delta)
+		_update_facing()
+		_update_visual()
+		was_on_floor_last_frame = false
+		return
 
 	if is_knocked_down:
 		_update_knockdown(delta)
 		_update_facing()
 		_update_visual()
-		move_and_slide()
+		_move_and_finalize(was_on_floor)
 		return
 
 	if getup_time > 0.0:
@@ -303,14 +506,14 @@ func _physics_process(delta: float) -> void:
 			velocity = Vector2.ZERO
 		_update_facing()
 		_update_visual()
-		move_and_slide()
+		_move_and_finalize(was_on_floor)
 		return
 
 	if hitstun_time > 0.0:
 		hitstun_time -= delta
 		_update_facing()
 		_update_visual()
-		move_and_slide()
+		_move_and_finalize(was_on_floor)
 		return
 
 	if blockstun_time > 0.0:
@@ -318,7 +521,38 @@ func _physics_process(delta: float) -> void:
 		velocity.x = move_toward(velocity.x, 0.0, MOVE_SPEED * delta * 2.5)
 		_update_facing()
 		_update_visual()
-		move_and_slide()
+		_move_and_finalize(was_on_floor)
+		return
+
+	if shield_break_time > 0.0:
+		shield_break_time = maxf(0.0, shield_break_time - delta)
+		is_blocking = false
+		_apply_horizontal_intent(0.0, delta, 0.55, 1.85)
+		if shield_break_time <= 0.0:
+			_recover_from_shield_break()
+		_update_facing()
+		_update_visual()
+		_move_and_finalize(was_on_floor)
+		return
+
+	if dodge_time > 0.0:
+		dodge_time = maxf(0.0, dodge_time - delta)
+		is_blocking = false
+		_update_dodge_motion(delta)
+		if dodge_time <= 0.0:
+			_end_dodge_state()
+		_update_facing()
+		_update_visual()
+		_move_and_finalize(was_on_floor)
+		return
+
+	if landing_lag_time > 0.0:
+		landing_lag_time = maxf(0.0, landing_lag_time - delta)
+		is_blocking = false
+		_apply_horizontal_intent(0.0, delta, 0.7, 1.4)
+		_update_facing()
+		_update_visual()
+		_move_and_finalize(was_on_floor)
 		return
 
 	if is_dashing:
@@ -328,7 +562,7 @@ func _physics_process(delta: float) -> void:
 			velocity.x = 0.0
 		_update_facing()
 		_update_visual()
-		move_and_slide()
+		_move_and_finalize(was_on_floor)
 		return
 
 	dash_cooldown_timer = maxf(0.0, dash_cooldown_timer - delta)
@@ -342,17 +576,29 @@ func _physics_process(delta: float) -> void:
 	else:
 		_process_player_input(delta)
 
+	_update_shield_state(delta)
 	_update_attack(delta)
 	_try_start_buffered_attack_from_neutral()
+	_try_enter_ledge_hang()
+	if is_ledge_hanging:
+		_process_ledge_hang(delta)
+		_update_facing()
+		_update_visual()
+		was_on_floor_last_frame = false
+		return
 	_update_facing()
 	_update_visual()
-	move_and_slide()
+	_move_and_finalize(was_on_floor)
 
 func _process_player_input(delta: float) -> void:
 	if attack_state == "":
-		var move_axis := Input.get_axis("move_left", "move_right")
+		if _try_start_platform_drop_through():
+			return
+		var move_axis := _get_axis_input("move_left", "move_right")
 		if _is_rooted():
 			move_axis = 0.0
+		if _is_action_just_pressed("dash") and _try_start_defensive_dodge(move_axis, _get_axis_input("move_up", "move_down")):
+			return
 		var move_speed := MOVE_SPEED * _get_move_speed_multiplier()
 		var wants_block := _can_enter_block() and _is_block_input_pressed()
 		if wants_block:
@@ -362,19 +608,17 @@ func _process_player_input(delta: float) -> void:
 				_apply_horizontal_intent(block_target_speed, delta, BLOCK_ACCELERATION_SCALE, BLOCK_DECELERATION_SCALE)
 			else:
 				_apply_horizontal_intent(block_target_speed * 0.45, delta, BLOCK_ACCELERATION_SCALE, BLOCK_DECELERATION_SCALE)
-			if is_on_floor() and Input.is_action_just_pressed("jump"):
+			if _try_consume_buffered_jump():
 				is_blocking = false
-				velocity.y = JUMP_VELOCITY
 			return
 
 		is_blocking = false
 		_apply_horizontal_intent(move_axis * move_speed, delta)
-		if is_on_floor() and Input.is_action_just_pressed("jump"):
-			velocity.y = JUMP_VELOCITY
+		_try_consume_buffered_jump()
 		var requested_attack := _read_requested_attack()
 		if requested_attack != "":
 			_request_attack(requested_attack)
-		elif Input.is_action_just_pressed("dash") and dash_cooldown_timer <= 0.0 and is_on_floor() and not _is_rooted():
+		elif (_is_action_just_pressed("dash") or _is_forward_tap_pressed()) and dash_cooldown_timer <= 0.0 and (is_on_floor() or coyote_time > 0.0) and not _is_rooted():
 			_start_dash()
 	else:
 		is_blocking = false
@@ -383,24 +627,600 @@ func _process_player_input(delta: float) -> void:
 		if buffered_kind != "":
 			_buffer_attack(buffered_kind)
 
+func _update_platform_collision_mask() -> void:
+	var enable_platform_layer := platform_drop_through_time <= 0.0
+	set_collision_mask_value(PLATFORM_COLLISION_LAYER_BIT, enable_platform_layer)
+
+func _try_start_platform_drop_through() -> bool:
+	if not _is_action_just_pressed("jump"):
+		return false
+	if not _is_action_pressed("move_down"):
+		return false
+	if not is_on_floor():
+		return false
+	if not _is_on_drop_through_platform():
+		return false
+	platform_drop_through_time = PLATFORM_DROP_THROUGH_SECONDS
+	_update_platform_collision_mask()
+	velocity.y = maxf(velocity.y, LEDGE_DROP_VERTICAL_SPEED)
+	jump_buffer_time = 0.0
+	coyote_time = 0.0
+	is_blocking = false
+	return true
+
+func _is_on_drop_through_platform() -> bool:
+	return global_position.y < stage_floor_y - PLATFORM_DROP_FLOOR_Y_MARGIN
+
+func _try_enter_ledge_hang() -> void:
+	if is_ledge_hanging:
+		return
+	if ledge_regrab_lock_time > 0.0:
+		return
+	if stage_right_x <= stage_left_x:
+		return
+	if current_hp <= 0:
+		return
+	if is_on_floor():
+		return
+	if velocity.y < 0.0:
+		return
+	if attack_state != "" or is_dashing or is_blocking or dodge_time > 0.0:
+		return
+	if is_knocked_down or getup_time > 0.0:
+		return
+	if hitstun_time > 0.0 or blockstun_time > 0.0:
+		return
+	var side := _resolve_ledge_grab_side()
+	if side == 0:
+		return
+	if not _is_ledge_slot_available(side):
+		return
+	_start_ledge_hang(side)
+
+func _resolve_ledge_grab_side() -> int:
+	var min_y := stage_floor_y - LEDGE_GRAB_ABOVE_FLOOR_MARGIN
+	var max_y := stage_floor_y + LEDGE_GRAB_BELOW_FLOOR_MARGIN
+	if global_position.y < min_y or global_position.y > max_y:
+		return 0
+	var near_left := absf(global_position.x - stage_left_x) <= LEDGE_GRAB_HORIZONTAL_RANGE and global_position.x <= stage_left_x + LEDGE_GRAB_HORIZONTAL_RANGE
+	if near_left:
+		return -1
+	var near_right := absf(global_position.x - stage_right_x) <= LEDGE_GRAB_HORIZONTAL_RANGE and global_position.x >= stage_right_x - LEDGE_GRAB_HORIZONTAL_RANGE
+	if near_right:
+		return 1
+	return 0
+
+func _start_ledge_hang(side: int) -> void:
+	ledge_side = -1 if side < 0 else 1
+	_claim_ledge_slot(ledge_side)
+	is_ledge_hanging = true
+	ledge_hold_time = LEDGE_HOLD_MAX_SECONDS
+	velocity = Vector2.ZERO
+	is_dashing = false
+	is_blocking = false
+	attack_state = ""
+	attack_phase = ""
+	attack_time = 0.0
+	attack_recovery_override = -1.0
+	attack_effect_triggered = false
+	attack_startup_duration = 0.0
+	attack_active_duration = 0.0
+	attack_recovery_duration = 0.0
+	attack_confirmed_hit = false
+	attack_confirmed_block = false
+	attack_started_in_air = false
+	dodge_state = ""
+	dodge_time = 0.0
+	dodge_cooldown_time = 0.0
+	hit_targets.clear()
+	_set_hitbox_active(false)
+	_clear_attack_buffer()
+	jump_cut_available = false
+	landing_lag_time = 0.0
+	air_dodge_available = true
+	air_jumps_remaining = MAX_AIR_JUMPS
+	facing_locked = true
+	facing_locked_direction = -ledge_side
+	global_position = _get_ledge_anchor_position(ledge_side)
+	wake_invuln_time = maxf(wake_invuln_time, LEDGE_GRAB_INVULN_SECONDS)
+
+func _process_ledge_hang(delta: float) -> void:
+	if not is_ledge_hanging:
+		return
+	ledge_hold_time = maxf(0.0, ledge_hold_time - delta)
+	velocity = Vector2.ZERO
+	global_position = _get_ledge_anchor_position(ledge_side)
+	is_blocking = false
+	if current_hp <= 0:
+		_drop_from_ledge(false)
+		return
+	if _is_action_just_pressed("jump") or _is_action_just_pressed("move_up"):
+		_launch_from_ledge()
+		return
+	if _is_action_just_pressed("dash"):
+		_roll_getup_from_ledge()
+		return
+	if _is_action_just_pressed("attack_light") or _is_action_just_pressed("attack_heavy"):
+		_attack_getup_from_ledge()
+		return
+	if _is_action_pressed("move_down"):
+		_drop_from_ledge(true)
+		return
+	if _is_away_from_stage_input_pressed():
+		_drop_from_ledge(true)
+		return
+	if ledge_hold_time <= 0.0:
+		_drop_from_ledge(false)
+
+func _is_away_from_stage_input_pressed() -> bool:
+	if ledge_side < 0:
+		return _is_action_pressed("move_left")
+	return _is_action_pressed("move_right")
+
+func _get_ledge_anchor_position(side: int) -> Vector2:
+	var direction := -1 if side < 0 else 1
+	return Vector2(
+		(stage_left_x if direction < 0 else stage_right_x) + float(direction) * LEDGE_HANG_X_OFFSET,
+		stage_floor_y - LEDGE_HANG_Y_OFFSET
+	)
+
+func _launch_from_ledge() -> void:
+	var side := ledge_side
+	_end_ledge_hang()
+	velocity.y = JUMP_VELOCITY * 0.92
+	velocity.x = -float(side) * LEDGE_JUMP_HORIZONTAL_SPEED * _get_move_speed_multiplier()
+	jump_cut_available = false
+	wake_invuln_time = maxf(wake_invuln_time, 0.10)
+	air_jumps_remaining = MAX_AIR_JUMPS
+
+func _roll_getup_from_ledge() -> void:
+	var side := ledge_side
+	_end_ledge_hang()
+	var edge_x := stage_left_x if side < 0 else stage_right_x
+	global_position = Vector2(edge_x - float(side) * LEDGE_ROLL_GETUP_INSET_X, stage_floor_y - 2.0)
+	_start_roll_dodge(-side)
+	wake_invuln_time = maxf(wake_invuln_time, 0.08)
+
+func _attack_getup_from_ledge() -> void:
+	var side := ledge_side
+	_end_ledge_hang()
+	var edge_x := stage_left_x if side < 0 else stage_right_x
+	global_position = Vector2(edge_x - float(side) * LEDGE_ATTACK_GETUP_INSET_X, stage_floor_y - 2.0)
+	velocity = Vector2.ZERO
+	coyote_time = COYOTE_TIME_SECONDS
+	air_jumps_remaining = MAX_AIR_JUMPS
+	_start_attack("light")
+
+func _drop_from_ledge(apply_horizontal_push: bool) -> void:
+	var side := ledge_side
+	_end_ledge_hang()
+	velocity.y = LEDGE_DROP_VERTICAL_SPEED
+	velocity.x = float(side) * LEDGE_DROP_HORIZONTAL_SPEED if apply_horizontal_push else 0.0
+
+func _end_ledge_hang() -> void:
+	var previous_side := ledge_side
+	is_ledge_hanging = false
+	ledge_hold_time = 0.0
+	ledge_side = 0
+	_release_ledge_slot(previous_side)
+	facing_locked = false
+	ledge_regrab_lock_time = LEDGE_REGRAB_LOCK_SECONDS
+	fast_fall_active = false
+	air_dodge_available = true
+
+func _is_ledge_slot_available(side: int) -> bool:
+	var slot := -1 if side < 0 else 1
+	var occupant_id := int(_ledge_occupancy_by_side.get(slot, 0))
+	if occupant_id == 0 or occupant_id == get_instance_id():
+		return true
+	var occupant := instance_from_id(occupant_id)
+	if occupant == null:
+		_ledge_occupancy_by_side[slot] = 0
+		return true
+	return false
+
+func _claim_ledge_slot(side: int) -> void:
+	var slot := -1 if side < 0 else 1
+	_ledge_occupancy_by_side[slot] = get_instance_id()
+
+func _release_ledge_slot(side: int) -> void:
+	if side == 0:
+		return
+	var slot := -1 if side < 0 else 1
+	var occupant_id := int(_ledge_occupancy_by_side.get(slot, 0))
+	if occupant_id == get_instance_id():
+		_ledge_occupancy_by_side[slot] = 0
+
+func _release_occupied_ledge() -> void:
+	_release_ledge_slot(-1)
+	_release_ledge_slot(1)
+
+func _update_jump_mobility_timers(delta: float) -> void:
+	coyote_time = maxf(0.0, coyote_time - delta)
+	jump_buffer_time = maxf(0.0, jump_buffer_time - delta)
+	if is_on_floor():
+		coyote_time = COYOTE_TIME_SECONDS
+		fast_fall_active = false
+		jump_cut_available = false
+		air_dodge_available = true
+		air_jumps_remaining = MAX_AIR_JUMPS
+	if is_ledge_hanging:
+		fast_fall_active = false
+		jump_cut_available = false
+		air_dodge_available = true
+		air_jumps_remaining = MAX_AIR_JUMPS
+	if is_ai:
+		return
+	if _is_action_just_pressed("jump"):
+		jump_buffer_time = JUMP_BUFFER_SECONDS
+
+func _try_start_defensive_dodge(horizontal_axis: float, vertical_axis: float) -> bool:
+	if not _can_start_dodge():
+		return false
+	if is_on_floor():
+		var guarding := _is_block_input_pressed() or is_blocking
+		if not guarding:
+			return false
+		var direction := int(signf(horizontal_axis))
+		if direction != 0:
+			_start_roll_dodge(direction)
+		else:
+			_start_spot_dodge()
+		return true
+	return _start_air_dodge(horizontal_axis, vertical_axis)
+
+func _can_start_dodge() -> bool:
+	if current_hp <= 0:
+		return false
+	if shield_break_time > 0.0:
+		return false
+	if dodge_time > 0.0 or dodge_state != "":
+		return false
+	if air_dodge_end_lag_time > 0.0:
+		return false
+	if attack_state != "":
+		return false
+	if is_dashing:
+		return false
+	if is_knocked_down or getup_time > 0.0:
+		return false
+	if hitstun_time > 0.0 or blockstun_time > 0.0:
+		return false
+	if landing_lag_time > 0.0:
+		return false
+	if is_ledge_hanging:
+		return false
+	if _is_rooted():
+		return false
+	if is_on_floor():
+		return dodge_cooldown_time <= 0.0
+	return air_dodge_available
+
+func _start_spot_dodge() -> void:
+	dodge_state = "spot"
+	dodge_time = SPOT_DODGE_DURATION
+	dodge_direction = facing
+	dodge_cooldown_time = maxf(dodge_cooldown_time, DODGE_COOLDOWN_SECONDS)
+	wake_invuln_time = maxf(wake_invuln_time, SPOT_DODGE_INVULN_SECONDS)
+	is_blocking = false
+	facing_locked = true
+	facing_locked_direction = facing
+	velocity.x = 0.0
+	if is_on_floor():
+		velocity.y = 0.0
+	_clear_attack_buffer()
+
+func _start_roll_dodge(direction: int) -> void:
+	var resolved_direction := direction
+	if resolved_direction == 0:
+		resolved_direction = facing
+	dodge_state = "roll"
+	dodge_time = ROLL_DODGE_DURATION
+	dodge_direction = 1 if resolved_direction >= 0 else -1
+	dodge_cooldown_time = maxf(dodge_cooldown_time, DODGE_COOLDOWN_SECONDS)
+	wake_invuln_time = maxf(wake_invuln_time, ROLL_DODGE_INVULN_SECONDS)
+	is_blocking = false
+	facing_locked = true
+	facing_locked_direction = dodge_direction
+	velocity.x = float(dodge_direction) * ROLL_DODGE_SPEED * _get_move_speed_multiplier()
+	velocity.y = 0.0
+	_clear_attack_buffer()
+
+func _start_air_dodge(horizontal_axis: float, vertical_axis: float) -> bool:
+	if not air_dodge_available:
+		return false
+	air_dodge_available = false
+	air_dodge_end_lag_time = 0.0
+	dodge_state = "air"
+	dodge_time = AIR_DODGE_DURATION
+	dodge_cooldown_time = maxf(dodge_cooldown_time, 0.08)
+	wake_invuln_time = maxf(wake_invuln_time, AIR_DODGE_INVULN_SECONDS)
+	is_blocking = false
+	var direction := Vector2(horizontal_axis, vertical_axis)
+	if direction.length() < 0.2:
+		direction = Vector2(float(facing), 0.0)
+	direction = direction.normalized()
+	velocity = direction * AIR_DODGE_SPEED
+	dodge_direction = 1 if direction.x >= 0.0 else -1
+	facing_locked = true
+	facing_locked_direction = dodge_direction
+	_clear_attack_buffer()
+	return true
+
+func _update_dodge_motion(delta: float) -> void:
+	match dodge_state:
+		"spot":
+			velocity.x = move_toward(velocity.x, 0.0, MOVE_SPEED * delta * 6.0)
+			if is_on_floor():
+				velocity.y = 0.0
+		"roll":
+			var roll_speed := ROLL_DODGE_SPEED * _get_move_speed_multiplier()
+			var target_speed := float(dodge_direction) * roll_speed
+			if dodge_time <= 0.08:
+				target_speed *= 0.42
+			velocity.x = move_toward(velocity.x, target_speed, roll_speed * delta * 8.0)
+			velocity.y = 0.0
+		"air":
+			velocity.y = move_toward(velocity.y, AIR_DODGE_FALL_SPEED, gravity * delta * 0.45)
+			velocity.x = move_toward(velocity.x, 0.0, AIR_DODGE_SPEED * delta * 1.8)
+		_:
+			pass
+
+func _end_dodge_state() -> void:
+	if dodge_state == "":
+		return
+	if dodge_state == "air":
+		velocity.x *= 0.55
+		air_dodge_end_lag_time = AIR_DODGE_END_LAG_SECONDS
+	dodge_state = ""
+	dodge_time = 0.0
+	facing_locked = false
+
+func _move_and_finalize(was_on_floor: bool) -> void:
+	move_and_slide()
+	var now_on_floor := is_on_floor()
+	if not was_on_floor and now_on_floor:
+		_on_landed_from_air()
+	was_on_floor_last_frame = now_on_floor
+
+func _on_landed_from_air() -> void:
+	var landed_while_fast_fall := fast_fall_active
+	fast_fall_active = false
+	jump_cut_available = false
+	coyote_time = COYOTE_TIME_SECONDS
+	if attack_state != "" and attack_started_in_air:
+		var data := _get_attack_data(attack_state)
+		_apply_aerial_landing_lag(data, landed_while_fast_fall)
+	if landing_lag_time > 0.0:
+		_clear_attack_buffer()
+
+func _apply_aerial_landing_lag(data: Dictionary, landed_while_fast_fall: bool = false) -> void:
+	var landing_lag := float(data.get("landing_lag", AERIAL_LANDING_LAG_DEFAULT))
+	var auto_cancel_lag := float(data.get("landing_lag_autocancel", AERIAL_LANDING_LAG_AUTO_CANCEL))
+	var auto_cancel := _is_attack_auto_cancel_window(data)
+	var resolved_lag := auto_cancel_lag if auto_cancel else landing_lag
+	if landed_while_fast_fall and not auto_cancel:
+		resolved_lag += AERIAL_FAST_FALL_LANDING_LAG_BONUS
+	landing_lag_time = maxf(landing_lag_time, maxf(0.0, resolved_lag))
+	_clear_attack_state()
+
+func _is_attack_auto_cancel_window(data: Dictionary) -> bool:
+	if attack_phase == "startup":
+		return true
+	if attack_phase != "recovery":
+		return false
+	var recovery_duration := attack_recovery_duration if attack_recovery_duration > 0.0 else float(data.get("recovery", 0.20))
+	if recovery_duration <= 0.0:
+		return false
+	var recovery_progress := clampf(attack_time / recovery_duration, 0.0, 1.0)
+	return recovery_progress >= AERIAL_AUTO_CANCEL_RECOVERY_PROGRESS
+
+func _apply_air_gravity(delta: float) -> void:
+	if is_on_floor() or is_ledge_hanging:
+		return
+	_try_start_fast_fall()
+	var gravity_scale := FAST_FALL_GRAVITY_MULTIPLIER if fast_fall_active else 1.0
+	velocity.y += gravity * gravity_scale * delta
+	if fast_fall_active:
+		velocity.y = minf(velocity.y, FAST_FALL_MAX_SPEED)
+
+func _apply_jump_cut() -> void:
+	if is_ai:
+		jump_cut_available = false
+		return
+	if not jump_cut_available:
+		return
+	if is_ledge_hanging or is_on_floor():
+		jump_cut_available = false
+		return
+	if attack_state != "":
+		jump_cut_available = false
+		return
+	if is_knocked_down or getup_time > 0.0:
+		jump_cut_available = false
+		return
+	if hitstun_time > 0.0 or blockstun_time > 0.0:
+		jump_cut_available = false
+		return
+	if velocity.y >= 0.0:
+		jump_cut_available = false
+		return
+	if _is_action_pressed("jump"):
+		return
+	velocity.y *= JUMP_CUT_VELOCITY_MULTIPLIER
+	jump_cut_available = false
+
+func _try_start_fast_fall() -> bool:
+	if fast_fall_active:
+		return true
+	if is_ai:
+		return false
+	if velocity.y < FAST_FALL_MIN_DESCENT_SPEED:
+		return false
+	if down_input_buffer_time <= 0.0:
+		return false
+	if is_knocked_down or getup_time > 0.0:
+		return false
+	if hitstun_time > 0.0 or blockstun_time > 0.0:
+		return false
+	fast_fall_active = true
+	return true
+
+func _try_consume_buffered_jump() -> bool:
+	if jump_buffer_time <= 0.0:
+		return false
+	if not _can_execute_jump():
+		return false
+	var using_air_jump := not is_on_floor() and coyote_time <= 0.0
+	velocity.y = JUMP_VELOCITY
+	jump_buffer_time = 0.0
+	coyote_time = 0.0
+	jump_cut_available = true
+	fast_fall_active = false
+	if using_air_jump:
+		air_jumps_remaining = maxi(0, air_jumps_remaining - 1)
+	return true
+
+func _can_execute_jump() -> bool:
+	if current_hp <= 0:
+		return false
+	if shield_break_time > 0.0:
+		return false
+	if dodge_time > 0.0:
+		return false
+	if air_dodge_end_lag_time > 0.0:
+		return false
+	if is_ledge_hanging:
+		return false
+	if landing_lag_time > 0.0:
+		return false
+	if _is_rooted():
+		return false
+	if is_knocked_down or getup_time > 0.0:
+		return false
+	if hitstun_time > 0.0 or blockstun_time > 0.0:
+		return false
+	if is_on_floor():
+		return true
+	if coyote_time > 0.0:
+		return true
+	return air_jumps_remaining > 0
+
 func _sync_control_preset() -> void:
 	var preset_value := str(Engine.get_meta(GameSettingsStore.ENGINE_META_KEY, ""))
 	if preset_value == "":
 		preset_value = GameSettingsStore.get_control_preset()
 	control_preset = GameSettingsStore.normalize_control_preset(preset_value)
 
+func _ensure_local_input_actions() -> void:
+	local_input_prefix = str(LOCAL_INPUT_PREFIX_BY_PLAYER_ID.get(player_id, "p1"))
+	local_gamepad_device = _resolve_local_gamepad_device()
+	for base_action in LOCAL_INPUT_ACTIONS:
+		var action_name := _build_local_input_action_name(base_action)
+		_ensure_input_action_exists(action_name)
+		_clear_action_events(action_name)
+		_copy_joypad_events_to_local_action(base_action, action_name, local_gamepad_device)
+		if player_id == 2:
+			var keycodes: Array = PLAYER2_LOCAL_KEYBOARD_LAYOUT.get(base_action, [])
+			for keycode_value in keycodes:
+				_add_key_event_to_action(action_name, int(keycode_value))
+		else:
+			_copy_keyboard_events_to_local_action(base_action, action_name)
+
+func _resolve_local_gamepad_device() -> int:
+	var fallback_device := int(LOCAL_GAMEPAD_DEVICE_BY_PLAYER_ID.get(player_id, 0))
+	var joypads := Input.get_connected_joypads()
+	if joypads.is_empty():
+		return fallback_device
+	if player_id == 1:
+		return int(joypads[0])
+	if player_id == 2:
+		if joypads.size() >= 2:
+			return int(joypads[1])
+		return fallback_device
+	return fallback_device
+
+func _ensure_input_action_exists(action_name: String) -> void:
+	if not InputMap.has_action(action_name):
+		InputMap.add_action(action_name)
+
+func _clear_action_events(action_name: String) -> void:
+	if not InputMap.has_action(action_name):
+		return
+	for event in InputMap.action_get_events(action_name):
+		InputMap.action_erase_event(action_name, event)
+
+func _add_key_event_to_action(action_name: String, keycode: int) -> void:
+	if not InputMap.has_action(action_name):
+		return
+	var event := InputEventKey.new()
+	event.keycode = keycode
+	event.physical_keycode = keycode
+	InputMap.action_add_event(action_name, event)
+
+func _copy_keyboard_events_to_local_action(source_action: String, local_action: String) -> void:
+	if not InputMap.has_action(source_action):
+		return
+	for event in InputMap.action_get_events(source_action):
+		if event is not InputEventKey:
+			continue
+		var key_event := (event as InputEventKey).duplicate()
+		if key_event is InputEventKey:
+			(key_event as InputEventKey).device = -1
+		InputMap.action_add_event(local_action, key_event)
+
+func _copy_joypad_events_to_local_action(source_action: String, local_action: String, device_id: int) -> void:
+	if not InputMap.has_action(source_action):
+		return
+	for event in InputMap.action_get_events(source_action):
+		if event is InputEventJoypadButton:
+			var button_event := (event as InputEventJoypadButton).duplicate()
+			if button_event is InputEventJoypadButton:
+				(button_event as InputEventJoypadButton).device = device_id
+			InputMap.action_add_event(local_action, button_event)
+		elif event is InputEventJoypadMotion:
+			var axis_event := (event as InputEventJoypadMotion).duplicate()
+			if axis_event is InputEventJoypadMotion:
+				(axis_event as InputEventJoypadMotion).device = device_id
+			InputMap.action_add_event(local_action, axis_event)
+
+func _build_local_input_action_name(base_action: String) -> String:
+	return "%s_%s" % [local_input_prefix, base_action]
+
+func _resolve_input_action(base_action: String) -> String:
+	if player_id in [1, 2]:
+		var local_action := _build_local_input_action_name(base_action)
+		if InputMap.has_action(local_action):
+			return local_action
+	return base_action
+
+func _is_action_pressed(base_action: String) -> bool:
+	var resolved_action := _resolve_input_action(base_action)
+	return InputMap.has_action(resolved_action) and Input.is_action_pressed(resolved_action)
+
+func _is_action_just_pressed(base_action: String) -> bool:
+	var resolved_action := _resolve_input_action(base_action)
+	return InputMap.has_action(resolved_action) and Input.is_action_just_pressed(resolved_action)
+
+func _get_axis_input(negative_action: String, positive_action: String) -> float:
+	var resolved_negative := _resolve_input_action(negative_action)
+	var resolved_positive := _resolve_input_action(positive_action)
+	if not InputMap.has_action(resolved_negative) or not InputMap.has_action(resolved_positive):
+		return 0.0
+	return Input.get_axis(resolved_negative, resolved_positive)
+
 func _is_block_input_pressed() -> bool:
 	if _uses_classic_controls():
 		return _is_back_input_pressed()
-	return InputMap.has_action("block") and Input.is_action_pressed("block")
+	return _is_action_pressed("block")
 
 func _uses_classic_controls() -> bool:
 	return control_preset == GameSettingsStore.CONTROL_PRESET_CLASSIC
 
 func _is_back_input_pressed() -> bool:
 	if facing >= 0:
-		return InputMap.has_action("move_left") and Input.is_action_pressed("move_left")
-	return InputMap.has_action("move_right") and Input.is_action_pressed("move_right")
+		return _is_action_pressed("move_left")
+	return _is_action_pressed("move_right")
 
 func _apply_horizontal_intent(target_speed: float, delta: float, acceleration_scale: float = 1.0, deceleration_scale: float = 1.0) -> void:
 	var resolved_target := target_speed
@@ -633,27 +1453,43 @@ func _should_ai_block(distance: float) -> bool:
 		return false
 	if ai_block_time > 0.0:
 		return true
-	if absf(distance) > 88.0:
+	if opponent == null:
 		return false
-	var opponent_attack_state_value: Variant = opponent.get("attack_state")
-	var value_type: int = typeof(opponent_attack_state_value)
-	if value_type != TYPE_STRING and value_type != TYPE_STRING_NAME:
+	if absf(distance) > AI_BLOCK_REACTION_DISTANCE:
 		return false
-	var opponent_attack_state := str(opponent_attack_state_value)
-	if opponent_attack_state == "":
+	if not _is_opponent_attack_in_block_window(opponent):
 		return false
 	if randf() < _get_ai_profile_number("block_chance", 0.35):
 		ai_block_time = _get_ai_profile_number("block_hold_time", 0.18)
 	return ai_block_time > 0.0
 
+func _is_opponent_attack_in_block_window(target: Node) -> bool:
+	if target == null:
+		return false
+	var attack_state := str(target.get("attack_state"))
+	if attack_state == "":
+		return false
+	var horizontal_distance := absf(target.global_position.x - global_position.x)
+	if horizontal_distance > AI_BLOCK_REACTION_DISTANCE:
+		return false
+	var attack_phase := str(target.get("attack_phase"))
+	if attack_phase == "active":
+		return true
+	if attack_phase != "startup":
+		return false
+	var startup_duration := float(target.get("attack_startup_duration"))
+	var startup_elapsed := float(target.get("attack_time"))
+	var normalized_startup := maxf(0.08, startup_duration)
+	var startup_progress := clampf(startup_elapsed / normalized_startup, 0.0, 1.0)
+	var proximity_bonus := clampf((AI_BLOCK_REACTION_DISTANCE - horizontal_distance) / maxf(1.0, AI_BLOCK_REACTION_DISTANCE), 0.0, 1.0) * 0.18
+	var threshold := clampf(AI_BLOCK_STARTUP_REACTION_THRESHOLD - proximity_bonus, 0.42, 0.90)
+	return startup_progress >= threshold
+
 func _resolve_ai_guard_mode() -> String:
 	if not is_on_floor():
 		return "air"
-	if opponent and opponent.has_method("get_current_attack_block_type"):
-		var block_type_value: Variant = opponent.call("get_current_attack_block_type")
-		var block_type := str(block_type_value)
-		if block_type == "low":
-			return "low"
+	if randf() < AI_GUARD_LOW_READ_CHANCE:
+		return "low"
 	return "high"
 
 func set_training_dummy_options(enabled: bool, mode: String) -> void:
@@ -695,6 +1531,88 @@ func get_character_display_name() -> String:
 				return display_name
 	return "Player %d" % player_id
 
+func get_character_profile() -> Dictionary:
+	var archetype_key := _resolve_archetype_key()
+	var primary_signature := _resolve_signature_display_name("signature_a", "signature_primary", "Signature A")
+	var alt_signature := _resolve_signature_display_name("signature_b", "signature_alt", "Signature B")
+	var mix_signature := _resolve_signature_display_name("signature_c", "signature_mix", "Mix Signature")
+	var ultimate_signature := _resolve_signature_display_name("ultimate", "signature_ultimate", "Ultimate")
+	return {
+		"character_id": get_character_id(),
+		"display_name": get_character_display_name(),
+		"archetype_key": archetype_key,
+		"archetype_label_key": _resolve_archetype_label_key(archetype_key),
+		"archetype_hint_key": _resolve_archetype_hint_key(archetype_key),
+		"signature_primary": primary_signature,
+		"signature_alt": alt_signature,
+		"signature_names": {
+			"signature_a": primary_signature,
+			"signature_b": alt_signature,
+			"signature_c": mix_signature,
+			"ultimate": ultimate_signature
+		}
+	}
+
+func _resolve_archetype_key() -> String:
+	var preferred_range := _get_ai_profile_number("preferred_range", 56.0)
+	var combo_pressure := _get_ai_profile_number("combo_pressure", 0.52)
+	var signature_bias := _get_ai_profile_number("signature_bias", 1.0)
+	var special_bias := _get_ai_profile_number("special_bias", 1.0)
+	var heavy_bias := _get_ai_profile_number("heavy_bias", 1.0)
+	var block_chance := _get_ai_profile_number("block_chance", 0.35)
+	if combo_pressure >= 0.66 and preferred_range <= 58.0:
+		return ARCHETYPE_RUSHDOWN
+	if preferred_range >= 72.0 and signature_bias >= 1.20 and heavy_bias <= 0.95:
+		return ARCHETYPE_ZONER
+	if heavy_bias >= 1.14 or special_bias >= 1.14:
+		return ARCHETYPE_BRUISER
+	if block_chance >= 0.40:
+		return ARCHETYPE_COUNTER
+	return ARCHETYPE_ALL_ROUNDER
+
+func _resolve_archetype_label_key(archetype_key: String) -> String:
+	match archetype_key:
+		ARCHETYPE_RUSHDOWN:
+			return "ARCHETYPE_RUSHDOWN"
+		ARCHETYPE_ZONER:
+			return "ARCHETYPE_ZONER"
+		ARCHETYPE_BRUISER:
+			return "ARCHETYPE_BRUISER"
+		ARCHETYPE_COUNTER:
+			return "ARCHETYPE_COUNTER"
+		_:
+			return "ARCHETYPE_ALL_ROUNDER"
+
+func _resolve_archetype_hint_key(archetype_key: String) -> String:
+	match archetype_key:
+		ARCHETYPE_RUSHDOWN:
+			return "ARCHETYPE_HINT_RUSHDOWN"
+		ARCHETYPE_ZONER:
+			return "ARCHETYPE_HINT_ZONER"
+		ARCHETYPE_BRUISER:
+			return "ARCHETYPE_HINT_BRUISER"
+		ARCHETYPE_COUNTER:
+			return "ARCHETYPE_HINT_COUNTER"
+		_:
+			return "ARCHETYPE_HINT_ALL_ROUNDER"
+
+func _resolve_signature_display_name(attack_key: String, meta_key: String, fallback: String) -> String:
+	var attack_data := _get_attack_data(attack_key)
+	var explicit_name := str(attack_data.get("display_name", "")).strip_edges()
+	if explicit_name != "":
+		return explicit_name
+	var special_data := _get_attack_data("special")
+	var special_meta_name := str(special_data.get(meta_key, "")).strip_edges()
+	if special_meta_name != "":
+		return special_meta_name
+	if attack_table_resource:
+		var meta_value: Variant = attack_table_resource.get(meta_key)
+		if typeof(meta_value) == TYPE_STRING or typeof(meta_value) == TYPE_STRING_NAME:
+			var direct_meta_name := str(meta_value).strip_edges()
+			if direct_meta_name != "":
+				return direct_meta_name
+	return fallback
+
 func _refresh_ai_style_profile() -> void:
 	var character_id := get_character_id()
 	ai_style_profile = AI_PROFILE_DEFAULT.duplicate(true)
@@ -730,19 +1648,7 @@ func _update_attack(delta: float) -> void:
 		attack_time = 0.0
 		_set_hitbox_active(false)
 	elif attack_phase == "recovery" and attack_time >= recovery_duration:
-		attack_state = ""
-		attack_phase = ""
-		attack_time = 0.0
-		attack_recovery_override = -1.0
-		next_attack_is_counter = false
-		attack_confirmed_hit = false
-		attack_confirmed_block = false
-		attack_effect_triggered = false
-		attack_startup_duration = 0.0
-		attack_active_duration = 0.0
-		attack_recovery_duration = 0.0
-		facing_locked = false
-		_set_hitbox_active(false)
+		_clear_attack_state()
 
 	if attack_phase in ["startup", "active"] and data.has("lunge_speed"):
 		velocity.x = float(data.get("lunge_speed", 320.0)) * facing
@@ -789,8 +1695,8 @@ func _update_skill_entities(delta: float) -> void:
 		var entity := (entity_variant as Dictionary).duplicate(true)
 		var delay := maxf(0.0, float(entity.get("delay", 0.0)) - delta)
 		entity["delay"] = delay
-		_update_skill_entity_visual(entity, true)
 		if delay > 0.0:
+			_update_skill_entity_visual(entity, true)
 			remaining_entities.append(entity)
 			continue
 		var life := maxf(0.0, float(entity.get("life", 0.0)) - delta)
@@ -803,7 +1709,18 @@ func _update_skill_entities(delta: float) -> void:
 		var position_value: Variant = entity.get("position", global_position)
 		var position_vec: Vector2 = position_value if position_value is Vector2 else global_position
 		position_vec += velocity_vec * delta
+		var entity_size_value: Variant = entity.get("size", Vector2(26, 18))
+		var entity_size: Vector2 = entity_size_value if entity_size_value is Vector2 else Vector2(26, 18)
+		var stage_bounds := _resolve_skill_entity_stage_bounds(entity_size)
+		if position_vec.x < stage_bounds.x or position_vec.x > stage_bounds.y:
+			if bool(entity.get("destroy_on_wall", true)):
+				_free_skill_entity_node(entity)
+				continue
+			position_vec.x = clampf(position_vec.x, stage_bounds.x, stage_bounds.y)
+			velocity_vec.x = 0.0
+			entity["velocity"] = velocity_vec
 		entity["position"] = position_vec
+		_update_skill_entity_visual(entity, false)
 		var destroy_on_hit := bool(entity.get("destroy_on_hit", true))
 		if _skill_entity_hit_test(entity, opponent):
 			var payload: Dictionary = entity.get("payload", {}) as Dictionary
@@ -932,6 +1849,8 @@ func _spawn_skill_entity_from_effect(effect: Dictionary, data: Dictionary) -> vo
 	var base_offset := float(effect.get("spawn_offset_x", 36.0))
 	var spawn_height := float(effect.get("spawn_offset_y", -14.0))
 	var start_position := global_position + Vector2(base_offset * facing, spawn_height)
+	var stage_bounds := _resolve_skill_entity_stage_bounds(size)
+	start_position.x = clampf(start_position.x, stage_bounds.x, stage_bounds.y)
 	var speed := float(effect.get("speed", 260.0))
 	var velocity := Vector2(speed * facing, float(effect.get("velocity_y", 0.0)))
 	var payload := {
@@ -957,6 +1876,7 @@ func _spawn_skill_entity_from_effect(effect: Dictionary, data: Dictionary) -> vo
 		"life": float(effect.get("duration", 0.9)),
 		"delay": float(effect.get("spawn_delay", 0.0)),
 		"destroy_on_hit": bool(effect.get("destroy_on_hit", true)),
+		"destroy_on_wall": bool(effect.get("destroy_on_wall", str(effect.get("type", "")) != "trap")),
 		"payload": payload
 	}
 	entity["node"] = _create_skill_entity_visual(str(entity.get("type", "projectile")), size, start_position)
@@ -1009,13 +1929,36 @@ func _apply_mobility_effect(effect: Dictionary) -> void:
 	match mode:
 		"teleport":
 			var distance := float(effect.get("distance", 120.0))
-			global_position.x += distance * facing
+			global_position.x = _clamp_player_to_stage_x(global_position.x + distance * facing)
 			velocity.x = 0.0
 		"rising":
 			velocity.y = -absf(float(effect.get("rise_speed", 320.0)))
 			velocity.x = float(effect.get("forward_speed", 120.0)) * facing
 		_:
 			velocity.x = float(effect.get("speed", 360.0)) * facing
+
+func _resolve_skill_entity_stage_bounds(size: Vector2) -> Vector2:
+	var half_width := maxf(2.0, size.x * 0.5)
+	return Vector2(
+		stage_left_x + half_width + SKILL_ENTITY_STAGE_PADDING,
+		stage_right_x - half_width - SKILL_ENTITY_STAGE_PADDING
+	)
+
+func _clamp_player_to_stage_x(value: float) -> float:
+	return clampf(value, stage_left_x + PLAYER_STAGE_MARGIN, stage_right_x - PLAYER_STAGE_MARGIN)
+
+func set_stage_bounds(left_x: float, right_x: float) -> void:
+	if right_x <= left_x:
+		stage_left_x = DEFAULT_STAGE_LEFT_X
+		stage_right_x = DEFAULT_STAGE_RIGHT_X
+		stage_floor_y = DEFAULT_STAGE_FLOOR_Y
+		return
+	stage_left_x = left_x
+	stage_right_x = right_x
+
+func set_stage_geometry(left_x: float, right_x: float, floor_y: float) -> void:
+	set_stage_bounds(left_x, right_x)
+	stage_floor_y = floor_y
 
 func _apply_install_buff(buff: Dictionary) -> void:
 	install_buff_time = maxf(install_buff_time, float(buff.get("duration", 4.0)))
@@ -1064,8 +2007,31 @@ func _resolve_directional_special_kind() -> String:
 		return "signature_a"
 	return ""
 
+func _resolve_basic_attack_variant(base_kind: String) -> String:
+	if base_kind == "":
+		return ""
+	if not is_on_floor():
+		var air_kind := "%s_air" % base_kind
+		if _has_attack_kind(air_kind):
+			return air_kind
+	if up_input_buffer_time > 0.0:
+		var up_kind := "%s_up" % base_kind
+		if _has_attack_kind(up_kind):
+			return up_kind
+	if down_input_buffer_time > 0.0:
+		var down_kind := "%s_down" % base_kind
+		if _has_attack_kind(down_kind):
+			return down_kind
+	return base_kind
+
 func _can_trigger_attack_kind(kind: String) -> bool:
 	if kind == "":
+		return false
+	if shield_break_time > 0.0:
+		return false
+	if dodge_time > 0.0:
+		return false
+	if is_ledge_hanging:
 		return false
 	if not _has_attack_kind(kind):
 		return false
@@ -1179,6 +2145,20 @@ func _build_generated_signature_attack_from_special(kind: String, special_base: 
 
 func _get_generated_skill_profile_for_character(character_id: String) -> Dictionary:
 	match character_id:
+		"prototype_p1":
+			return {
+				"signature_a": {"damage_scale": 0.62, "cooldown": 1.4, "effect": {"type": "projectile", "speed": 300.0, "duration": 1.05, "size": Vector2(26, 16)}},
+				"signature_b": {"damage_scale": 0.70, "cooldown": 1.9, "effect": {"type": "mobility", "mode": "dash", "speed": 320.0}},
+				"signature_c": {"damage_scale": 0.64, "cooldown": 2.1, "effect": {"type": "trap", "duration": 1.25, "size": Vector2(32, 18), "spawn_delay": 0.08}},
+				"ultimate": {"damage_scale": 0.98, "cooldown": 8.0, "effect": {"type": "buff", "buff": {"duration": 4.2, "damage_multiplier": 1.16, "speed_multiplier": 1.08, "startup_multiplier": 0.86}}}
+			}
+		"prototype_p2", "prototype":
+			return {
+				"signature_a": {"damage_scale": 0.58, "cooldown": 1.5, "control": {"slow_seconds": 0.65, "slow_factor": 0.68}},
+				"signature_b": {"damage_scale": 0.68, "cooldown": 1.9, "effect": {"type": "mobility", "mode": "teleport", "distance": 110.0}},
+				"signature_c": {"damage_scale": 0.62, "cooldown": 2.2, "effect": {"type": "summon", "speed": 250.0, "duration": 1.15, "size": Vector2(30, 18), "spawn_delay": 0.1}},
+				"ultimate": {"damage_scale": 0.92, "cooldown": 8.2, "effect": {"type": "projectile", "speed": 410.0, "duration": 1.1, "size": Vector2(36, 20)}}
+			}
 		"zef_bezos":
 			return {
 				"signature_a": {"damage_scale": 0.62, "cooldown": 1.4, "effect": {"type": "summon", "speed": 280.0, "duration": 1.1, "size": Vector2(28, 18), "spawn_delay": 0.06}},
@@ -1270,7 +2250,7 @@ func _read_requested_attack() -> String:
 	if _can_trigger_buffered_ultimate():
 		_consume_ultimate_chord_buffer()
 		return "ultimate"
-	if Input.is_action_just_pressed("attack_special"):
+	if _is_action_just_pressed("attack_special"):
 		if not _is_silenced():
 			var special_kind := _resolve_directional_special_kind()
 			if special_kind != "":
@@ -1279,35 +2259,48 @@ func _read_requested_attack() -> String:
 			if _has_attack_kind("special"):
 				special_input_buffer_time = 0.0
 				return "special"
-	if Input.is_action_just_pressed("attack_light"):
-		return "light"
-	if Input.is_action_just_pressed("attack_heavy"):
+	if _is_action_just_pressed("attack_light"):
+		return _resolve_basic_attack_variant("light")
+	if _is_action_just_pressed("attack_heavy"):
 		heavy_input_buffer_time = 0.0
-		return "heavy"
-	if Input.is_action_just_pressed("throw"):
+		return _resolve_basic_attack_variant("heavy")
+	if _is_action_just_pressed("throw"):
 		return "throw"
 	return ""
 
 func _update_command_input_buffers(delta: float) -> void:
 	forward_input_buffer_time = maxf(0.0, forward_input_buffer_time - delta)
+	up_input_buffer_time = maxf(0.0, up_input_buffer_time - delta)
 	down_input_buffer_time = maxf(0.0, down_input_buffer_time - delta)
 	special_input_buffer_time = maxf(0.0, special_input_buffer_time - delta)
 	heavy_input_buffer_time = maxf(0.0, heavy_input_buffer_time - delta)
 	if is_ai:
 		return
-	if _is_forward_input_pressed():
+	var forward_pressed_now := _is_forward_input_pressed()
+	if forward_pressed_now and not forward_input_was_pressed:
 		forward_input_buffer_time = DIRECTION_INPUT_BUFFER_SECONDS
-	if InputMap.has_action("move_down") and Input.is_action_pressed("move_down"):
+	forward_input_was_pressed = forward_pressed_now
+	if _is_action_pressed("move_up"):
+		up_input_buffer_time = DIRECTION_INPUT_BUFFER_SECONDS
+	if _is_action_pressed("move_down"):
 		down_input_buffer_time = DIRECTION_INPUT_BUFFER_SECONDS
-	if Input.is_action_just_pressed("attack_special"):
+	if _is_action_just_pressed("attack_special"):
 		special_input_buffer_time = ULTIMATE_CHORD_BUFFER_SECONDS
-	if Input.is_action_just_pressed("attack_heavy"):
+	if _is_action_just_pressed("attack_heavy"):
 		heavy_input_buffer_time = ULTIMATE_CHORD_BUFFER_SECONDS
 
 func _is_forward_input_pressed() -> bool:
 	if facing >= 0:
-		return InputMap.has_action("move_right") and Input.is_action_pressed("move_right")
-	return InputMap.has_action("move_left") and Input.is_action_pressed("move_left")
+		return _is_action_pressed("move_right")
+	return _is_action_pressed("move_left")
+
+func _is_forward_tap_pressed() -> bool:
+	var forward_pressed_now := _is_forward_input_pressed()
+	var edge_pressed := forward_pressed_now and not forward_input_was_pressed
+	forward_input_was_pressed = forward_pressed_now
+	if facing >= 0:
+		return _is_action_just_pressed("move_right") or edge_pressed
+	return _is_action_just_pressed("move_left") or edge_pressed
 
 func _can_trigger_buffered_ultimate() -> bool:
 	if special_input_buffer_time <= 0.0 or heavy_input_buffer_time <= 0.0:
@@ -1326,11 +2319,11 @@ func _update_throw_tech_buffer(delta: float) -> void:
 		throw_tech_buffer_time = THROW_TECH_BUFFER_SECONDS
 
 func _is_throw_tech_input_pressed() -> bool:
-	if Input.is_action_just_pressed("throw"):
+	if _is_action_just_pressed("throw"):
 		return true
-	if Input.is_action_just_pressed("attack_light"):
+	if _is_action_just_pressed("attack_light"):
 		return true
-	if Input.is_action_just_pressed("attack_heavy"):
+	if _is_action_just_pressed("attack_heavy"):
 		return true
 	return false
 
@@ -1366,6 +2359,116 @@ func _setup_attack_data() -> void:
 			if typeof(entry) == TYPE_DICTIONARY:
 				runtime_attack_data[attack_key] = (entry as Dictionary).duplicate(true)
 	_inject_generated_signature_attacks()
+	_inject_directional_basic_attack_variants()
+	_sanitize_runtime_attack_data()
+
+func _inject_directional_basic_attack_variants() -> void:
+	if runtime_attack_data.has("light"):
+		var light_base: Dictionary = (runtime_attack_data["light"] as Dictionary).duplicate(true)
+		runtime_attack_data["light_up"] = _build_directional_variant_attack(
+			light_base,
+			{
+				"startup": 0.07,
+				"active": 0.10,
+				"recovery": 0.18,
+				"damage": 7,
+				"block_type": "overhead",
+				"knockback_ground": Vector2(92, -150),
+				"knockback_air": Vector2(78, -172),
+				"hitbox_size_ground": Vector2(24, 24),
+				"hitbox_size_air": Vector2(22, 22),
+				"hitbox_offset_ground": Vector2(18, -14),
+				"hitbox_offset_air": Vector2(16, -16)
+			}
+		)
+		runtime_attack_data["light_down"] = _build_directional_variant_attack(
+			light_base,
+			{
+				"startup": 0.05,
+				"active": 0.09,
+				"recovery": 0.17,
+				"damage": 5,
+				"block_type": "low",
+				"knockback_ground": Vector2(142, -24),
+				"knockback_air": Vector2(108, -58),
+				"hitbox_size_ground": Vector2(28, 14),
+				"hitbox_size_air": Vector2(24, 12),
+				"hitbox_offset_ground": Vector2(24, 10),
+				"hitbox_offset_air": Vector2(20, 8)
+			}
+		)
+		runtime_attack_data["light_air"] = _build_directional_variant_attack(
+			light_base,
+			{
+				"startup": 0.07,
+				"active": 0.11,
+				"recovery": 0.21,
+				"damage": 6,
+				"block_type": "mid",
+				"knockback_ground": Vector2(120, -74),
+				"knockback_air": Vector2(132, -96),
+				"hitbox_size_ground": Vector2(26, 16),
+				"hitbox_size_air": Vector2(28, 18),
+				"hitbox_offset_ground": Vector2(24, -6),
+				"hitbox_offset_air": Vector2(24, -10)
+			}
+		)
+	if runtime_attack_data.has("heavy"):
+		var heavy_base: Dictionary = (runtime_attack_data["heavy"] as Dictionary).duplicate(true)
+		runtime_attack_data["heavy_up"] = _build_directional_variant_attack(
+			heavy_base,
+			{
+				"startup": 0.18,
+				"active": 0.12,
+				"recovery": 0.28,
+				"damage": 15,
+				"block_type": "overhead",
+				"knockback_ground": Vector2(146, -212),
+				"knockback_air": Vector2(128, -236),
+				"hitbox_size_ground": Vector2(30, 26),
+				"hitbox_size_air": Vector2(28, 24),
+				"hitbox_offset_ground": Vector2(22, -18),
+				"hitbox_offset_air": Vector2(20, -20)
+			}
+		)
+		runtime_attack_data["heavy_down"] = _build_directional_variant_attack(
+			heavy_base,
+			{
+				"startup": 0.14,
+				"active": 0.11,
+				"recovery": 0.30,
+				"damage": 12,
+				"block_type": "low",
+				"knockback_ground": Vector2(224, -32),
+				"knockback_air": Vector2(178, -192),
+				"hitbox_size_ground": Vector2(34, 18),
+				"hitbox_size_air": Vector2(32, 20),
+				"hitbox_offset_ground": Vector2(28, 8),
+				"hitbox_offset_air": Vector2(26, 6)
+			}
+		)
+		runtime_attack_data["heavy_air"] = _build_directional_variant_attack(
+			heavy_base,
+			{
+				"startup": 0.15,
+				"active": 0.12,
+				"recovery": 0.28,
+				"damage": 13,
+				"block_type": "overhead",
+				"knockback_ground": Vector2(198, -88),
+				"knockback_air": Vector2(184, -116),
+				"hitbox_size_ground": Vector2(32, 18),
+				"hitbox_size_air": Vector2(34, 20),
+				"hitbox_offset_ground": Vector2(28, -4),
+				"hitbox_offset_air": Vector2(30, -8)
+			}
+		)
+
+func _build_directional_variant_attack(base_data: Dictionary, overrides: Dictionary) -> Dictionary:
+	var variant := base_data.duplicate(true)
+	for key in overrides.keys():
+		variant[key] = overrides[key]
+	return variant
 
 func _load_external_attack_table() -> Dictionary:
 	if not use_external_attack_table:
@@ -1397,6 +2500,63 @@ func _extract_attack_table_dictionary(resource: Resource) -> Dictionary:
 		return (value as Dictionary).duplicate(true)
 	return {}
 
+func _sanitize_runtime_attack_data() -> void:
+	var sanitized := {}
+	for key in runtime_attack_data.keys():
+		var attack_key := str(key)
+		var raw_entry: Variant = runtime_attack_data[key]
+		var entry: Dictionary = {}
+		if typeof(raw_entry) == TYPE_DICTIONARY:
+			entry = (raw_entry as Dictionary).duplicate(true)
+		else:
+			push_warning("Attack entry is not a dictionary, using defaults: %s" % attack_key)
+		var defaults := _default_attack_entry_for_kind(attack_key)
+		_merge_attack_defaults(entry, defaults)
+		_sanitize_attack_field_types(entry, defaults, attack_key)
+		sanitized[attack_key] = entry
+
+	for required_key in REQUIRED_BASE_ATTACK_KEYS:
+		if sanitized.has(required_key):
+			continue
+		push_warning("Missing required base attack, injecting fallback: %s" % required_key)
+		sanitized[required_key] = _default_attack_entry_for_kind(required_key)
+
+	runtime_attack_data = sanitized
+
+func _default_attack_entry_for_kind(kind: String) -> Dictionary:
+	var source_kind := kind
+	if source_kind.begins_with("light_"):
+		source_kind = "light"
+	elif source_kind.begins_with("heavy_"):
+		source_kind = "heavy"
+	if not ATTACK_DATA.has(source_kind):
+		source_kind = "special" if kind in SIGNATURE_ATTACK_KEYS else "light"
+	var source_value: Variant = ATTACK_DATA.get(source_kind, ATTACK_DATA["light"])
+	if typeof(source_value) != TYPE_DICTIONARY:
+		source_value = ATTACK_DATA["light"]
+	return (source_value as Dictionary).duplicate(true)
+
+func _merge_attack_defaults(target: Dictionary, defaults: Dictionary) -> void:
+	for key in defaults.keys():
+		if not target.has(key):
+			target[key] = defaults[key]
+
+func _sanitize_attack_field_types(entry: Dictionary, defaults: Dictionary, attack_key: String) -> void:
+	var vector_keys := [
+		"knockback_ground",
+		"knockback_air",
+		"hitbox_size_ground",
+		"hitbox_size_air",
+		"hitbox_offset_ground",
+		"hitbox_offset_air"
+	]
+	for key in vector_keys:
+		var value: Variant = entry.get(key, defaults.get(key, Vector2.ZERO))
+		if value is Vector2:
+			continue
+		push_warning("Attack '%s' field '%s' must be Vector2; using default" % [attack_key, key])
+		entry[key] = defaults.get(key, Vector2.ZERO)
+
 func _has_attack_kind(kind: String) -> bool:
 	return runtime_attack_data.has(kind)
 
@@ -1415,11 +2575,19 @@ func _update_attack_buffer(delta: float) -> void:
 func _can_start_attack() -> bool:
 	if current_hp <= 0:
 		return false
+	if shield_break_time > 0.0:
+		return false
+	if dodge_time > 0.0:
+		return false
+	if air_dodge_end_lag_time > 0.0:
+		return false
 	if attack_state != "":
 		return false
 	if is_dashing or is_knocked_down or getup_time > 0.0:
 		return false
 	if hitstun_time > 0.0 or blockstun_time > 0.0:
+		return false
+	if landing_lag_time > 0.0:
 		return false
 	return true
 
@@ -1440,6 +2608,7 @@ func _start_attack(kind: String) -> void:
 	if is_knocked_down or getup_time > 0.0 or blockstun_time > 0.0:
 		return
 	is_blocking = false
+	landing_lag_time = 0.0
 	attack_recovery_override = -1.0
 	next_attack_is_counter = false
 	if guard_counter_time > 0.0 and kind != "throw":
@@ -1451,6 +2620,7 @@ func _start_attack(kind: String) -> void:
 	attack_confirmed_hit = false
 	attack_confirmed_block = false
 	attack_effect_triggered = false
+	attack_started_in_air = not is_on_floor()
 	var data := _get_attack_data(kind)
 	attack_startup_duration = float(data.get("startup", 0.06)) * _get_startup_multiplier_for_attack(kind)
 	attack_active_duration = float(data.get("active", 0.10))
@@ -1463,14 +2633,35 @@ func _start_attack(kind: String) -> void:
 	_start_skill_cooldown_for_kind(kind)
 	_consume_hype_for_attack(kind)
 
+func _clear_attack_state() -> void:
+	attack_state = ""
+	attack_phase = ""
+	attack_time = 0.0
+	attack_recovery_override = -1.0
+	next_attack_is_counter = false
+	attack_confirmed_hit = false
+	attack_confirmed_block = false
+	attack_effect_triggered = false
+	attack_startup_duration = 0.0
+	attack_active_duration = 0.0
+	attack_recovery_duration = 0.0
+	attack_started_in_air = false
+	facing_locked = false
+	_set_hitbox_active(false)
+
 func _apply_hitbox_profile() -> void:
 	if attack_state == "":
 		return
 	var data := _get_attack_data(attack_state)
-	hitbox_offset = data["hitbox_offset_ground"] if is_on_floor() else data["hitbox_offset_air"]
+	var default_data := _default_attack_entry_for_kind(attack_state)
+	var offset_ground := _read_attack_vector2(data, "hitbox_offset_ground", _read_attack_vector2(default_data, "hitbox_offset_ground", Vector2(22, 0)))
+	var offset_air := _read_attack_vector2(data, "hitbox_offset_air", _read_attack_vector2(default_data, "hitbox_offset_air", Vector2(20, -6)))
+	hitbox_offset = offset_ground if is_on_floor() else offset_air
 	var shape := hitbox_shape.shape as RectangleShape2D
 	if shape:
-		shape.size = data["hitbox_size_ground"] if is_on_floor() else data["hitbox_size_air"]
+		var size_ground := _read_attack_vector2(data, "hitbox_size_ground", _read_attack_vector2(default_data, "hitbox_size_ground", Vector2(26, 18)))
+		var size_air := _read_attack_vector2(data, "hitbox_size_air", _read_attack_vector2(default_data, "hitbox_size_air", Vector2(24, 16)))
+		shape.size = size_ground if is_on_floor() else size_air
 
 func _set_hitbox_active(active: bool) -> void:
 	hitbox.set_deferred("monitoring", active)
@@ -1490,6 +2681,10 @@ func _update_visual() -> void:
 	if visual == null:
 		return
 	var base_tint := Color(0.75, 0.9, 1.0, 1.0) if player_id == 1 else Color(1.0, 0.82, 0.82, 1.0)
+	var character_id := get_character_id()
+	var palette_tint_value: Variant = CHARACTER_TINT_BY_ID.get(character_id, Color(1.0, 1.0, 1.0, 1.0))
+	if palette_tint_value is Color:
+		base_tint = base_tint.lerp(palette_tint_value as Color, 0.32)
 	if guard_counter_time > 0.0 and current_hp > 0 and attack_state == "":
 		base_tint = base_tint.lerp(Color(0.92, 1.0, 0.80, 1.0), 0.42)
 	visual.modulate = base_tint
@@ -1501,6 +2696,10 @@ func _update_visual() -> void:
 		animation = &"fall"
 	elif getup_time > 0.0:
 		animation = &"getup"
+	elif is_ledge_hanging:
+		animation = &"jump"
+	elif dodge_time > 0.0:
+		animation = &"block" if is_on_floor() else &"jump"
 	elif hitstun_time > 0.0:
 		animation = _select_hit_reaction_animation()
 	elif blockstun_time > 0.0 or (is_blocking and is_on_floor()):
@@ -1540,7 +2739,10 @@ func _on_hitbox_body_entered(body: Node) -> void:
 		return
 	hit_targets[body] = true
 	var data := _get_attack_data(attack_state)
-	var knockback = data["knockback_ground"] if is_on_floor() else data["knockback_air"]
+	var default_data := _default_attack_entry_for_kind(attack_state)
+	var knockback_ground := _read_attack_vector2(data, "knockback_ground", _read_attack_vector2(default_data, "knockback_ground", Vector2(150, -65)))
+	var knockback_air := _read_attack_vector2(data, "knockback_air", _read_attack_vector2(default_data, "knockback_air", Vector2(120, -110)))
+	var knockback = knockback_ground if is_on_floor() else knockback_air
 	var hitstun := float(data.get("hitstun", HITSTUN_SECONDS))
 	var damage := int(data.get("damage", 0))
 	damage = int(round(float(damage) * _get_damage_multiplier_for_attack(attack_state)))
@@ -1550,15 +2752,32 @@ func _on_hitbox_body_entered(body: Node) -> void:
 		damage += GUARD_COUNTER_DAMAGE_BONUS
 		hitstun += GUARD_COUNTER_HITSTUN_BONUS
 		knockback *= GUARD_COUNTER_KNOCKBACK_SCALE
-	damage = _apply_combo_damage_scaling(damage, predicted_combo_count)
+
+	var hit_zone := ""
+	if body is CharacterBody2D:
+		hit_zone = _resolve_hurtbox_hit_zone(
+			body as CharacterBody2D,
+			_get_current_attack_hitbox_rect(),
+			str(data.get("block_type", "mid"))
+		)
+		if hit_zone == "":
+			hit_targets.erase(body)
+			return
+		damage = _apply_hit_zone_damage_modifier(damage, hit_zone)
+		knockback = _apply_hit_zone_knockback_modifier(knockback, hit_zone)
+
+	damage = _apply_combo_damage_scaling(damage, predicted_combo_count, attack_state)
 	knockback.x *= facing
 	if body.has_method("apply_damage"):
+		var attack_meta := _build_attack_meta(data, is_counter_hit)
+		if hit_zone != "":
+			attack_meta["hit_zone"] = hit_zone
 		var hit_result: Variant = body.apply_damage(
 			damage,
 			knockback,
 			hitstun,
 			attack_state,
-			_build_attack_meta(data, is_counter_hit)
+			attack_meta
 		)
 		var was_throw_teched := false
 		if typeof(hit_result) == TYPE_DICTIONARY:
@@ -1620,6 +2839,88 @@ func _apply_throw_tech_pushback(knockback: Vector2) -> void:
 	velocity.x = -push_direction * THROW_TECH_PUSHBACK
 	velocity.y = minf(velocity.y, 0.0)
 
+func _get_current_attack_hitbox_rect() -> Rect2:
+	var size := Vector2(24.0, 16.0)
+	if hitbox_shape and hitbox_shape.shape is RectangleShape2D:
+		size = (hitbox_shape.shape as RectangleShape2D).size
+	var center := hitbox.global_position
+	return Rect2(center - size * 0.5, size)
+
+func _resolve_hurtbox_hit_zone(target: CharacterBody2D, hitbox_rect: Rect2, attack_block_type: String) -> String:
+	if target == null:
+		return ""
+	var zones := _build_target_hurtbox_zones(target)
+	if zones.is_empty():
+		return ""
+	var allowed_zones := _resolve_allowed_hurt_zones(attack_block_type)
+	var best_zone := ""
+	var best_overlap_area := 0.0
+	for zone_entry in zones:
+		if typeof(zone_entry) != TYPE_DICTIONARY:
+			continue
+		var entry := zone_entry as Dictionary
+		var zone_name := str(entry.get("name", ""))
+		if zone_name == "" or not allowed_zones.has(zone_name):
+			continue
+		var rect_value: Variant = entry.get("rect", Rect2())
+		if rect_value is not Rect2:
+			continue
+		var overlap := hitbox_rect.intersection(rect_value as Rect2)
+		if overlap.size.x <= 0.0 or overlap.size.y <= 0.0:
+			continue
+		var overlap_area := overlap.size.x * overlap.size.y
+		if overlap_area > best_overlap_area:
+			best_overlap_area = overlap_area
+			best_zone = zone_name
+	return best_zone
+
+func _build_target_hurtbox_zones(target: CharacterBody2D) -> Array[Dictionary]:
+	var half_size := _get_target_body_half_size(target)
+	var center := target.global_position
+	var head_size := Vector2(half_size.x * HURTBOX_HEAD_SCALE.x * 2.0, half_size.y * HURTBOX_HEAD_SCALE.y * 2.0)
+	var torso_size := Vector2(half_size.x * HURTBOX_TORSO_SCALE.x * 2.0, half_size.y * HURTBOX_TORSO_SCALE.y * 2.0)
+	var legs_size := Vector2(half_size.x * HURTBOX_LEGS_SCALE.x * 2.0, half_size.y * HURTBOX_LEGS_SCALE.y * 2.0)
+	var is_airborne := not target.is_on_floor()
+	if is_airborne:
+		legs_size.y *= 0.72
+	var head_center := center + Vector2(0.0, -half_size.y * 0.62)
+	var torso_center := center + Vector2(0.0, -half_size.y * 0.08)
+	var legs_center := center + Vector2(0.0, half_size.y * 0.56)
+	return [
+		{"name": "head", "rect": Rect2(head_center - head_size * 0.5, head_size)},
+		{"name": "torso", "rect": Rect2(torso_center - torso_size * 0.5, torso_size)},
+		{"name": "legs", "rect": Rect2(legs_center - legs_size * 0.5, legs_size)}
+	]
+
+func _resolve_allowed_hurt_zones(attack_block_type: String) -> PackedStringArray:
+	match attack_block_type:
+		"low":
+			return PackedStringArray(["legs", "torso"])
+		"overhead", "high":
+			return PackedStringArray(["head", "torso"])
+		_:
+			return PackedStringArray(["head", "torso", "legs"])
+
+func _apply_hit_zone_damage_modifier(base_damage: int, hit_zone: String) -> int:
+	match hit_zone:
+		"head":
+			return base_damage + HIT_ZONE_HEAD_DAMAGE_BONUS
+		"legs":
+			return maxi(1, base_damage - HIT_ZONE_LEGS_DAMAGE_PENALTY)
+		_:
+			return base_damage
+
+func _apply_hit_zone_knockback_modifier(base_knockback: Vector2, hit_zone: String) -> Vector2:
+	var adjusted := base_knockback
+	match hit_zone:
+		"head":
+			adjusted.y -= HIT_ZONE_HEAD_LAUNCH_BONUS
+		"legs":
+			adjusted.y += HIT_ZONE_LEGS_LAUNCH_PENALTY
+		_:
+			pass
+	return adjusted
+
 func _is_animation_loop(animation_name: StringName) -> bool:
 	if runtime_sprite_frames == null:
 		return false
@@ -1629,6 +2930,12 @@ func _is_animation_loop(animation_name: StringName) -> bool:
 
 func _can_enter_block() -> bool:
 	if current_hp <= 0:
+		return false
+	if shield_break_time > 0.0 or shield_broken:
+		return false
+	if dodge_time > 0.0:
+		return false
+	if shield_meter < SHIELD_BLOCK_MIN_REQUIRED:
 		return false
 	if attack_state != "" or is_dashing:
 		return false
@@ -1645,7 +2952,7 @@ func _get_guard_mode() -> String:
 		return "air"
 	if is_ai:
 		return ai_guard_mode
-	if InputMap.has_action("move_down") and Input.is_action_pressed("move_down"):
+	if _is_action_pressed("move_down"):
 		return "low"
 	return "high"
 
@@ -1657,18 +2964,10 @@ func _can_block_hit(knockback: Vector2, attack_kind: String, attack_meta: Dictio
 	if not _can_enter_block():
 		return false
 	var guard_mode := _get_guard_mode()
-	var block_type := str(attack_meta.get("block_type", "mid"))
 	if guard_mode == "air":
+		var block_type := str(attack_meta.get("block_type", "mid"))
 		if not bool(attack_meta.get("air_blockable", true)):
 			return false
-	else:
-		match block_type:
-			"low":
-				if guard_mode != "low":
-					return false
-			"overhead", "high":
-				if guard_mode == "low":
-					return false
 	var attack_direction := signf(knockback.x)
 	if is_zero_approx(attack_direction):
 		return true
@@ -1746,11 +3045,31 @@ func _peek_combo_hit_count(target: Node) -> int:
 		return combo_hits + 1
 	return 1
 
-func _apply_combo_damage_scaling(base_damage: int, combo_count: int) -> int:
+func _resolve_combo_attack_tier(attack_kind: String) -> String:
+	if attack_kind == "ultimate":
+		return "ultimate"
+	if attack_kind.begins_with("signature_"):
+		return "signature"
+	if attack_kind.begins_with("heavy"):
+		return "heavy"
+	if attack_kind.begins_with("light"):
+		return "light"
+	if attack_kind == "throw":
+		return "throw"
+	return "special"
+
+func _apply_combo_damage_scaling(base_damage: int, combo_count: int, attack_kind: String = "") -> int:
 	if combo_count <= 1:
 		return base_damage
+	var tier := _resolve_combo_attack_tier(attack_kind)
+	var profile_value: Variant = COMBO_SCALING_PROFILE_BY_TIER.get(tier, {})
+	var profile: Dictionary = {}
+	if typeof(profile_value) == TYPE_DICTIONARY:
+		profile = profile_value as Dictionary
+	var step := float(profile.get("step", COMBO_DAMAGE_SCALING_STEP))
+	var min_scale := float(profile.get("min", COMBO_DAMAGE_SCALING_MIN))
 	var scaled_hits := combo_count - 1
-	var scale := maxf(COMBO_DAMAGE_SCALING_MIN, 1.0 - float(scaled_hits) * COMBO_DAMAGE_SCALING_STEP)
+	var scale := maxf(min_scale, 1.0 - float(scaled_hits) * step)
 	var scaled_damage := int(round(float(base_damage) * scale))
 	return maxi(COMBO_MIN_DAMAGE, scaled_damage)
 
@@ -1896,11 +3215,61 @@ func _apply_block_impact(
 	facing_locked = false
 	next_attack_is_counter = false
 	_set_hitbox_active(false)
+	_consume_shield(maxf(4.0, float(amount) * SHIELD_HIT_DAMAGE_SCALE))
 
 	health_changed.emit()
 	if current_hp <= 0:
 		defeated.emit()
 	return chip_damage
+
+func _update_shield_state(delta: float) -> void:
+	shield_regen_delay = maxf(0.0, shield_regen_delay - delta)
+	if shield_break_time > 0.0:
+		return
+	if is_blocking:
+		_consume_shield(SHIELD_DRAIN_PER_SECOND * delta)
+		return
+	if shield_regen_delay > 0.0:
+		return
+	if shield_meter >= SHIELD_MAX:
+		return
+	shield_meter = minf(SHIELD_MAX, shield_meter + SHIELD_REGEN_PER_SECOND * delta)
+
+func _consume_shield(amount: float) -> void:
+	if amount <= 0.0:
+		return
+	if shield_break_time > 0.0:
+		return
+	shield_meter = maxf(0.0, shield_meter - amount)
+	shield_regen_delay = maxf(shield_regen_delay, SHIELD_REGEN_DELAY_SECONDS)
+	if shield_meter <= 0.001:
+		_trigger_shield_break()
+
+func _trigger_shield_break() -> void:
+	if shield_break_time > 0.0:
+		return
+	shield_meter = 0.0
+	shield_broken = true
+	shield_break_time = SHIELD_BREAK_STUN_SECONDS
+	shield_regen_delay = maxf(shield_regen_delay, SHIELD_REGEN_DELAY_SECONDS + 0.30)
+	is_blocking = false
+	blockstun_time = 0.0
+	hitstun_time = 0.0
+	landing_lag_time = 0.0
+	is_dashing = false
+	guard_counter_time = 0.0
+	_clear_attack_state()
+	_clear_attack_buffer()
+	velocity.x = -float(facing) * SHIELD_BREAK_PUSHBACK
+	velocity.y = minf(velocity.y, -36.0)
+	health_changed.emit()
+
+func _recover_from_shield_break() -> void:
+	if not shield_broken:
+		return
+	shield_broken = false
+	shield_meter = maxf(shield_meter, SHIELD_BREAK_RECOVER_SHIELD)
+	shield_regen_delay = maxf(shield_regen_delay, 0.24)
 
 func _should_knockdown(knockback: Vector2, hitstun_override: float, attack_kind: String) -> bool:
 	if attack_kind == "throw":
@@ -1908,6 +3277,55 @@ func _should_knockdown(knockback: Vector2, hitstun_override: float, attack_kind:
 	if hitstun_override >= KNOCKDOWN_HITSTUN_THRESHOLD:
 		return true
 	return -knockback.y >= KNOCKDOWN_VERTICAL_THRESHOLD
+
+func _apply_knockback_growth(base_knockback: Vector2, hp_before_hit: int) -> Vector2:
+	if base_knockback == Vector2.ZERO:
+		return base_knockback
+	var damage_ratio := clampf(float(MAX_HP - hp_before_hit) / float(MAX_HP), 0.0, 1.0)
+	var growth_scale := minf(KNOCKBACK_GROWTH_MAX_SCALE, 1.0 + damage_ratio * KNOCKBACK_GROWTH_PER_DAMAGE_RATIO)
+	return base_knockback * growth_scale
+
+func _apply_directional_influence(base_knockback: Vector2, attack_meta: Dictionary) -> Vector2:
+	if base_knockback.length() < DI_MIN_KNOCKBACK_SPEED:
+		return base_knockback
+	var di_input := _resolve_directional_influence_input(base_knockback, attack_meta)
+	if di_input.length() < DI_INPUT_DEADZONE:
+		return base_knockback
+	var base_angle := base_knockback.angle()
+	var target_angle := di_input.angle()
+	var max_delta := deg_to_rad(DI_MAX_ANGLE_DEGREES)
+	var delta_angle := wrapf(target_angle - base_angle, -PI, PI)
+	var adjusted_angle := base_angle + clampf(delta_angle, -max_delta, max_delta)
+	var adjusted := Vector2.from_angle(adjusted_angle) * base_knockback.length()
+	var survival_alignment := 0.0
+	if not is_zero_approx(base_knockback.x):
+		survival_alignment = clampf(-signf(base_knockback.x) * di_input.x, 0.0, 1.0)
+	if survival_alignment > 0.0:
+		adjusted *= 1.0 - survival_alignment * DI_SURVIVAL_SCALE
+	return adjusted
+
+func _resolve_directional_influence_input(base_knockback: Vector2, attack_meta: Dictionary) -> Vector2:
+	if attack_meta.has("di_override"):
+		var override_value: Variant = attack_meta.get("di_override", Vector2.ZERO)
+		if override_value is Vector2:
+			var override_vec := override_value as Vector2
+			if override_vec.length() >= DI_INPUT_DEADZONE:
+				return override_vec.normalized()
+	if is_ai:
+		if randf() > AI_DI_CHANCE:
+			return Vector2.ZERO
+		var horizontal := -signf(base_knockback.x)
+		if is_zero_approx(horizontal):
+			horizontal = -float(facing)
+		var vertical := -0.55 if base_knockback.y < 0.0 else -0.25
+		return Vector2(horizontal, vertical).normalized()
+	var input_vec := Vector2(
+		_get_axis_input("move_left", "move_right"),
+		_get_axis_input("move_up", "move_down")
+	)
+	if input_vec.length() < DI_INPUT_DEADZONE:
+		return Vector2.ZERO
+	return input_vec.normalized()
 
 func _update_knockdown(delta: float) -> void:
 	if not is_on_floor():
@@ -1944,9 +3362,9 @@ func _poll_tech_input() -> String:
 				ai_tech_decision_roll = randf() < 0.45
 				return "roll" if ai_tech_decision_roll else "quick"
 		return ""
-	if Input.is_action_just_pressed("dash"):
+	if _is_action_just_pressed("dash"):
 		return "roll"
-	if Input.is_action_just_pressed("jump") or (InputMap.has_action("block") and Input.is_action_just_pressed("block")):
+	if _is_action_just_pressed("jump") or _is_action_just_pressed("block"):
 		return "quick"
 	return ""
 
@@ -1955,7 +3373,7 @@ func _start_tech_recovery(tech_kind: String) -> void:
 	is_blocking = false
 	knockdown_time = 0.0
 	getup_time = TECH_GETUP_SECONDS
-	wake_invuln_time = WAKE_INVULN_SECONDS
+	wake_invuln_time = RESPAWN_INVULN_SECONDS
 	guard_counter_time = 0.0
 	tech_slide_time = 0.0
 	tech_slide_speed = 0.0
@@ -1991,6 +3409,8 @@ func apply_damage(
 
 	if current_hp <= 0:
 		return result
+	if is_ledge_hanging:
+		_end_ledge_hang()
 	if is_knocked_down or getup_time > 0.0 or wake_invuln_time > 0.0:
 		result["ignored"] = true
 		result["hp_after"] = current_hp
@@ -2020,11 +3440,13 @@ func apply_damage(
 
 	var hp_before := current_hp
 	current_hp = max(0, current_hp - amount)
+	var scaled_knockback := _apply_knockback_growth(knockback, hp_before)
+	var final_knockback := _apply_directional_influence(scaled_knockback, attack_meta)
 	_gain_hype(HYPE_GAIN_ON_TAKING_HIT)
-	velocity = knockback
+	velocity = final_knockback
 	hitstun_time = maxf(0.0, hitstun_override)
 	blockstun_time = 0.0
-	hit_reaction_animation = _resolve_hit_reaction_animation(knockback, hitstun_override)
+	hit_reaction_animation = _resolve_hit_reaction_animation(final_knockback, hitstun_override)
 	is_dashing = false
 	is_blocking = false
 	ai_block_time = 0.0
@@ -2046,7 +3468,7 @@ func apply_damage(
 	_set_hitbox_active(false)
 	_apply_status_from_meta(attack_meta, false)
 
-	if _should_knockdown(knockback, hitstun_override, attack_kind):
+	if _should_knockdown(final_knockback, hitstun_override, attack_kind):
 		is_knocked_down = true
 		knockdown_time = KNOCKDOWN_GROUND_SECONDS
 		hit_reaction_animation = &"fall"
@@ -2082,9 +3504,94 @@ func get_last_training_info() -> Dictionary:
 func get_hype_meter() -> float:
 	return hype_meter
 
+func force_respawn(spawn_position: Vector2, facing_direction: int = 1) -> void:
+	_release_occupied_ledge()
+	global_position = spawn_position
+	velocity = Vector2.ZERO
+	current_hp = MAX_HP
+	facing = 1 if facing_direction >= 0 else -1
+	facing_locked = false
+	facing_locked_direction = facing
+	attack_state = ""
+	attack_phase = ""
+	attack_time = 0.0
+	attack_recovery_override = -1.0
+	attack_confirmed_hit = false
+	attack_confirmed_block = false
+	attack_effect_triggered = false
+	attack_startup_duration = 0.0
+	attack_active_duration = 0.0
+	attack_recovery_duration = 0.0
+	next_attack_is_counter = false
+	_clear_attack_buffer()
+	_set_hitbox_active(false)
+	hit_targets.clear()
+	is_dashing = false
+	is_blocking = false
+	is_knocked_down = false
+	hitstun_time = 0.0
+	blockstun_time = 0.0
+	knockdown_time = 0.0
+	getup_time = 0.0
+	guard_counter_time = 0.0
+	wake_invuln_time = WAKE_INVULN_SECONDS
+	throw_tech_buffer_time = 0.0
+	ai_block_time = 0.0
+	ai_attack_cooldown = 0.0
+	ai_tech_decision_roll = false
+	training_random_block_hold_time = 0.0
+	training_random_block_signature = ""
+	status_silence_time = 0.0
+	status_slow_time = 0.0
+	status_root_time = 0.0
+	install_buff_time = 0.0
+	install_damage_multiplier = 1.0
+	install_speed_multiplier = 1.0
+	install_startup_multiplier = 1.0
+	install_chip_bonus = 0.0
+	hype_meter = 0.0
+	shield_meter = SHIELD_MAX
+	shield_regen_delay = 0.0
+	shield_break_time = 0.0
+	shield_broken = false
+	tech_slide_time = 0.0
+	tech_slide_speed = 0.0
+	is_ledge_hanging = false
+	ledge_side = 0
+	ledge_hold_time = 0.0
+	ledge_regrab_lock_time = 0.0
+	dodge_state = ""
+	dodge_time = 0.0
+	dodge_cooldown_time = 0.0
+	dodge_direction = facing
+	air_dodge_end_lag_time = 0.0
+	air_dodge_available = true
+	air_jumps_remaining = MAX_AIR_JUMPS
+	platform_drop_through_time = 0.0
+	_update_platform_collision_mask()
+	_free_skill_entity_nodes(skill_entities)
+	skill_entities.clear()
+	_reset_combo_chain()
+	_update_facing()
+	_update_visual()
+	health_changed.emit()
+
+func set_hitstop_active(active: bool) -> void:
+	hitstop_active = active
+	if active:
+		velocity = Vector2.ZERO
+
 func get_runtime_status_snapshot() -> Dictionary:
 	return {
 		"hype": hype_meter,
+		"shield": shield_meter,
+		"shield_max": SHIELD_MAX,
+		"shield_break_seconds": shield_break_time,
+		"shield_broken": shield_broken,
+		"dodge_seconds": dodge_time,
+		"dodge_mode": dodge_state,
+		"air_dodge_ready": air_dodge_available,
+		"air_jumps": air_jumps_remaining,
 		"silence_seconds": status_silence_time,
 		"slow_seconds": status_slow_time,
 		"root_seconds": status_root_time,
@@ -2108,6 +3615,9 @@ func _select_hit_reaction_animation() -> StringName:
 func _resolve_visual_animation(animation_name: StringName) -> StringName:
 	if _has_runtime_animation(animation_name):
 		return animation_name
+	var base_attack_animation := _resolve_base_attack_animation_name(animation_name)
+	if base_attack_animation != animation_name and _has_runtime_animation(base_attack_animation):
+		return base_attack_animation
 	match animation_name:
 		&"signature_a", &"signature_b", &"signature_c", &"ultimate":
 			if _has_runtime_animation(&"special"):
@@ -2130,11 +3640,21 @@ func _resolve_visual_animation(animation_name: StringName) -> StringName:
 		return &"idle"
 	return animation_name
 
+func _resolve_base_attack_animation_name(animation_name: StringName) -> StringName:
+	var animation_text := String(animation_name)
+	if animation_text.begins_with("light_"):
+		return &"light"
+	if animation_text.begins_with("heavy_"):
+		return &"heavy"
+	return animation_name
+
 func _resolve_attack_animation_speed_scale(animation_name: StringName) -> float:
 	if attack_state == "":
 		return 1.0
-	var attack_animation := StringName(attack_state)
+	var attack_animation := _resolve_base_attack_animation_name(StringName(attack_state))
 	var is_attack_animation := animation_name == attack_animation
+	if not is_attack_animation and animation_name == StringName(attack_state):
+		is_attack_animation = true
 	if not is_attack_animation and animation_name == &"special" and attack_state in ["signature_a", "signature_b", "signature_c", "ultimate"]:
 		is_attack_animation = true
 	if not is_attack_animation:
@@ -2526,3 +4046,7 @@ func _draw_rect_outline(image: Image, rect: Rect2i, color: Color) -> void:
 	_draw_rect(image, Rect2i(rect.position.x, rect.position.y + rect.size.y - 1, rect.size.x, 1), color)
 	_draw_rect(image, Rect2i(rect.position.x, rect.position.y, 1, rect.size.y), color)
 	_draw_rect(image, Rect2i(rect.position.x + rect.size.x - 1, rect.position.y, 1, rect.size.y), color)
+
+func _read_attack_vector2(data: Dictionary, key: String, fallback: Vector2) -> Vector2:
+	var value: Variant = data.get(key, fallback)
+	return value if value is Vector2 else fallback

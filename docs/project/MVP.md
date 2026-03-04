@@ -51,7 +51,7 @@
 - `scenes/Player.tscn`: fighter scene.
 - `scripts/Match.gd`: round flow, timer, win conditions.
 - `scripts/Player.gd`: movement, state machine, animation triggers.
-- `scripts/Combat.gd`: hit detection, damage, knockback rules.
+- Combat resolution lives in `scripts/Player.gd` (hit detection, damage, knockback, hitstop hooks).
 - `scripts/resources/AttackTable.gd`: resource format for per-character move data.
 - `scenes/ui/Hud.tscn`: HP bars + timer.
 

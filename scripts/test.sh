@@ -63,8 +63,10 @@ find_errors() {
 }
 
 printf 'Running %s suite with %s\n' "$suite" "$godot_bin"
+set +e
 "$godot_bin" --headless --path "$repo_root" --log-file "$log_file" --script "res://tests/TestRunner.gd" -- --suite "$suite"
 status=$?
+set -e
 
 if find_errors >/dev/null 2>&1; then
 	echo "Detected script parse/runtime errors in $log_file" >&2

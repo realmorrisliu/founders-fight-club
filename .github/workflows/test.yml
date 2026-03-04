@@ -1,4 +1,4 @@
-name: Headless Tests
+name: Headless Full Tests
 
 on:
   pull_request:
@@ -7,7 +7,7 @@ on:
       - main
 
 jobs:
-  smoke:
+  full_suite:
     runs-on: macos-latest
     timeout-minutes: 20
     steps:
@@ -17,5 +17,5 @@ jobs:
       - name: Install Godot
         run: brew install godot
 
-      - name: Run headless test suite
-        run: bash scripts/test.sh smoke
+      - name: Run full suite
+        run: bash scripts/test.sh full
