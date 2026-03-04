@@ -64,6 +64,8 @@ Recommended read order for gameplay content:
   - Step-by-step task backlog and automated test gates for roster skill rollout
 - `SKILL_RUNTIME_ARCHITECTURE.md`
   - Runtime skill system architecture, data contract, and coverage strategy
+- `ENGINEERING_MODULE_GUIDELINES.md`
+  - Module boundaries, dependency direction, refactor thresholds, and test gates
 
 ## Change Tracking
 

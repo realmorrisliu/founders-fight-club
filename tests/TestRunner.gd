@@ -1,6 +1,7 @@
 extends SceneTree
 
 const GameSettingsStore := preload("res://scripts/GameSettings.gd")
+const SessionKeysStore := preload("res://scripts/config/SessionKeys.gd")
 const SessionStateStore := preload("res://scripts/SessionState.gd")
 const REQUIRED_BASE_ATTACKS := ["light", "heavy", "special", "throw"]
 const SUITE_SMOKE := "smoke"
@@ -397,11 +398,11 @@ func _test_character_profile_surface_in_menu_and_hud() -> void:
 	await process_frame
 
 func _test_main_scene_vs_mode_local_control_flow() -> void:
-	SessionStateStore.set_value("ffc_match_mode", "vs")
+	SessionStateStore.set_value(SessionKeysStore.MATCH_MODE, "vs")
 	var packed := load("res://scenes/Main.tscn")
 	_assert_true(packed is PackedScene, "main scene loads for vs mode local control test")
 	if packed is not PackedScene:
-		SessionStateStore.clear_keys(PackedStringArray(["ffc_match_mode"]))
+		SessionStateStore.clear_keys(PackedStringArray([SessionKeysStore.MATCH_MODE]))
 		return
 	var match_node := (packed as PackedScene).instantiate()
 	get_root().add_child(match_node)
@@ -414,17 +415,17 @@ func _test_main_scene_vs_mode_local_control_flow() -> void:
 		_assert_true(not bool(p1.get("is_ai")), "vs mode keeps player1 as local fighter")
 	if p2 != null:
 		_assert_true(not bool(p2.get("is_ai")), "vs mode disables player2 ai for local versus")
-	SessionStateStore.clear_keys(PackedStringArray(["ffc_match_mode"]))
+	SessionStateStore.clear_keys(PackedStringArray([SessionKeysStore.MATCH_MODE]))
 	if is_instance_valid(match_node):
 		match_node.queue_free()
 	await process_frame
 
 func _test_story_mode_sets_ai_opponent() -> void:
-	SessionStateStore.set_value("ffc_match_mode", "story")
+	SessionStateStore.set_value(SessionKeysStore.MATCH_MODE, "story")
 	var packed := load("res://scenes/Story.tscn")
 	_assert_true(packed is PackedScene, "story scene loads for single-player ai mode test")
 	if packed is not PackedScene:
-		SessionStateStore.clear_keys(PackedStringArray(["ffc_match_mode"]))
+		SessionStateStore.clear_keys(PackedStringArray([SessionKeysStore.MATCH_MODE]))
 		return
 	var match_node := (packed as PackedScene).instantiate()
 	get_root().add_child(match_node)
@@ -437,23 +438,23 @@ func _test_story_mode_sets_ai_opponent() -> void:
 		_assert_true(not bool(p1.get("is_ai")), "story mode keeps player1 local")
 	if p2 != null:
 		_assert_true(bool(p2.get("is_ai")), "story mode enables player2 ai")
-	SessionStateStore.clear_keys(PackedStringArray(["ffc_match_mode"]))
+	SessionStateStore.clear_keys(PackedStringArray([SessionKeysStore.MATCH_MODE]))
 
 func _test_story_mode_round_progression_override() -> void:
-	SessionStateStore.set_value("ffc_match_mode", "story")
-	SessionStateStore.set_value("ffc_selected_player_1_character_id", "mark_zuck")
-	SessionStateStore.set_value("ffc_selected_player_1_name", "Mark Zuck")
-	SessionStateStore.set_value("ffc_selected_player_1_attack_table_path", "res://assets/data/characters/MarkZuckAttackTable.tres")
-	SessionStateStore.set_value("ffc_story_round_index", 1)
+	SessionStateStore.set_value(SessionKeysStore.MATCH_MODE, "story")
+	SessionStateStore.set_value(SessionKeysStore.PLAYER_1_ID, "mark_zuck")
+	SessionStateStore.set_value(SessionKeysStore.PLAYER_1_NAME, "Mark Zuck")
+	SessionStateStore.set_value(SessionKeysStore.PLAYER_1_TABLE_PATH, "res://assets/data/characters/MarkZuckAttackTable.tres")
+	SessionStateStore.set_value(SessionKeysStore.STORY_ROUND_INDEX, 1)
 	var packed := load("res://scenes/Story.tscn")
 	_assert_true(packed is PackedScene, "story scene loads for round progression override test")
 	if packed is not PackedScene:
 		SessionStateStore.clear_keys(PackedStringArray([
-			"ffc_match_mode",
-			"ffc_selected_player_1_character_id",
-			"ffc_selected_player_1_name",
-			"ffc_selected_player_1_attack_table_path",
-			"ffc_story_round_index"
+			SessionKeysStore.MATCH_MODE,
+			SessionKeysStore.PLAYER_1_ID,
+			SessionKeysStore.PLAYER_1_NAME,
+			SessionKeysStore.PLAYER_1_TABLE_PATH,
+			SessionKeysStore.STORY_ROUND_INDEX
 		]))
 		return
 	var match_node := (packed as PackedScene).instantiate()
@@ -470,11 +471,11 @@ func _test_story_mode_round_progression_override() -> void:
 		match_node.queue_free()
 	await process_frame
 	SessionStateStore.clear_keys(PackedStringArray([
-		"ffc_match_mode",
-		"ffc_selected_player_1_character_id",
-		"ffc_selected_player_1_name",
-		"ffc_selected_player_1_attack_table_path",
-		"ffc_story_round_index"
+		SessionKeysStore.MATCH_MODE,
+		SessionKeysStore.PLAYER_1_ID,
+		SessionKeysStore.PLAYER_1_NAME,
+		SessionKeysStore.PLAYER_1_TABLE_PATH,
+		SessionKeysStore.STORY_ROUND_INDEX
 	]))
 	if is_instance_valid(match_node):
 		match_node.queue_free()

@@ -1,13 +1,16 @@
 extends Node2D
 
+const CharacterCatalogStore := preload("res://scripts/config/CharacterCatalog.gd")
+const SessionKeysStore := preload("res://scripts/config/SessionKeys.gd")
+const StageConfigStore := preload("res://scripts/config/StageConfig.gd")
 const SessionStateStore := preload("res://scripts/SessionState.gd")
 
 const ROUND_TIME_SECONDS := 60.0
 const WIN_RULE_HP_TIMER := "hp_timer"
 const WIN_RULE_STOCK := "stock"
-const DEFAULT_STAGE_LEFT_X := 0.0
-const DEFAULT_STAGE_RIGHT_X := 900.0
-const DEFAULT_STAGE_FLOOR_Y := 340.0
+const DEFAULT_STAGE_LEFT_X := StageConfigStore.DEFAULT_LEFT_X
+const DEFAULT_STAGE_RIGHT_X := StageConfigStore.DEFAULT_RIGHT_X
+const DEFAULT_STAGE_FLOOR_Y := StageConfigStore.DEFAULT_FLOOR_Y
 const BLAST_ZONE_SIDE_MARGIN := 120.0
 const BLAST_ZONE_TOP_Y := -260.0
 const BLAST_ZONE_BOTTOM_Y := 620.0
@@ -49,25 +52,7 @@ const COUNTER_SHAKE_MULTIPLIER := 1.28
 const MENU_SCENE_PATH := "res://scenes/Menu.tscn"
 const STORY_SCENE_PATH := "res://scenes/Story.tscn"
 const STORY_SCENE_MODE := "story"
-const STORY_SESSION_KEY_ROUND_INDEX := "ffc_story_round_index"
 const STORY_ROUND_TRANSITION_SECONDS := 1.35
-const STORY_OPPONENT_POOL := [
-	{"id": "mark_zuck", "name": "Mark Zuck", "attack_table_path": "res://assets/data/characters/MarkZuckAttackTable.tres"},
-	{"id": "sam_altmyn", "name": "Sam Altmyn", "attack_table_path": "res://assets/data/characters/SamAltmynAttackTable.tres"},
-	{"id": "peter_thyell", "name": "Peter Thyell", "attack_table_path": "res://assets/data/characters/PeterThyellAttackTable.tres"},
-	{"id": "zef_bezos", "name": "Zef Bezos", "attack_table_path": "res://assets/data/characters/ZefBezosAttackTable.tres"},
-	{"id": "bill_geytz", "name": "Bill Geytz", "attack_table_path": "res://assets/data/characters/BillGeytzAttackTable.tres"},
-	{"id": "sundar_pichoy", "name": "Sundar Pichoy", "attack_table_path": "res://assets/data/characters/SundarPichoyAttackTable.tres"},
-	{"id": "jensen_hwang", "name": "Jensen Hwang", "attack_table_path": "res://assets/data/characters/JensenHwangAttackTable.tres"},
-	{"id": "larry_pagyr", "name": "Larry Pagyr", "attack_table_path": "res://assets/data/characters/LarryPagyrAttackTable.tres"},
-	{"id": "sergey_brinn", "name": "Sergey Brinn", "attack_table_path": "res://assets/data/characters/SergeyBrinnAttackTable.tres"},
-	{"id": "satya_nadello", "name": "Satya Nadello", "attack_table_path": "res://assets/data/characters/SatyaNadelloAttackTable.tres"},
-	{"id": "tim_cuke", "name": "Tim Cuke", "attack_table_path": "res://assets/data/characters/TimCukeAttackTable.tres"},
-	{"id": "jack_dorsee", "name": "Jack Dorsee", "attack_table_path": "res://assets/data/characters/JackDorseeAttackTable.tres"},
-	{"id": "travis_kalanik", "name": "Travis Kalanik", "attack_table_path": "res://assets/data/characters/TravisKalanikAttackTable.tres"},
-	{"id": "reed_hestings", "name": "Reed Hestings", "attack_table_path": "res://assets/data/characters/ReedHestingsAttackTable.tres"},
-	{"id": "steve_jobz", "name": "Steve Jobz", "attack_table_path": "res://assets/data/characters/SteveJobzAttackTable.tres"}
-]
 const SFX_PLAYER_POOL_SIZE := 12
 const MAX_ACTIVE_IMPACTS := 24
 const CAMERA_TRACK_BASE_Y := 270.0
@@ -116,13 +101,6 @@ const SFX_VOLUME_DB := {
 }
 const DIALOGUE_PACK_PATH := "res://assets/data/dialogue/DialoguePackV1.json"
 const DIALOGUE_LINE_DELAY_SECONDS := 0.45
-const SESSION_KEY_P1_ID := "ffc_selected_player_1_character_id"
-const SESSION_KEY_P2_ID := "ffc_selected_player_2_character_id"
-const SESSION_KEY_P1_TABLE_PATH := "ffc_selected_player_1_attack_table_path"
-const SESSION_KEY_P2_TABLE_PATH := "ffc_selected_player_2_attack_table_path"
-const SESSION_KEY_P1_NAME := "ffc_selected_player_1_name"
-const SESSION_KEY_P2_NAME := "ffc_selected_player_2_name"
-const SESSION_KEY_MATCH_MODE := "ffc_match_mode"
 
 var time_left := ROUND_TIME_SECONDS
 var stocks := {"p1": 0, "p2": 0}
@@ -210,21 +188,21 @@ func _ready() -> void:
 		player_2.health_changed.connect(_on_player_health_changed)
 		player_2.defeated.connect(func(): _on_player_defeated("p2"))
 	
-	if player_1.has_signal("hit_landed"):
+	if player_1 and player_1.has_signal("hit_landed"):
 		player_1.hit_landed.connect(_on_hit_landed)
-	if player_2.has_signal("hit_landed"):
+	if player_2 and player_2.has_signal("hit_landed"):
 		player_2.hit_landed.connect(_on_hit_landed)
-	if player_1.has_signal("blocked_landed"):
+	if player_1 and player_1.has_signal("blocked_landed"):
 		player_1.blocked_landed.connect(_on_block_landed)
-	if player_2.has_signal("blocked_landed"):
+	if player_2 and player_2.has_signal("blocked_landed"):
 		player_2.blocked_landed.connect(_on_block_landed)
-	if player_1.has_signal("tech_recovered"):
+	if player_1 and player_1.has_signal("tech_recovered"):
 		player_1.tech_recovered.connect(_on_tech_recovered)
-	if player_2.has_signal("tech_recovered"):
+	if player_2 and player_2.has_signal("tech_recovered"):
 		player_2.tech_recovered.connect(_on_tech_recovered)
-	if player_1.has_signal("throw_teched"):
+	if player_1 and player_1.has_signal("throw_teched"):
 		player_1.throw_teched.connect(_on_throw_teched)
-	if player_2.has_signal("throw_teched"):
+	if player_2 and player_2.has_signal("throw_teched"):
 		player_2.throw_teched.connect(_on_throw_teched)
 
 	if hud:
@@ -454,12 +432,12 @@ func _queue_story_progression(result_key: String) -> void:
 	if not story_mode_active:
 		return
 	if result_key != "p1_win":
-		SessionStateStore.clear_keys(PackedStringArray([STORY_SESSION_KEY_ROUND_INDEX]))
+		SessionStateStore.clear_keys(PackedStringArray([SessionKeysStore.STORY_ROUND_INDEX]))
 		return
 	if story_round_index + 1 >= story_roster.size():
-		SessionStateStore.clear_keys(PackedStringArray([STORY_SESSION_KEY_ROUND_INDEX]))
+		SessionStateStore.clear_keys(PackedStringArray([SessionKeysStore.STORY_ROUND_INDEX]))
 		return
-	SessionStateStore.set_value(STORY_SESSION_KEY_ROUND_INDEX, story_round_index + 1)
+	SessionStateStore.set_value(SessionKeysStore.STORY_ROUND_INDEX, story_round_index + 1)
 	story_round_transition_time = STORY_ROUND_TRANSITION_SECONDS
 
 func _update_story_round_transition(delta: float) -> void:
@@ -476,7 +454,7 @@ func _update_story_round_transition(delta: float) -> void:
 
 func _restart_match() -> void:
 	if story_mode_active:
-		SessionStateStore.set_value(STORY_SESSION_KEY_ROUND_INDEX, 0)
+		SessionStateStore.set_value(SessionKeysStore.STORY_ROUND_INDEX, 0)
 	_clear_hitstop()
 	get_tree().paused = false
 	get_tree().reload_current_scene()
@@ -824,7 +802,7 @@ func _on_hud_restart_requested() -> void:
 func _on_hud_menu_requested() -> void:
 	_clear_hitstop()
 	if story_mode_active:
-		SessionStateStore.clear_keys(PackedStringArray([STORY_SESSION_KEY_ROUND_INDEX]))
+		SessionStateStore.clear_keys(PackedStringArray([SessionKeysStore.STORY_ROUND_INDEX]))
 	get_tree().paused = false
 	get_tree().change_scene_to_file(MENU_SCENE_PATH)
 
@@ -1028,16 +1006,16 @@ func _spawn_impact_animation(
 func _apply_selected_character_tables() -> void:
 	_apply_selected_character_table_for_player(
 		player_1,
-		SESSION_KEY_P1_TABLE_PATH,
-		SESSION_KEY_P1_ID,
-		SESSION_KEY_P1_NAME,
+		SessionKeysStore.PLAYER_1_TABLE_PATH,
+		SessionKeysStore.PLAYER_1_ID,
+		SessionKeysStore.PLAYER_1_NAME,
 		"p1"
 	)
 	_apply_selected_character_table_for_player(
 		player_2,
-		SESSION_KEY_P2_TABLE_PATH,
-		SESSION_KEY_P2_ID,
-		SESSION_KEY_P2_NAME,
+		SessionKeysStore.PLAYER_2_TABLE_PATH,
+		SessionKeysStore.PLAYER_2_ID,
+		SessionKeysStore.PLAYER_2_NAME,
 		"p2"
 	)
 	if _is_story_session_mode():
@@ -1104,14 +1082,14 @@ func _apply_selected_character_table_for_player(
 	selected_character_profiles[player_key] = profile
 
 func _is_story_session_mode() -> bool:
-	if not SessionStateStore.has_value(SESSION_KEY_MATCH_MODE):
+	if not SessionStateStore.has_value(SessionKeysStore.MATCH_MODE):
 		return false
-	return str(SessionStateStore.get_value(SESSION_KEY_MATCH_MODE, "")).to_lower() == STORY_SCENE_MODE
+	return str(SessionStateStore.get_value(SessionKeysStore.MATCH_MODE, "")).to_lower() == STORY_SCENE_MODE
 
 func _build_story_roster() -> Array[Dictionary]:
 	var p1_id := str(selected_character_ids.get("p1", ""))
 	var roster: Array[Dictionary] = []
-	for entry in STORY_OPPONENT_POOL:
+	for entry in CharacterCatalogStore.get_story_opponent_pool():
 		if typeof(entry) != TYPE_DICTIONARY:
 			continue
 		var item := (entry as Dictionary).duplicate(true)
@@ -1127,8 +1105,8 @@ func _apply_story_opponent_round() -> void:
 		story_round_index = 0
 		return
 	var requested_round := 0
-	if SessionStateStore.has_value(STORY_SESSION_KEY_ROUND_INDEX):
-		requested_round = int(SessionStateStore.get_value(STORY_SESSION_KEY_ROUND_INDEX, 0))
+	if SessionStateStore.has_value(SessionKeysStore.STORY_ROUND_INDEX):
+		requested_round = int(SessionStateStore.get_value(SessionKeysStore.STORY_ROUND_INDEX, 0))
 	story_round_index = clampi(requested_round, 0, story_roster.size() - 1)
 	var opponent_data := story_roster[story_round_index]
 	var table_path := str(opponent_data.get("attack_table_path", "")).strip_edges()
@@ -1147,8 +1125,8 @@ func _apply_session_match_mode() -> void:
 	story_mode_active = false
 	story_round_transition_time = 0.0
 	var match_mode := ""
-	if SessionStateStore.has_value(SESSION_KEY_MATCH_MODE):
-		match_mode = str(SessionStateStore.get_value(SESSION_KEY_MATCH_MODE, "")).to_lower()
+	if SessionStateStore.has_value(SessionKeysStore.MATCH_MODE):
+		match_mode = str(SessionStateStore.get_value(SessionKeysStore.MATCH_MODE, "")).to_lower()
 	if match_mode == "vs":
 		if player_1:
 			player_1.set("is_ai", false)

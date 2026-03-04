@@ -1,19 +1,15 @@
 extends CanvasLayer
 
+const LocalizationRegistryStore := preload("res://scripts/config/LocalizationRegistry.gd")
+
 signal resume_requested
 signal restart_requested
 signal menu_requested
 signal locale_changed(locale: String)
 signal training_options_changed(options: Dictionary)
 
-const TRANSLATION_PATHS := [
-	"res://i18n/en.tres",
-	"res://i18n/zh.tres"
-]
 const MATCH_UI_MODE_HP_TIMER := "hp_timer"
 const MATCH_UI_MODE_STOCK := "stock"
-
-static var _translations_registered := false
 
 @onready var timer_label := $TimerLabel
 @onready var timer_chip := $TimerChip
@@ -734,10 +730,4 @@ func _format_stat(template: String, fallback_template: String, value: int) -> St
 	return template % value
 
 func _ensure_translations_registered() -> void:
-	if _translations_registered:
-		return
-	for path in TRANSLATION_PATHS:
-		var translation = load(path) as Translation
-		if translation:
-			TranslationServer.add_translation(translation)
-	_translations_registered = true
+	LocalizationRegistryStore.ensure_registered()

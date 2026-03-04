@@ -1,5 +1,10 @@
 extends CharacterBody2D
 
+const PlayerDataStore := preload("res://scripts/player/PlayerData.gd")
+const GeneratedSkillProfilesStore := preload("res://scripts/player/GeneratedSkillProfiles.gd")
+const PlayerSignatureAttackBuilderStore := preload("res://scripts/player/PlayerSignatureAttackBuilder.gd")
+const PlayerAttackRuntimeBuilderStore := preload("res://scripts/player/PlayerAttackRuntimeBuilder.gd")
+const StageConfigStore := preload("res://scripts/config/StageConfig.gd")
 const GameSettingsStore := preload("res://scripts/GameSettings.gd")
 
 signal health_changed
@@ -77,41 +82,8 @@ const AIR_DECELERATION := 820.0
 const BLOCK_ACCELERATION_SCALE := 0.72
 const BLOCK_DECELERATION_SCALE := 1.14
 const WALK_ANIMATION_SPEED_THRESHOLD := 34.0
-const AI_PROFILE_DEFAULT := {
-	"preferred_range": 56.0,
-	"chase_range": 108.0,
-	"retreat_range": 20.0,
-	"retreat_chance": 0.24,
-	"block_chance": 0.35,
-	"block_hold_time": 0.18,
-	"signature_bias": 1.0,
-	"special_bias": 1.0,
-	"heavy_bias": 1.0,
-	"throw_bias": 1.0,
-	"ultimate_bias": 1.0,
-	"dash_in_chance": 0.08,
-	"cooldown_min": 0.40,
-	"cooldown_max": 0.72,
-	"combo_pressure": 0.52
-}
-const AI_PROFILE_BY_CHARACTER := {
-	"elon_mvsk": {"preferred_range": 74.0, "chase_range": 132.0, "retreat_range": 18.0, "retreat_chance": 0.16, "block_chance": 0.28, "signature_bias": 1.45, "special_bias": 0.8, "heavy_bias": 0.75, "throw_bias": 0.55, "ultimate_bias": 1.25, "dash_in_chance": 0.04, "cooldown_min": 0.52, "cooldown_max": 0.90, "combo_pressure": 0.35},
-	"mark_zuck": {"preferred_range": 62.0, "chase_range": 110.0, "retreat_range": 24.0, "retreat_chance": 0.28, "block_chance": 0.34, "signature_bias": 1.2, "special_bias": 1.1, "heavy_bias": 0.9, "throw_bias": 0.8, "ultimate_bias": 1.15, "dash_in_chance": 0.10, "cooldown_min": 0.40, "cooldown_max": 0.72, "combo_pressure": 0.58},
-	"sam_altmyn": {"preferred_range": 58.0, "chase_range": 108.0, "retreat_range": 20.0, "retreat_chance": 0.24, "block_chance": 0.33, "signature_bias": 1.05, "special_bias": 1.05, "heavy_bias": 1.0, "throw_bias": 0.85, "ultimate_bias": 1.35, "dash_in_chance": 0.10, "cooldown_min": 0.40, "cooldown_max": 0.70, "combo_pressure": 0.56},
-	"peter_thyell": {"preferred_range": 70.0, "chase_range": 124.0, "retreat_range": 19.0, "retreat_chance": 0.22, "block_chance": 0.40, "signature_bias": 1.25, "special_bias": 0.95, "heavy_bias": 0.82, "throw_bias": 0.60, "ultimate_bias": 1.2, "dash_in_chance": 0.06, "cooldown_min": 0.50, "cooldown_max": 0.86, "combo_pressure": 0.40},
-	"zef_bezos": {"preferred_range": 46.0, "chase_range": 94.0, "retreat_range": 15.0, "retreat_chance": 0.18, "block_chance": 0.27, "signature_bias": 0.92, "special_bias": 1.18, "heavy_bias": 1.28, "throw_bias": 1.22, "ultimate_bias": 1.1, "dash_in_chance": 0.16, "cooldown_min": 0.34, "cooldown_max": 0.62, "combo_pressure": 0.72},
-	"bill_geytz": {"preferred_range": 72.0, "chase_range": 126.0, "retreat_range": 20.0, "retreat_chance": 0.22, "block_chance": 0.42, "signature_bias": 1.35, "special_bias": 0.88, "heavy_bias": 0.78, "throw_bias": 0.60, "ultimate_bias": 1.2, "dash_in_chance": 0.05, "cooldown_min": 0.48, "cooldown_max": 0.84, "combo_pressure": 0.38},
-	"sundar_pichoy": {"preferred_range": 60.0, "chase_range": 112.0, "retreat_range": 22.0, "retreat_chance": 0.25, "block_chance": 0.36, "signature_bias": 1.1, "special_bias": 1.0, "heavy_bias": 0.96, "throw_bias": 0.80, "ultimate_bias": 1.22, "dash_in_chance": 0.11, "cooldown_min": 0.40, "cooldown_max": 0.72, "combo_pressure": 0.56},
-	"jensen_hwang": {"preferred_range": 55.0, "chase_range": 102.0, "retreat_range": 19.0, "retreat_chance": 0.20, "block_chance": 0.29, "signature_bias": 1.0, "special_bias": 1.18, "heavy_bias": 1.18, "throw_bias": 0.88, "ultimate_bias": 1.18, "dash_in_chance": 0.13, "cooldown_min": 0.36, "cooldown_max": 0.66, "combo_pressure": 0.66},
-	"larry_pagyr": {"preferred_range": 76.0, "chase_range": 136.0, "retreat_range": 18.0, "retreat_chance": 0.16, "block_chance": 0.38, "signature_bias": 1.45, "special_bias": 0.82, "heavy_bias": 0.70, "throw_bias": 0.50, "ultimate_bias": 1.24, "dash_in_chance": 0.03, "cooldown_min": 0.54, "cooldown_max": 0.92, "combo_pressure": 0.34},
-	"sergey_brinn": {"preferred_range": 68.0, "chase_range": 120.0, "retreat_range": 22.0, "retreat_chance": 0.24, "block_chance": 0.37, "signature_bias": 1.30, "special_bias": 0.94, "heavy_bias": 0.86, "throw_bias": 0.66, "ultimate_bias": 1.22, "dash_in_chance": 0.07, "cooldown_min": 0.48, "cooldown_max": 0.82, "combo_pressure": 0.46},
-	"satya_nadello": {"preferred_range": 66.0, "chase_range": 116.0, "retreat_range": 22.0, "retreat_chance": 0.22, "block_chance": 0.44, "signature_bias": 1.22, "special_bias": 0.9, "heavy_bias": 0.82, "throw_bias": 0.64, "ultimate_bias": 1.18, "dash_in_chance": 0.06, "cooldown_min": 0.46, "cooldown_max": 0.80, "combo_pressure": 0.42},
-	"tim_cuke": {"preferred_range": 59.0, "chase_range": 104.0, "retreat_range": 26.0, "retreat_chance": 0.30, "block_chance": 0.32, "signature_bias": 1.16, "special_bias": 1.05, "heavy_bias": 0.88, "throw_bias": 0.84, "ultimate_bias": 1.16, "dash_in_chance": 0.14, "cooldown_min": 0.38, "cooldown_max": 0.68, "combo_pressure": 0.60},
-	"jack_dorsee": {"preferred_range": 64.0, "chase_range": 118.0, "retreat_range": 22.0, "retreat_chance": 0.24, "block_chance": 0.31, "signature_bias": 1.34, "special_bias": 0.98, "heavy_bias": 0.90, "throw_bias": 0.70, "ultimate_bias": 1.2, "dash_in_chance": 0.10, "cooldown_min": 0.40, "cooldown_max": 0.72, "combo_pressure": 0.54},
-	"travis_kalanik": {"preferred_range": 48.0, "chase_range": 96.0, "retreat_range": 14.0, "retreat_chance": 0.14, "block_chance": 0.24, "signature_bias": 1.18, "special_bias": 1.2, "heavy_bias": 1.20, "throw_bias": 1.0, "ultimate_bias": 1.15, "dash_in_chance": 0.20, "cooldown_min": 0.32, "cooldown_max": 0.58, "combo_pressure": 0.78},
-	"reed_hestings": {"preferred_range": 69.0, "chase_range": 122.0, "retreat_range": 21.0, "retreat_chance": 0.22, "block_chance": 0.39, "signature_bias": 1.26, "special_bias": 0.92, "heavy_bias": 0.84, "throw_bias": 0.68, "ultimate_bias": 1.25, "dash_in_chance": 0.07, "cooldown_min": 0.46, "cooldown_max": 0.82, "combo_pressure": 0.44},
-	"steve_jobz": {"preferred_range": 53.0, "chase_range": 100.0, "retreat_range": 18.0, "retreat_chance": 0.20, "block_chance": 0.30, "signature_bias": 1.22, "special_bias": 1.08, "heavy_bias": 1.08, "throw_bias": 0.90, "ultimate_bias": 1.34, "dash_in_chance": 0.16, "cooldown_min": 0.34, "cooldown_max": 0.62, "combo_pressure": 0.70}
-}
+const AI_PROFILE_DEFAULT := PlayerDataStore.AI_PROFILE_DEFAULT
+const AI_PROFILE_BY_CHARACTER := PlayerDataStore.AI_PROFILE_BY_CHARACTER
 const COMBO_CHAIN_TIMEOUT_SECONDS := 0.95
 const COMBO_DAMAGE_SCALING_STEP := 0.12
 const COMBO_DAMAGE_SCALING_MIN := 0.45
@@ -154,9 +126,9 @@ const HYPE_GAIN_ON_TAKING_HIT := 4.0
 const SKILL_ENTITY_TARGET_HEIGHT_OFFSET := 22.0
 const SKILL_ENTITY_MIN_SIZE := Vector2(12.0, 10.0)
 const SKILL_ENTITY_STAGE_PADDING := 2.0
-const DEFAULT_STAGE_LEFT_X := 0.0
-const DEFAULT_STAGE_RIGHT_X := 900.0
-const DEFAULT_STAGE_FLOOR_Y := 340.0
+const DEFAULT_STAGE_LEFT_X := StageConfigStore.DEFAULT_LEFT_X
+const DEFAULT_STAGE_RIGHT_X := StageConfigStore.DEFAULT_RIGHT_X
+const DEFAULT_STAGE_FLOOR_Y := StageConfigStore.DEFAULT_FLOOR_Y
 const PLAYER_STAGE_MARGIN := 12.0
 const LEDGE_GRAB_HORIZONTAL_RANGE := 32.0
 const LEDGE_GRAB_ABOVE_FLOOR_MARGIN := 18.0
@@ -178,26 +150,7 @@ const SIGNATURE_ATTACK_KEYS := ["signature_a", "signature_b", "signature_c", "ul
 const STATUS_SILENCE_CAP_SECONDS := 1.6
 const STATUS_SLOW_CAP_SECONDS := 1.2
 const STATUS_ROOT_CAP_SECONDS := 0.5
-const CHARACTER_TINT_BY_ID := {
-	"elon_mvsk": Color(0.90, 0.86, 1.0, 1.0),
-	"mark_zuck": Color(0.84, 0.96, 1.0, 1.0),
-	"sam_altmyn": Color(0.88, 1.0, 0.88, 1.0),
-	"peter_thyell": Color(0.98, 0.90, 0.80, 1.0),
-	"zef_bezos": Color(1.0, 0.90, 0.82, 1.0),
-	"bill_geytz": Color(0.86, 0.92, 1.0, 1.0),
-	"sundar_pichoy": Color(0.90, 1.0, 0.90, 1.0),
-	"jensen_hwang": Color(0.98, 0.94, 0.78, 1.0),
-	"larry_pagyr": Color(0.90, 0.86, 1.0, 1.0),
-	"sergey_brinn": Color(0.86, 1.0, 0.94, 1.0),
-	"satya_nadello": Color(0.86, 0.96, 1.0, 1.0),
-	"tim_cuke": Color(0.94, 0.92, 1.0, 1.0),
-	"jack_dorsee": Color(0.82, 0.96, 1.0, 1.0),
-	"travis_kalanik": Color(1.0, 0.88, 0.82, 1.0),
-	"reed_hestings": Color(0.90, 1.0, 0.84, 1.0),
-	"steve_jobz": Color(1.0, 0.94, 0.84, 1.0),
-	"prototype_p1": Color(0.84, 0.96, 1.0, 1.0),
-	"prototype_p2": Color(1.0, 0.88, 0.84, 1.0)
-}
+const CHARACTER_TINT_BY_ID := PlayerDataStore.CHARACTER_TINT_BY_ID
 const REQUIRED_BASE_ATTACK_KEYS := ["light", "heavy", "special", "throw"]
 const ARCHETYPE_ALL_ROUNDER := "all_rounder"
 const ARCHETYPE_RUSHDOWN := "rushdown"
@@ -230,91 +183,12 @@ const REQUIRED_ANIMATION_NAMES := [
 	"getup",
 	"ko"
 ]
-const ANIMATION_PROFILES := {
-	"idle": {"fps": 8.0, "loop": true},
-	"walk": {"fps": 11.0, "loop": true},
-	"jump": {"fps": 9.0, "loop": false},
-	"light": {"fps": 18.0, "loop": false},
-	"heavy": {"fps": 9.0, "loop": false},
-	"special": {"fps": 10.0, "loop": false},
-	"throw": {"fps": 12.0, "loop": false},
-	"block": {"fps": 8.0, "loop": true},
-	"hit_light": {"fps": 11.0, "loop": false},
-	"hit_heavy": {"fps": 8.0, "loop": false},
-	"hit": {"fps": 10.0, "loop": false},
-	"fall": {"fps": 8.0, "loop": false},
-	"getup": {"fps": 9.0, "loop": false},
-	"ko": {"fps": 1.0, "loop": false}
-}
-const LOCAL_INPUT_ACTIONS := [
-	"move_left",
-	"move_right",
-	"move_up",
-	"move_down",
-	"jump",
-	"attack_light",
-	"attack_heavy",
-	"attack_special",
-	"throw",
-	"dash",
-	"block"
-]
-const LOCAL_INPUT_PREFIX_BY_PLAYER_ID := {
-	1: "p1",
-	2: "p2"
-}
-const LOCAL_GAMEPAD_DEVICE_BY_PLAYER_ID := {
-	1: 0,
-	2: 1
-}
-const PLAYER2_LOCAL_KEYBOARD_LAYOUT := {
-	"move_left": [KEY_F],
-	"move_right": [KEY_G],
-	"move_up": [KEY_T],
-	"move_down": [KEY_V],
-	"jump": [KEY_R],
-	"attack_light": [KEY_N],
-	"attack_heavy": [KEY_M],
-	"attack_special": [KEY_COMMA],
-	"throw": [KEY_PERIOD],
-	"dash": [KEY_SLASH],
-	"block": [KEY_B]
-}
-const ATTACK_DATA := {
-	"light": {
-		"startup": 0.06, "active": 0.09, "recovery": 0.16, "block_recovery": 0.19, "damage": 6, "hitstun": 0.12, "blockstun": 0.10,
-		"cancel_on_hit": true, "cancel_on_block": true, "cancel_options": ["light", "heavy", "special"],
-		"block_type": "mid", "air_blockable": true,
-		"knockback_ground": Vector2(115, -36), "knockback_air": Vector2(88, -72),
-		"hitbox_size_ground": Vector2(26, 18), "hitbox_size_air": Vector2(24, 16),
-		"hitbox_offset_ground": Vector2(22, 0), "hitbox_offset_air": Vector2(20, -6)
-	},
-	"heavy": {
-		"startup": 0.16, "active": 0.12, "recovery": 0.26, "block_recovery": 0.33, "damage": 13, "hitstun": 0.20, "blockstun": 0.16,
-		"cancel_on_hit": true, "cancel_on_block": false, "cancel_options": ["special"],
-		"block_type": "overhead", "air_blockable": true,
-		"knockback_ground": Vector2(220, -95), "knockback_air": Vector2(170, -145),
-		"hitbox_size_ground": Vector2(34, 20), "hitbox_size_air": Vector2(30, 18),
-		"hitbox_offset_ground": Vector2(26, -2), "hitbox_offset_air": Vector2(24, -10)
-	},
-	"special": {
-		"startup": 0.10, "active": 0.17, "recovery": 0.28, "block_recovery": 0.40, "damage": 16, "hitstun": 0.22, "blockstun": 0.19,
-		"cancel_on_hit": false, "cancel_on_block": false, "cancel_options": [],
-		"block_type": "low", "air_blockable": true,
-		"lunge_speed": 350.0,
-		"knockback_ground": Vector2(260, -70), "knockback_air": Vector2(220, -130),
-		"hitbox_size_ground": Vector2(36, 20), "hitbox_size_air": Vector2(32, 18),
-		"hitbox_offset_ground": Vector2(28, -2), "hitbox_offset_air": Vector2(26, -8)
-	},
-	"throw": {
-		"startup": 0.08, "active": 0.08, "recovery": 0.22, "block_recovery": 0.22, "damage": 11, "hitstun": 0.24, "blockstun": 0.0,
-		"cancel_on_hit": false, "cancel_on_block": false, "cancel_options": [],
-		"block_type": "throw", "air_blockable": false, "throw_techable": true,
-		"knockback_ground": Vector2(180, -155), "knockback_air": Vector2(130, -190),
-		"hitbox_size_ground": Vector2(20, 16), "hitbox_size_air": Vector2(18, 14),
-		"hitbox_offset_ground": Vector2(18, 0), "hitbox_offset_air": Vector2(18, -6)
-	}
-}
+const ANIMATION_PROFILES := PlayerDataStore.ANIMATION_PROFILES
+const LOCAL_INPUT_ACTIONS := PlayerDataStore.LOCAL_INPUT_ACTIONS
+const LOCAL_INPUT_PREFIX_BY_PLAYER_ID := PlayerDataStore.LOCAL_INPUT_PREFIX_BY_PLAYER_ID
+const LOCAL_GAMEPAD_DEVICE_BY_PLAYER_ID := PlayerDataStore.LOCAL_GAMEPAD_DEVICE_BY_PLAYER_ID
+const PLAYER2_LOCAL_KEYBOARD_LAYOUT := PlayerDataStore.PLAYER2_LOCAL_KEYBOARD_LAYOUT
+const ATTACK_DATA := PlayerDataStore.ATTACK_DATA
 
 @export var use_external_sprite_frames := true
 @export var sprite_frames_resource: SpriteFrames
@@ -2096,155 +1970,26 @@ func _apply_status_from_meta(attack_meta: Dictionary, blocked: bool) -> void:
 		status_root_time = maxf(status_root_time, minf(STATUS_ROOT_CAP_SECONDS, root_seconds))
 
 func _inject_generated_signature_attacks() -> void:
-	var character_id := get_character_id()
-	var profile := _get_generated_skill_profile_for_character(character_id)
-	if profile.is_empty():
-		return
-	var special_base := _get_attack_data("special").duplicate(true)
-	if special_base.is_empty():
-		var fallback_special: Variant = ATTACK_DATA.get("special", {})
-		if typeof(fallback_special) == TYPE_DICTIONARY:
-			special_base = (fallback_special as Dictionary).duplicate(true)
-	for key in SIGNATURE_ATTACK_KEYS:
-		if runtime_attack_data.has(key):
-			continue
-		var config_value: Variant = profile.get(key, {})
-		if typeof(config_value) != TYPE_DICTIONARY:
-			continue
-		runtime_attack_data[key] = _build_generated_signature_attack_from_special(key, special_base, config_value as Dictionary)
+	runtime_attack_data = PlayerSignatureAttackBuilderStore.inject_generated_signature_attacks(
+		runtime_attack_data,
+		get_character_id(),
+		ATTACK_DATA,
+		SIGNATURE_ATTACK_KEYS,
+		HITSTUN_SECONDS,
+		BLOCKSTUN_SECONDS
+	)
 
 func _build_generated_signature_attack_from_special(kind: String, special_base: Dictionary, config: Dictionary) -> Dictionary:
-	var entry := special_base.duplicate(true)
-	var default_startup := float(special_base.get("startup", 0.10))
-	var default_active := float(special_base.get("active", 0.15))
-	var default_recovery := float(special_base.get("recovery", 0.28))
-	var damage_scale := float(config.get("damage_scale", 0.65))
-	var base_damage := int(special_base.get("damage", 14))
-	entry["startup"] = float(config.get("startup", default_startup + (0.01 if kind != "signature_a" else -0.01)))
-	entry["active"] = float(config.get("active", default_active))
-	entry["recovery"] = float(config.get("recovery", default_recovery + (0.03 if kind == "ultimate" else 0.0)))
-	entry["block_recovery"] = float(config.get("block_recovery", float(entry.get("recovery", default_recovery)) + 0.08))
-	entry["damage"] = maxi(5, int(round(float(base_damage) * damage_scale)))
-	entry["hitstun"] = float(config.get("hitstun", float(special_base.get("hitstun", HITSTUN_SECONDS)) + (0.02 if kind == "ultimate" else 0.0)))
-	entry["blockstun"] = float(config.get("blockstun", float(special_base.get("blockstun", BLOCKSTUN_SECONDS)) + (0.02 if kind == "ultimate" else 0.0)))
-	entry["cancel_on_hit"] = false
-	entry["cancel_on_block"] = false
-	entry["cancel_options"] = []
-	entry["cooldown"] = float(config.get("cooldown", 1.5 if kind != "ultimate" else 8.0))
-	if config.has("block_type"):
-		entry["block_type"] = str(config.get("block_type", "mid"))
-	if config.has("effect"):
-		var effect_value: Variant = config.get("effect", {})
-		if typeof(effect_value) == TYPE_DICTIONARY:
-			entry["effect"] = (effect_value as Dictionary).duplicate(true)
-	if config.has("control"):
-		var control_value: Variant = config.get("control", {})
-		if typeof(control_value) == TYPE_DICTIONARY:
-			entry["control"] = (control_value as Dictionary).duplicate(true)
-	return entry
+	return PlayerSignatureAttackBuilderStore.build_generated_signature_attack_from_special(
+		kind,
+		special_base,
+		config,
+		HITSTUN_SECONDS,
+		BLOCKSTUN_SECONDS
+	)
 
 func _get_generated_skill_profile_for_character(character_id: String) -> Dictionary:
-	match character_id:
-		"prototype_p1":
-			return {
-				"signature_a": {"damage_scale": 0.62, "cooldown": 1.4, "effect": {"type": "projectile", "speed": 300.0, "duration": 1.05, "size": Vector2(26, 16)}},
-				"signature_b": {"damage_scale": 0.70, "cooldown": 1.9, "effect": {"type": "mobility", "mode": "dash", "speed": 320.0}},
-				"signature_c": {"damage_scale": 0.64, "cooldown": 2.1, "effect": {"type": "trap", "duration": 1.25, "size": Vector2(32, 18), "spawn_delay": 0.08}},
-				"ultimate": {"damage_scale": 0.98, "cooldown": 8.0, "effect": {"type": "buff", "buff": {"duration": 4.2, "damage_multiplier": 1.16, "speed_multiplier": 1.08, "startup_multiplier": 0.86}}}
-			}
-		"prototype_p2", "prototype":
-			return {
-				"signature_a": {"damage_scale": 0.58, "cooldown": 1.5, "control": {"slow_seconds": 0.65, "slow_factor": 0.68}},
-				"signature_b": {"damage_scale": 0.68, "cooldown": 1.9, "effect": {"type": "mobility", "mode": "teleport", "distance": 110.0}},
-				"signature_c": {"damage_scale": 0.62, "cooldown": 2.2, "effect": {"type": "summon", "speed": 250.0, "duration": 1.15, "size": Vector2(30, 18), "spawn_delay": 0.1}},
-				"ultimate": {"damage_scale": 0.92, "cooldown": 8.2, "effect": {"type": "projectile", "speed": 410.0, "duration": 1.1, "size": Vector2(36, 20)}}
-			}
-		"zef_bezos":
-			return {
-				"signature_a": {"damage_scale": 0.62, "cooldown": 1.4, "effect": {"type": "summon", "speed": 280.0, "duration": 1.1, "size": Vector2(28, 18), "spawn_delay": 0.06}},
-				"signature_b": {"damage_scale": 0.70, "cooldown": 1.9, "effect": {"type": "mobility", "mode": "rising", "rise_speed": 320.0, "forward_speed": 120.0}},
-				"signature_c": {"damage_scale": 0.64, "cooldown": 2.1, "effect": {"type": "trap", "duration": 1.3, "size": Vector2(32, 18), "spawn_delay": 0.08}},
-				"ultimate": {"damage_scale": 0.98, "cooldown": 8.0, "effect": {"type": "projectile", "speed": 430.0, "duration": 1.2, "size": Vector2(40, 22)}}
-			}
-		"bill_geytz":
-			return {
-				"signature_a": {"damage_scale": 0.64, "cooldown": 1.5, "control": {"slow_seconds": 0.7, "slow_factor": 0.62}},
-				"signature_b": {"damage_scale": 0.70, "cooldown": 1.8, "effect": {"type": "projectile", "speed": 210.0, "duration": 1.3, "size": Vector2(38, 20)}},
-				"signature_c": {"damage_scale": 0.58, "cooldown": 2.0, "effect": {"type": "buff", "buff": {"duration": 2.6, "damage_multiplier": 1.1, "startup_multiplier": 0.92}}},
-				"ultimate": {"damage_scale": 0.90, "cooldown": 8.4, "effect": {"type": "buff", "buff": {"duration": 4.5, "damage_multiplier": 1.18, "speed_multiplier": 1.06, "startup_multiplier": 0.88}}}
-			}
-		"larry_pagyr":
-			return {
-				"signature_a": {"damage_scale": 0.60, "cooldown": 1.4, "effect": {"type": "projectile", "speed": 330.0, "duration": 1.0, "size": Vector2(24, 16)}},
-				"signature_b": {"damage_scale": 0.65, "cooldown": 1.9, "control": {"slow_seconds": 0.6, "slow_factor": 0.7}},
-				"signature_c": {"damage_scale": 0.66, "cooldown": 2.2, "effect": {"type": "summon", "speed": 260.0, "duration": 1.2, "size": Vector2(32, 18), "spawn_delay": 0.1}},
-				"ultimate": {"damage_scale": 0.95, "cooldown": 8.0, "effect": {"type": "projectile", "speed": 430.0, "duration": 1.15, "size": Vector2(38, 22)}}
-			}
-		"sergey_brinn":
-			return {
-				"signature_a": {"damage_scale": 0.68, "cooldown": 1.6, "effect": {"type": "mobility", "mode": "rising", "rise_speed": 340.0, "forward_speed": 150.0}},
-				"signature_b": {"damage_scale": 0.62, "cooldown": 1.9, "effect": {"type": "mobility", "mode": "teleport", "distance": 120.0}},
-				"signature_c": {"damage_scale": 0.72, "cooldown": 2.0, "effect": {"type": "mobility", "mode": "rising", "rise_speed": 300.0, "forward_speed": 220.0}},
-				"ultimate": {"damage_scale": 1.0, "cooldown": 8.2, "effect": {"type": "summon", "speed": 280.0, "duration": 1.3, "size": Vector2(36, 20), "spawn_delay": 0.18}}
-			}
-		"sundar_pichoy":
-			return {
-				"signature_a": {"damage_scale": 0.64, "cooldown": 1.3, "control": {"slow_seconds": 0.7, "slow_factor": 0.66}},
-				"signature_b": {"damage_scale": 0.72, "cooldown": 1.8, "effect": {"type": "mobility", "mode": "dash", "speed": 320.0}},
-				"signature_c": {"damage_scale": 0.62, "cooldown": 2.2, "effect": {"type": "summon", "speed": 260.0, "duration": 1.15, "size": Vector2(30, 18), "spawn_delay": 0.1}},
-				"ultimate": {"damage_scale": 0.88, "cooldown": 7.6, "effect": {"type": "buff", "buff": {"duration": 4.6, "damage_multiplier": 1.14, "speed_multiplier": 1.1, "startup_multiplier": 0.86}}}
-			}
-		"jensen_hwang":
-			return {
-				"signature_a": {"damage_scale": 0.68, "cooldown": 1.4, "effect": {"type": "projectile", "speed": 390.0, "duration": 0.95, "size": Vector2(26, 16)}},
-				"signature_b": {"damage_scale": 0.82, "cooldown": 2.1, "block_type": "overhead", "effect": {"type": "mobility", "mode": "dash", "speed": 355.0}},
-				"signature_c": {"damage_scale": 0.56, "cooldown": 1.9, "control": {"slow_seconds": 0.75, "slow_factor": 0.58}},
-				"ultimate": {"damage_scale": 1.0, "cooldown": 8.0, "effect": {"type": "buff", "buff": {"duration": 4.2, "damage_multiplier": 1.24, "speed_multiplier": 1.12, "startup_multiplier": 0.82, "chip_bonus": 0.10}}}
-			}
-		"satya_nadello":
-			return {
-				"signature_a": {"damage_scale": 0.58, "cooldown": 1.6, "effect": {"type": "buff", "buff": {"duration": 3.0, "damage_multiplier": 1.1, "startup_multiplier": 0.92}}},
-				"signature_b": {"damage_scale": 0.66, "cooldown": 1.9, "effect": {"type": "projectile", "speed": 300.0, "duration": 0.95, "size": Vector2(26, 16)}},
-				"signature_c": {"damage_scale": 0.60, "cooldown": 2.0, "effect": {"type": "projectile", "speed": 250.0, "duration": 1.0, "size": Vector2(28, 18), "silence_seconds": 1.2}},
-				"ultimate": {"damage_scale": 0.90, "cooldown": 7.8, "effect": {"type": "buff", "buff": {"duration": 4.8, "damage_multiplier": 1.18, "speed_multiplier": 1.06, "startup_multiplier": 0.86, "chip_bonus": 0.09}}}
-			}
-		"tim_cuke":
-			return {
-				"signature_a": {"damage_scale": 0.66, "cooldown": 1.5},
-				"signature_b": {"damage_scale": 0.72, "cooldown": 1.9, "effect": {"type": "mobility", "mode": "teleport", "distance": 110.0}},
-				"signature_c": {"damage_scale": 0.52, "cooldown": 2.2, "effect": {"type": "buff", "buff": {"duration": 2.8, "speed_multiplier": 1.08, "startup_multiplier": 0.78}}},
-				"ultimate": {"damage_scale": 0.92, "cooldown": 7.9, "effect": {"type": "trap", "duration": 1.4, "size": Vector2(44, 24), "slow_seconds": 0.9, "slow_factor": 0.52, "root_seconds": 0.18}}
-			}
-		"jack_dorsee":
-			return {
-				"signature_a": {"damage_scale": 0.62, "cooldown": 1.2, "effect": {"type": "projectile", "speed": 450.0, "duration": 0.8, "size": Vector2(22, 14)}},
-				"signature_b": {"damage_scale": 0.72, "cooldown": 2.0, "effect": {"type": "summon", "speed": 260.0, "duration": 1.15, "spawn_delay": 0.2, "size": Vector2(32, 18)}},
-				"signature_c": {"damage_scale": 0.68, "cooldown": 2.1, "effect": {"type": "projectile", "speed": 220.0, "duration": 1.2, "size": Vector2(30, 18)}},
-				"ultimate": {"damage_scale": 0.94, "cooldown": 8.1, "effect": {"type": "summon", "speed": 300.0, "duration": 1.25, "size": Vector2(36, 20), "spawn_delay": 0.12}}
-			}
-		"travis_kalanik":
-			return {
-				"signature_a": {"damage_scale": 0.54, "cooldown": 1.7, "effect": {"type": "buff", "buff": {"duration": 4.0, "damage_multiplier": 1.2, "speed_multiplier": 1.1, "startup_multiplier": 0.9, "chip_bonus": 0.1}}},
-				"signature_b": {"damage_scale": 0.76, "cooldown": 2.1, "effect": {"type": "mobility", "mode": "dash", "speed": 360.0}},
-				"signature_c": {"damage_scale": 0.78, "cooldown": 2.3, "effect": {"type": "mobility", "mode": "dash", "speed": 400.0}},
-				"ultimate": {"damage_scale": 1.0, "cooldown": 8.2, "effect": {"type": "summon", "speed": 320.0, "duration": 1.3, "size": Vector2(38, 20), "spawn_delay": 0.1}}
-			}
-		"reed_hestings":
-			return {
-				"signature_a": {"damage_scale": 0.68, "cooldown": 1.6, "effect": {"type": "summon", "speed": 250.0, "duration": 1.2, "size": Vector2(32, 18), "spawn_delay": 0.08}},
-				"signature_b": {"damage_scale": 0.50, "cooldown": 1.8, "effect": {"type": "buff", "buff": {"duration": 3.2, "startup_multiplier": 0.8}}},
-				"signature_c": {"damage_scale": 0.74, "cooldown": 2.0, "effect": {"type": "mobility", "mode": "dash", "speed": 330.0}},
-				"ultimate": {"damage_scale": 0.96, "cooldown": 8.0, "effect": {"type": "buff", "buff": {"duration": 4.4, "damage_multiplier": 1.2, "speed_multiplier": 1.08, "startup_multiplier": 0.82, "chip_bonus": 0.09}}}
-			}
-		"steve_jobz":
-			return {
-				"signature_a": {"damage_scale": 0.72, "cooldown": 1.5},
-				"signature_b": {"damage_scale": 0.84, "cooldown": 2.0, "block_type": "overhead", "effect": {"type": "mobility", "mode": "dash", "speed": 380.0}},
-				"signature_c": {"damage_scale": 0.70, "cooldown": 2.2, "effect": {"type": "mobility", "mode": "teleport", "distance": 130.0}},
-				"ultimate": {"damage_scale": 1.12, "cooldown": 7.0, "effect": {"type": "buff", "buff": {"duration": 5.2, "damage_multiplier": 1.28, "speed_multiplier": 1.15, "startup_multiplier": 0.78, "chip_bonus": 0.12}}}
-			}
-		_:
-			return {}
+	return GeneratedSkillProfilesStore.get_profile(character_id)
 
 func _read_requested_attack() -> String:
 	if _can_trigger_buffered_ultimate():
@@ -2350,212 +2095,57 @@ func _clear_attack_buffer() -> void:
 	buffered_attack_time = 0.0
 
 func _setup_attack_data() -> void:
-	runtime_attack_data = ATTACK_DATA.duplicate(true)
 	var external := _load_external_attack_table()
-	if not external.is_empty():
-		for key in external.keys():
-			var attack_key := str(key)
-			var entry: Variant = external[key]
-			if typeof(entry) == TYPE_DICTIONARY:
-				runtime_attack_data[attack_key] = (entry as Dictionary).duplicate(true)
-	_inject_generated_signature_attacks()
-	_inject_directional_basic_attack_variants()
-	_sanitize_runtime_attack_data()
+	runtime_attack_data = PlayerAttackRuntimeBuilderStore.build_runtime_attack_data(
+		ATTACK_DATA,
+		external,
+		get_character_id(),
+		SIGNATURE_ATTACK_KEYS,
+		REQUIRED_BASE_ATTACK_KEYS,
+		HITSTUN_SECONDS,
+		BLOCKSTUN_SECONDS,
+		self
+	)
 
 func _inject_directional_basic_attack_variants() -> void:
-	if runtime_attack_data.has("light"):
-		var light_base: Dictionary = (runtime_attack_data["light"] as Dictionary).duplicate(true)
-		runtime_attack_data["light_up"] = _build_directional_variant_attack(
-			light_base,
-			{
-				"startup": 0.07,
-				"active": 0.10,
-				"recovery": 0.18,
-				"damage": 7,
-				"block_type": "overhead",
-				"knockback_ground": Vector2(92, -150),
-				"knockback_air": Vector2(78, -172),
-				"hitbox_size_ground": Vector2(24, 24),
-				"hitbox_size_air": Vector2(22, 22),
-				"hitbox_offset_ground": Vector2(18, -14),
-				"hitbox_offset_air": Vector2(16, -16)
-			}
-		)
-		runtime_attack_data["light_down"] = _build_directional_variant_attack(
-			light_base,
-			{
-				"startup": 0.05,
-				"active": 0.09,
-				"recovery": 0.17,
-				"damage": 5,
-				"block_type": "low",
-				"knockback_ground": Vector2(142, -24),
-				"knockback_air": Vector2(108, -58),
-				"hitbox_size_ground": Vector2(28, 14),
-				"hitbox_size_air": Vector2(24, 12),
-				"hitbox_offset_ground": Vector2(24, 10),
-				"hitbox_offset_air": Vector2(20, 8)
-			}
-		)
-		runtime_attack_data["light_air"] = _build_directional_variant_attack(
-			light_base,
-			{
-				"startup": 0.07,
-				"active": 0.11,
-				"recovery": 0.21,
-				"damage": 6,
-				"block_type": "mid",
-				"knockback_ground": Vector2(120, -74),
-				"knockback_air": Vector2(132, -96),
-				"hitbox_size_ground": Vector2(26, 16),
-				"hitbox_size_air": Vector2(28, 18),
-				"hitbox_offset_ground": Vector2(24, -6),
-				"hitbox_offset_air": Vector2(24, -10)
-			}
-		)
-	if runtime_attack_data.has("heavy"):
-		var heavy_base: Dictionary = (runtime_attack_data["heavy"] as Dictionary).duplicate(true)
-		runtime_attack_data["heavy_up"] = _build_directional_variant_attack(
-			heavy_base,
-			{
-				"startup": 0.18,
-				"active": 0.12,
-				"recovery": 0.28,
-				"damage": 15,
-				"block_type": "overhead",
-				"knockback_ground": Vector2(146, -212),
-				"knockback_air": Vector2(128, -236),
-				"hitbox_size_ground": Vector2(30, 26),
-				"hitbox_size_air": Vector2(28, 24),
-				"hitbox_offset_ground": Vector2(22, -18),
-				"hitbox_offset_air": Vector2(20, -20)
-			}
-		)
-		runtime_attack_data["heavy_down"] = _build_directional_variant_attack(
-			heavy_base,
-			{
-				"startup": 0.14,
-				"active": 0.11,
-				"recovery": 0.30,
-				"damage": 12,
-				"block_type": "low",
-				"knockback_ground": Vector2(224, -32),
-				"knockback_air": Vector2(178, -192),
-				"hitbox_size_ground": Vector2(34, 18),
-				"hitbox_size_air": Vector2(32, 20),
-				"hitbox_offset_ground": Vector2(28, 8),
-				"hitbox_offset_air": Vector2(26, 6)
-			}
-		)
-		runtime_attack_data["heavy_air"] = _build_directional_variant_attack(
-			heavy_base,
-			{
-				"startup": 0.15,
-				"active": 0.12,
-				"recovery": 0.28,
-				"damage": 13,
-				"block_type": "overhead",
-				"knockback_ground": Vector2(198, -88),
-				"knockback_air": Vector2(184, -116),
-				"hitbox_size_ground": Vector2(32, 18),
-				"hitbox_size_air": Vector2(34, 20),
-				"hitbox_offset_ground": Vector2(28, -4),
-				"hitbox_offset_air": Vector2(30, -8)
-			}
-		)
+	runtime_attack_data = PlayerAttackRuntimeBuilderStore.inject_directional_basic_attack_variants(runtime_attack_data)
 
 func _build_directional_variant_attack(base_data: Dictionary, overrides: Dictionary) -> Dictionary:
-	var variant := base_data.duplicate(true)
-	for key in overrides.keys():
-		variant[key] = overrides[key]
-	return variant
+	return PlayerAttackRuntimeBuilderStore.build_directional_variant_attack(base_data, overrides)
 
 func _load_external_attack_table() -> Dictionary:
-	if not use_external_attack_table:
-		return {}
-	if attack_table_resource:
-		var resource_dict := _extract_attack_table_dictionary(attack_table_resource)
-		if not resource_dict.is_empty():
-			return resource_dict
-	var path := attack_table_path.strip_edges()
-	if path == "":
-		path = DEFAULT_ATTACK_TABLE_PATH
-	if not ResourceLoader.exists(path):
-		return {}
-	var loaded := load(path)
-	var loaded_dict := _extract_attack_table_dictionary(loaded)
-	if loaded_dict.is_empty():
-		push_warning("Attack table resource missing attacks dictionary: %s" % path)
-	return loaded_dict
+	return PlayerAttackRuntimeBuilderStore.load_external_attack_table(
+		use_external_attack_table,
+		attack_table_resource,
+		attack_table_path,
+		DEFAULT_ATTACK_TABLE_PATH,
+		self
+	)
 
 func _extract_attack_table_dictionary(resource: Resource) -> Dictionary:
-	if resource == null:
-		return {}
-	if resource.has_method("get_runtime_attacks"):
-		var method_value: Variant = resource.call("get_runtime_attacks")
-		if typeof(method_value) == TYPE_DICTIONARY:
-			return (method_value as Dictionary).duplicate(true)
-	var value: Variant = resource.get("attacks")
-	if typeof(value) == TYPE_DICTIONARY:
-		return (value as Dictionary).duplicate(true)
-	return {}
+	return PlayerAttackRuntimeBuilderStore.extract_attack_table_dictionary(resource)
 
 func _sanitize_runtime_attack_data() -> void:
-	var sanitized := {}
-	for key in runtime_attack_data.keys():
-		var attack_key := str(key)
-		var raw_entry: Variant = runtime_attack_data[key]
-		var entry: Dictionary = {}
-		if typeof(raw_entry) == TYPE_DICTIONARY:
-			entry = (raw_entry as Dictionary).duplicate(true)
-		else:
-			push_warning("Attack entry is not a dictionary, using defaults: %s" % attack_key)
-		var defaults := _default_attack_entry_for_kind(attack_key)
-		_merge_attack_defaults(entry, defaults)
-		_sanitize_attack_field_types(entry, defaults, attack_key)
-		sanitized[attack_key] = entry
-
-	for required_key in REQUIRED_BASE_ATTACK_KEYS:
-		if sanitized.has(required_key):
-			continue
-		push_warning("Missing required base attack, injecting fallback: %s" % required_key)
-		sanitized[required_key] = _default_attack_entry_for_kind(required_key)
-
-	runtime_attack_data = sanitized
+	runtime_attack_data = PlayerAttackRuntimeBuilderStore.sanitize_runtime_attack_data(
+		runtime_attack_data,
+		ATTACK_DATA,
+		SIGNATURE_ATTACK_KEYS,
+		REQUIRED_BASE_ATTACK_KEYS,
+		self
+	)
 
 func _default_attack_entry_for_kind(kind: String) -> Dictionary:
-	var source_kind := kind
-	if source_kind.begins_with("light_"):
-		source_kind = "light"
-	elif source_kind.begins_with("heavy_"):
-		source_kind = "heavy"
-	if not ATTACK_DATA.has(source_kind):
-		source_kind = "special" if kind in SIGNATURE_ATTACK_KEYS else "light"
-	var source_value: Variant = ATTACK_DATA.get(source_kind, ATTACK_DATA["light"])
-	if typeof(source_value) != TYPE_DICTIONARY:
-		source_value = ATTACK_DATA["light"]
-	return (source_value as Dictionary).duplicate(true)
+	return PlayerAttackRuntimeBuilderStore.default_attack_entry_for_kind(
+		kind,
+		ATTACK_DATA,
+		SIGNATURE_ATTACK_KEYS
+	)
 
 func _merge_attack_defaults(target: Dictionary, defaults: Dictionary) -> void:
-	for key in defaults.keys():
-		if not target.has(key):
-			target[key] = defaults[key]
+	PlayerAttackRuntimeBuilderStore.merge_attack_defaults(target, defaults)
 
 func _sanitize_attack_field_types(entry: Dictionary, defaults: Dictionary, attack_key: String) -> void:
-	var vector_keys := [
-		"knockback_ground",
-		"knockback_air",
-		"hitbox_size_ground",
-		"hitbox_size_air",
-		"hitbox_offset_ground",
-		"hitbox_offset_air"
-	]
-	for key in vector_keys:
-		var value: Variant = entry.get(key, defaults.get(key, Vector2.ZERO))
-		if value is Vector2:
-			continue
-		push_warning("Attack '%s' field '%s' must be Vector2; using default" % [attack_key, key])
-		entry[key] = defaults.get(key, Vector2.ZERO)
+	PlayerAttackRuntimeBuilderStore.sanitize_attack_field_types(entry, defaults, attack_key, self)
 
 func _has_attack_kind(kind: String) -> bool:
 	return runtime_attack_data.has(kind)

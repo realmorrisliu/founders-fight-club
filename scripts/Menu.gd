@@ -1,104 +1,13 @@
 extends Control
 
 const GameSettingsStore := preload("res://scripts/GameSettings.gd")
+const LocalizationRegistryStore := preload("res://scripts/config/LocalizationRegistry.gd")
+const CharacterCatalogStore := preload("res://scripts/config/CharacterCatalog.gd")
+const SessionKeysStore := preload("res://scripts/config/SessionKeys.gd")
 const SessionStateStore := preload("res://scripts/SessionState.gd")
 const VS_SCENE_PATH := "res://scenes/Main.tscn"
 const STORY_SCENE_PATH := "res://scenes/Story.tscn"
 const TRAINING_SCENE_PATH := "res://scenes/Training.tscn"
-const TRANSLATION_PATHS := [
-	"res://i18n/en.tres",
-	"res://i18n/zh.tres"
-]
-const CHARACTER_OPTIONS := [
-	{
-		"id": "elon_mvsk",
-		"name": "Elon Mvsk",
-		"attack_table_path": "res://assets/data/characters/ElonMvskAttackTable.tres"
-	},
-	{
-		"id": "mark_zuck",
-		"name": "Mark Zuck",
-		"attack_table_path": "res://assets/data/characters/MarkZuckAttackTable.tres"
-	},
-	{
-		"id": "sam_altmyn",
-		"name": "Sam Altmyn",
-		"attack_table_path": "res://assets/data/characters/SamAltmynAttackTable.tres"
-	},
-	{
-		"id": "peter_thyell",
-		"name": "Peter Thyell",
-		"attack_table_path": "res://assets/data/characters/PeterThyellAttackTable.tres"
-	},
-	{
-		"id": "zef_bezos",
-		"name": "Zef Bezos",
-		"attack_table_path": "res://assets/data/characters/ZefBezosAttackTable.tres"
-	},
-	{
-		"id": "bill_geytz",
-		"name": "Bill Geytz",
-		"attack_table_path": "res://assets/data/characters/BillGeytzAttackTable.tres"
-	},
-	{
-		"id": "sundar_pichoy",
-		"name": "Sundar Pichoy",
-		"attack_table_path": "res://assets/data/characters/SundarPichoyAttackTable.tres"
-	},
-	{
-		"id": "jensen_hwang",
-		"name": "Jensen Hwang",
-		"attack_table_path": "res://assets/data/characters/JensenHwangAttackTable.tres"
-	},
-	{
-		"id": "larry_pagyr",
-		"name": "Larry Pagyr",
-		"attack_table_path": "res://assets/data/characters/LarryPagyrAttackTable.tres"
-	},
-	{
-		"id": "sergey_brinn",
-		"name": "Sergey Brinn",
-		"attack_table_path": "res://assets/data/characters/SergeyBrinnAttackTable.tres"
-	},
-	{
-		"id": "satya_nadello",
-		"name": "Satya Nadello",
-		"attack_table_path": "res://assets/data/characters/SatyaNadelloAttackTable.tres"
-	},
-	{
-		"id": "tim_cuke",
-		"name": "Tim Cuke",
-		"attack_table_path": "res://assets/data/characters/TimCukeAttackTable.tres"
-	},
-	{
-		"id": "jack_dorsee",
-		"name": "Jack Dorsee",
-		"attack_table_path": "res://assets/data/characters/JackDorseeAttackTable.tres"
-	},
-	{
-		"id": "travis_kalanik",
-		"name": "Travis Kalanik",
-		"attack_table_path": "res://assets/data/characters/TravisKalanikAttackTable.tres"
-	},
-	{
-		"id": "reed_hestings",
-		"name": "Reed Hestings",
-		"attack_table_path": "res://assets/data/characters/ReedHestingsAttackTable.tres"
-	},
-	{
-		"id": "steve_jobz",
-		"name": "Steve Jobz",
-		"attack_table_path": "res://assets/data/characters/SteveJobzAttackTable.tres"
-	}
-]
-const SESSION_KEY_P1_ID := "ffc_selected_player_1_character_id"
-const SESSION_KEY_P2_ID := "ffc_selected_player_2_character_id"
-const SESSION_KEY_P1_TABLE_PATH := "ffc_selected_player_1_attack_table_path"
-const SESSION_KEY_P2_TABLE_PATH := "ffc_selected_player_2_attack_table_path"
-const SESSION_KEY_P1_NAME := "ffc_selected_player_1_name"
-const SESSION_KEY_P2_NAME := "ffc_selected_player_2_name"
-const SESSION_KEY_MATCH_MODE := "ffc_match_mode"
-const STORY_SESSION_KEY_ROUND_INDEX := "ffc_story_round_index"
 const ARCHETYPE_BY_CHARACTER_ID := {
 	"elon_mvsk": "zoner",
 	"mark_zuck": "counter",
@@ -121,7 +30,7 @@ const ARCHETYPE_BY_CHARACTER_ID := {
 	"prototype": "all_rounder"
 }
 
-static var _translations_registered := false
+var character_options: Array[Dictionary] = CharacterCatalogStore.get_selectable_roster()
 var current_control_preset := GameSettingsStore.CONTROL_PRESET_MODERN
 var main_menu_interactive := true
 var character_profile_cache: Array[Dictionary] = []
@@ -220,19 +129,13 @@ func _refresh_text() -> void:
 	_refresh_character_profile_preview()
 
 func _ensure_translations_registered() -> void:
-	if _translations_registered:
-		return
-	for path in TRANSLATION_PATHS:
-		var translation := load(path) as Translation
-		if translation:
-			TranslationServer.add_translation(translation)
-	_translations_registered = true
+	LocalizationRegistryStore.ensure_registered()
 
 func _populate_character_options() -> void:
 	p1_character_option.clear()
 	p2_character_option.clear()
 	character_profile_cache.clear()
-	for character in CHARACTER_OPTIONS:
+	for character in character_options:
 		var label := str(character.get("name", "Unknown"))
 		p1_character_option.add_item(label)
 		p2_character_option.add_item(label)
@@ -344,23 +247,23 @@ func _resolve_archetype_hint_key(archetype_key: String) -> String:
 			return "ARCHETYPE_HINT_ALL_ROUNDER"
 
 func _store_character_selection(match_mode: String) -> void:
-	if CHARACTER_OPTIONS.is_empty():
+	if character_options.is_empty():
 		return
-	var p1_index := clampi(p1_character_option.selected, 0, CHARACTER_OPTIONS.size() - 1)
-	var p2_index := clampi(p2_character_option.selected, 0, CHARACTER_OPTIONS.size() - 1)
-	var p1_character: Dictionary = CHARACTER_OPTIONS[p1_index]
-	var p2_character: Dictionary = CHARACTER_OPTIONS[p2_index]
-	SessionStateStore.set_value(SESSION_KEY_MATCH_MODE, match_mode)
-	SessionStateStore.set_value(SESSION_KEY_P1_ID, str(p1_character.get("id", "")))
-	SessionStateStore.set_value(SESSION_KEY_P2_ID, str(p2_character.get("id", "")))
-	SessionStateStore.set_value(SESSION_KEY_P1_TABLE_PATH, str(p1_character.get("attack_table_path", "")))
-	SessionStateStore.set_value(SESSION_KEY_P2_TABLE_PATH, str(p2_character.get("attack_table_path", "")))
-	SessionStateStore.set_value(SESSION_KEY_P1_NAME, str(p1_character.get("name", "Player 1")))
-	SessionStateStore.set_value(SESSION_KEY_P2_NAME, str(p2_character.get("name", "Player 2")))
+	var p1_index := clampi(p1_character_option.selected, 0, character_options.size() - 1)
+	var p2_index := clampi(p2_character_option.selected, 0, character_options.size() - 1)
+	var p1_character: Dictionary = character_options[p1_index]
+	var p2_character: Dictionary = character_options[p2_index]
+	SessionStateStore.set_value(SessionKeysStore.MATCH_MODE, match_mode)
+	SessionStateStore.set_value(SessionKeysStore.PLAYER_1_ID, str(p1_character.get("id", "")))
+	SessionStateStore.set_value(SessionKeysStore.PLAYER_2_ID, str(p2_character.get("id", "")))
+	SessionStateStore.set_value(SessionKeysStore.PLAYER_1_TABLE_PATH, str(p1_character.get("attack_table_path", "")))
+	SessionStateStore.set_value(SessionKeysStore.PLAYER_2_TABLE_PATH, str(p2_character.get("attack_table_path", "")))
+	SessionStateStore.set_value(SessionKeysStore.PLAYER_1_NAME, str(p1_character.get("name", "Player 1")))
+	SessionStateStore.set_value(SessionKeysStore.PLAYER_2_NAME, str(p2_character.get("name", "Player 2")))
 	if match_mode == "story":
-		SessionStateStore.set_value(STORY_SESSION_KEY_ROUND_INDEX, 0)
+		SessionStateStore.set_value(SessionKeysStore.STORY_ROUND_INDEX, 0)
 	else:
-		SessionStateStore.clear_keys(PackedStringArray([STORY_SESSION_KEY_ROUND_INDEX]))
+		SessionStateStore.clear_keys(PackedStringArray([SessionKeysStore.STORY_ROUND_INDEX]))
 
 func _initialize_control_preset() -> void:
 	var saved_preset := GameSettingsStore.get_control_preset()
