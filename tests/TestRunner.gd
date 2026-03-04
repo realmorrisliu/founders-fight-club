@@ -46,6 +46,7 @@ func _run_smoke_suite() -> void:
 	await _test_training_timer_visibility()
 	await _test_training_quick_start_hint_renders()
 	await _test_control_preset_profiles()
+	await _test_video_settings_profiles()
 	await _test_directional_attack_variants()
 	await _test_local_dual_gamepad_input_actions()
 	await _test_forward_tap_triggers_ground_dash()
@@ -710,6 +711,40 @@ func _test_control_preset_profiles() -> void:
 	_assert_true(GameSettingsStore.get_control_preset() == GameSettingsStore.CONTROL_PRESET_CLASSIC, "control preset persists to user settings")
 	GameSettingsStore.set_control_preset(GameSettingsStore.CONTROL_PRESET_MODERN)
 	_assert_true(GameSettingsStore.get_control_preset() == GameSettingsStore.CONTROL_PRESET_MODERN, "control preset can switch back to modern")
+
+func _test_video_settings_profiles() -> void:
+	var original_settings := GameSettingsStore.get_video_settings()
+	var original_mode := GameSettingsStore.normalize_window_mode(str(original_settings.get("window_mode", GameSettingsStore.WINDOW_MODE_WINDOWED)))
+	var original_resolution := GameSettingsStore.DEFAULT_RESOLUTION
+	var original_resolution_value: Variant = original_settings.get("resolution", GameSettingsStore.DEFAULT_RESOLUTION)
+	if original_resolution_value is Vector2i:
+		original_resolution = GameSettingsStore.normalize_resolution(original_resolution_value as Vector2i)
+
+	GameSettingsStore.set_video_settings(GameSettingsStore.WINDOW_MODE_WINDOWED, Vector2i(1600, 900))
+	var updated_windowed := GameSettingsStore.get_video_settings()
+	_assert_true(
+		str(updated_windowed.get("window_mode", "")) == GameSettingsStore.WINDOW_MODE_WINDOWED,
+		"video settings persist selected windowed mode"
+	)
+	var windowed_resolution_value: Variant = updated_windowed.get("resolution", Vector2i.ZERO)
+	_assert_true(
+		windowed_resolution_value is Vector2i and (windowed_resolution_value as Vector2i) == Vector2i(1600, 900),
+		"video settings persist selected windowed resolution"
+	)
+
+	GameSettingsStore.set_video_settings(GameSettingsStore.WINDOW_MODE_FULLSCREEN, Vector2i(1920, 1080))
+	var updated_fullscreen := GameSettingsStore.get_video_settings()
+	_assert_true(
+		str(updated_fullscreen.get("window_mode", "")) == GameSettingsStore.WINDOW_MODE_FULLSCREEN,
+		"video settings persist selected fullscreen mode"
+	)
+	var fullscreen_resolution_value: Variant = updated_fullscreen.get("resolution", Vector2i.ZERO)
+	_assert_true(
+		fullscreen_resolution_value is Vector2i and (fullscreen_resolution_value as Vector2i) == Vector2i(1920, 1080),
+		"video settings keep preferred resolution while fullscreen"
+	)
+
+	GameSettingsStore.set_video_settings(original_mode, original_resolution)
 
 func _action_has_keyboard_key(action_name: String, keycode: int) -> bool:
 	if not InputMap.has_action(action_name):

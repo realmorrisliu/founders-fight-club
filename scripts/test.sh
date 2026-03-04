@@ -49,7 +49,9 @@ fi
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 godot_bin="$(resolve_godot_bin)"
 user_data_dir="$repo_root/.godot-user"
+test_home_dir="${GODOT_TEST_HOME:-$repo_root/.godot-test-home}"
 mkdir -p "$user_data_dir/logs"
+mkdir -p "$test_home_dir"
 log_file="$user_data_dir/logs/test.log"
 rm -f "$log_file"
 
@@ -64,7 +66,7 @@ find_errors() {
 
 printf 'Running %s suite with %s\n' "$suite" "$godot_bin"
 set +e
-"$godot_bin" --headless --path "$repo_root" --log-file "$log_file" --script "res://tests/TestRunner.gd" -- --suite "$suite"
+HOME="$test_home_dir" "$godot_bin" --headless --path "$repo_root" --log-file "$log_file" --script "res://tests/TestRunner.gd" -- --suite "$suite"
 status=$?
 set -e
 

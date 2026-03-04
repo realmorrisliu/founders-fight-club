@@ -8,6 +8,13 @@ const SessionStateStore := preload("res://scripts/SessionState.gd")
 const VS_SCENE_PATH := "res://scenes/Main.tscn"
 const STORY_SCENE_PATH := "res://scenes/Story.tscn"
 const TRAINING_SCENE_PATH := "res://scenes/Training.tscn"
+const WINDOW_MODE_OPTIONS := [
+	GameSettingsStore.WINDOW_MODE_WINDOWED,
+	GameSettingsStore.WINDOW_MODE_MAXIMIZED,
+	GameSettingsStore.WINDOW_MODE_FULLSCREEN,
+	GameSettingsStore.WINDOW_MODE_BORDERLESS
+]
+const RESOLUTION_OPTIONS := GameSettingsStore.RESOLUTION_OPTIONS
 const ARCHETYPE_BY_CHARACTER_ID := {
 	"elon_mvsk": "zoner",
 	"mark_zuck": "counter",
@@ -32,8 +39,11 @@ const ARCHETYPE_BY_CHARACTER_ID := {
 
 var character_options: Array[Dictionary] = CharacterCatalogStore.get_selectable_roster()
 var current_control_preset := GameSettingsStore.CONTROL_PRESET_MODERN
+var current_window_mode := GameSettingsStore.WINDOW_MODE_WINDOWED
+var current_resolution := GameSettingsStore.DEFAULT_RESOLUTION
 var main_menu_interactive := true
 var character_profile_cache: Array[Dictionary] = []
+var is_refreshing_video_options := false
 
 @onready var title_label := $CenterPanel/TitleLabel
 @onready var subtitle_label := $CenterPanel/SubtitleLabel
@@ -48,6 +58,11 @@ var character_profile_cache: Array[Dictionary] = []
 @onready var training_button := $CenterPanel/TrainingButton
 @onready var control_style_label := $CenterPanel/ControlStyleLabel
 @onready var control_style_button := $CenterPanel/ControlStyleButton
+@onready var video_settings_label := $CenterPanel/VideoSettingsLabel
+@onready var window_mode_label := $CenterPanel/WindowModeLabel
+@onready var window_mode_option := $CenterPanel/WindowModeOption
+@onready var resolution_label := $CenterPanel/ResolutionLabel
+@onready var resolution_option := $CenterPanel/ResolutionOption
 @onready var lang_label := $CenterPanel/LanguageLabel
 @onready var lang_en_button := $CenterPanel/LangEnButton
 @onready var lang_zh_button := $CenterPanel/LangZhButton
@@ -68,12 +83,15 @@ func _ready() -> void:
 	control_style_button.pressed.connect(_on_control_style_button_pressed)
 	lang_en_button.pressed.connect(func(): _set_locale("en"))
 	lang_zh_button.pressed.connect(func(): _set_locale("zh"))
+	window_mode_option.item_selected.connect(_on_window_mode_option_selected)
+	resolution_option.item_selected.connect(_on_resolution_option_selected)
 	p1_character_option.item_selected.connect(func(_index: int): _refresh_character_profile_preview())
 	p2_character_option.item_selected.connect(func(_index: int): _refresh_character_profile_preview())
 	first_launch_classic_button.pressed.connect(func(): _on_first_launch_preset_selected(GameSettingsStore.CONTROL_PRESET_CLASSIC))
 	first_launch_modern_button.pressed.connect(func(): _on_first_launch_preset_selected(GameSettingsStore.CONTROL_PRESET_MODERN))
 	_populate_character_options()
 	_initialize_control_preset()
+	_initialize_video_settings()
 	_refresh_text()
 
 func _notification(what: int) -> void:
@@ -110,6 +128,10 @@ func _refresh_text() -> void:
 	training_button.text = tr("MENU_TRAINING")
 	control_style_label.text = tr("MENU_CONTROL_STYLE")
 	control_style_button.text = _resolve_control_preset_label(current_control_preset)
+	video_settings_label.text = _resolve_menu_text("MENU_VIDEO_SETTINGS", "Video")
+	window_mode_label.text = _resolve_menu_text("MENU_WINDOW_MODE", "Window Mode")
+	resolution_label.text = _resolve_menu_text("MENU_RESOLUTION", "Resolution")
+	_refresh_video_options()
 	lang_label.text = tr("PAUSE_LANGUAGE")
 	lang_en_button.text = tr("PAUSE_LANG_EN")
 	lang_zh_button.text = tr("PAUSE_LANG_ZH")
@@ -124,6 +146,8 @@ func _refresh_text() -> void:
 	story_button.disabled = not main_menu_interactive
 	training_button.disabled = not main_menu_interactive
 	control_style_button.disabled = not main_menu_interactive
+	window_mode_option.disabled = not main_menu_interactive
+	resolution_option.disabled = not main_menu_interactive or not _is_resolution_editable(current_window_mode)
 	p1_character_option.disabled = not main_menu_interactive
 	p2_character_option.disabled = not main_menu_interactive
 	_refresh_character_profile_preview()
@@ -276,6 +300,80 @@ func _initialize_control_preset() -> void:
 	first_launch_overlay.visible = false
 	_set_main_menu_interactive(true)
 
+func _initialize_video_settings() -> void:
+	var settings := GameSettingsStore.get_video_settings()
+	current_window_mode = GameSettingsStore.normalize_window_mode(str(settings.get("window_mode", GameSettingsStore.WINDOW_MODE_WINDOWED)))
+	var resolution_value: Variant = settings.get("resolution", GameSettingsStore.DEFAULT_RESOLUTION)
+	if resolution_value is Vector2i:
+		current_resolution = GameSettingsStore.normalize_resolution(resolution_value as Vector2i)
+	else:
+		current_resolution = GameSettingsStore.DEFAULT_RESOLUTION
+	_refresh_video_options()
+	GameSettingsStore.apply_video_settings(current_window_mode, current_resolution)
+
+func _refresh_video_options() -> void:
+	if window_mode_option == null or resolution_option == null:
+		return
+	is_refreshing_video_options = true
+	window_mode_option.clear()
+	for window_mode in WINDOW_MODE_OPTIONS:
+		window_mode_option.add_item(_resolve_window_mode_label(str(window_mode)))
+	var window_mode_index := WINDOW_MODE_OPTIONS.find(current_window_mode)
+	if window_mode_index < 0:
+		window_mode_index = 0
+		current_window_mode = str(WINDOW_MODE_OPTIONS[window_mode_index])
+	window_mode_option.select(window_mode_index)
+
+	resolution_option.clear()
+	for resolution in RESOLUTION_OPTIONS:
+		if resolution is Vector2i:
+			resolution_option.add_item(GameSettingsStore.resolution_to_string(resolution as Vector2i))
+	var resolution_index := _find_resolution_option_index(current_resolution)
+	if resolution_index < 0:
+		resolution_index = 0
+		current_resolution = GameSettingsStore.normalize_resolution(RESOLUTION_OPTIONS[resolution_index] as Vector2i)
+	resolution_option.select(resolution_index)
+	resolution_option.disabled = not main_menu_interactive or not _is_resolution_editable(current_window_mode)
+	is_refreshing_video_options = false
+
+func _find_resolution_option_index(resolution: Vector2i) -> int:
+	var normalized := GameSettingsStore.normalize_resolution(resolution)
+	for index in range(RESOLUTION_OPTIONS.size()):
+		var item: Variant = RESOLUTION_OPTIONS[index]
+		if item is Vector2i and (item as Vector2i) == normalized:
+			return index
+	return -1
+
+func _on_window_mode_option_selected(index: int) -> void:
+	if is_refreshing_video_options:
+		return
+	if index < 0 or index >= WINDOW_MODE_OPTIONS.size():
+		return
+	current_window_mode = str(WINDOW_MODE_OPTIONS[index])
+	_apply_video_settings(true)
+	_refresh_text()
+
+func _on_resolution_option_selected(index: int) -> void:
+	if is_refreshing_video_options:
+		return
+	if index < 0 or index >= RESOLUTION_OPTIONS.size():
+		return
+	var selected: Variant = RESOLUTION_OPTIONS[index]
+	if selected is not Vector2i:
+		return
+	current_resolution = GameSettingsStore.normalize_resolution(selected as Vector2i)
+	_apply_video_settings(true)
+	_refresh_text()
+
+func _apply_video_settings(persist: bool) -> void:
+	if persist:
+		GameSettingsStore.set_video_settings(current_window_mode, current_resolution)
+	else:
+		GameSettingsStore.apply_video_settings(current_window_mode, current_resolution)
+
+func _is_resolution_editable(window_mode: String) -> bool:
+	return window_mode == GameSettingsStore.WINDOW_MODE_WINDOWED
+
 func _on_control_style_button_pressed() -> void:
 	var next_preset := GameSettingsStore.CONTROL_PRESET_CLASSIC if current_control_preset == GameSettingsStore.CONTROL_PRESET_MODERN else GameSettingsStore.CONTROL_PRESET_MODERN
 	_apply_control_preset(next_preset, true)
@@ -293,6 +391,8 @@ func _set_main_menu_interactive(enabled: bool) -> void:
 	story_button.disabled = not enabled
 	training_button.disabled = not enabled
 	control_style_button.disabled = not enabled
+	window_mode_option.disabled = not enabled
+	resolution_option.disabled = not enabled or not _is_resolution_editable(current_window_mode)
 	lang_en_button.disabled = not enabled or TranslationServer.get_locale().begins_with("en")
 	lang_zh_button.disabled = not enabled or TranslationServer.get_locale().begins_with("zh")
 	p1_character_option.disabled = not enabled
@@ -311,6 +411,17 @@ func _resolve_control_preset_label(preset: String) -> String:
 	if preset == GameSettingsStore.CONTROL_PRESET_CLASSIC:
 		return tr("MENU_CONTROL_STYLE_CLASSIC")
 	return tr("MENU_CONTROL_STYLE_MODERN")
+
+func _resolve_window_mode_label(window_mode: String) -> String:
+	match window_mode:
+		GameSettingsStore.WINDOW_MODE_MAXIMIZED:
+			return _resolve_menu_text("MENU_WINDOW_MODE_MAXIMIZED", "Maximized")
+		GameSettingsStore.WINDOW_MODE_FULLSCREEN:
+			return _resolve_menu_text("MENU_WINDOW_MODE_FULLSCREEN", "Fullscreen")
+		GameSettingsStore.WINDOW_MODE_BORDERLESS:
+			return _resolve_menu_text("MENU_WINDOW_MODE_BORDERLESS", "Borderless")
+		_:
+			return _resolve_menu_text("MENU_WINDOW_MODE_WINDOWED", "Windowed")
 
 func _resolve_menu_text(key: String, fallback: String) -> String:
 	var value := tr(key)

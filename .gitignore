@@ -1,6 +1,7 @@
 .godot/
 .godot-home/
 .godot-user/
+.godot-test-home/
 __pycache__/
 *.pyc
 .DS_Store
