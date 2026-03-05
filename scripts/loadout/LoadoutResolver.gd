@@ -10,10 +10,11 @@ static func resolve_character_loadout(character_id: String, requested_loadout: D
 	var requested := requested_loadout.duplicate(true)
 	if requested.is_empty():
 		requested = LoadoutCatalogStore.get_default_loadout(normalized_character_id)
-	var validation := LoadoutValidatorStore.validate_loadout(normalized_character_id, requested)
+	var requested_validation := LoadoutValidatorStore.validate_loadout(normalized_character_id, requested)
+	var validation := requested_validation.duplicate(true)
 	var selected_loadout := requested
 	var used_fallback := false
-	if not bool(validation.get("is_valid", false)):
+	if not bool(requested_validation.get("is_valid", false)):
 		selected_loadout = LoadoutCatalogStore.get_default_loadout(normalized_character_id)
 		validation = LoadoutValidatorStore.validate_loadout(normalized_character_id, selected_loadout)
 		used_fallback = true
@@ -28,11 +29,12 @@ static func resolve_character_loadout(character_id: String, requested_loadout: D
 		"character_id": normalized_character_id,
 		"loadout": selected_loadout.duplicate(true),
 		"used_fallback": used_fallback,
+		"requested_validation": requested_validation.duplicate(true),
 		"validation": validation.duplicate(true),
 		"attack_overrides": attack_overrides,
 		"item_runtime": item_runtime,
 		"passive_runtime": passive_runtime,
-		"summary": _build_summary(skills, item, passive, validation)
+		"summary": _build_summary(skills, item, passive, validation, used_fallback)
 	}
 
 static func build_item_runtime_from_definition(character_id: String, item_id: String) -> Dictionary:
@@ -89,7 +91,13 @@ static func _build_passive_runtime(passive_entry: Dictionary) -> Dictionary:
 		"effect_payload": (passive_entry.get("effect_payload", {}) as Dictionary).duplicate(true)
 	}
 
-static func _build_summary(skills: Dictionary, item: Dictionary, passive: Dictionary, validation: Dictionary) -> Dictionary:
+static func _build_summary(
+	skills: Dictionary,
+	item: Dictionary,
+	passive: Dictionary,
+	validation: Dictionary,
+	used_fallback: bool
+) -> Dictionary:
 	return {
 		"signature_a": str((skills.get("signature_a", {}) as Dictionary).get("display_name_fallback", "Signature A")),
 		"signature_b": str((skills.get("signature_b", {}) as Dictionary).get("display_name_fallback", "Signature B")),
@@ -98,5 +106,6 @@ static func _build_summary(skills: Dictionary, item: Dictionary, passive: Dictio
 		"passive": str(passive.get("display_name_fallback", "Passive")),
 		"total_cost": int(validation.get("total_cost", 0)),
 		"budget_cap": int(validation.get("budget_cap", 0)),
-		"is_valid": bool(validation.get("is_valid", false))
+		"is_valid": bool(validation.get("is_valid", false)),
+		"used_fallback": used_fallback
 	}

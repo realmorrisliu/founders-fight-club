@@ -46,14 +46,15 @@ static func _apply_patch(item_runtime: Dictionary, patch: Dictionary) -> void:
 			float(item_runtime.get("trigger_value", 1.0)) + float(patch.get("trigger_value_delta", 0.0))
 		)
 	if patch.has("max_charges_delta"):
-		item_runtime["max_charges"] = maxi(
-			1,
-			int(item_runtime.get("max_charges", 1)) + int(patch.get("max_charges_delta", 0))
-		)
-		item_runtime["charges_remaining"] = mini(
-			int(item_runtime.get("charges_remaining", 1)),
-			int(item_runtime.get("max_charges", 1))
-		)
+		var previous_max_charges := maxi(1, int(item_runtime.get("max_charges", 1)))
+		var previous_remaining := clampi(int(item_runtime.get("charges_remaining", previous_max_charges)), 0, previous_max_charges)
+		var delta_charges := int(patch.get("max_charges_delta", 0))
+		var updated_max_charges := maxi(1, previous_max_charges + delta_charges)
+		item_runtime["max_charges"] = updated_max_charges
+		if delta_charges > 0:
+			item_runtime["charges_remaining"] = mini(updated_max_charges, previous_remaining + delta_charges)
+		else:
+			item_runtime["charges_remaining"] = mini(previous_remaining, updated_max_charges)
 	if patch.has("effect_payload_patch"):
 		var payload_value: Variant = item_runtime.get("effect_payload", {})
 		var payload: Dictionary = {}
