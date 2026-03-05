@@ -11,6 +11,8 @@ const LoadoutValidatorStore := preload("res://scripts/loadout/LoadoutValidator.g
 const VS_SCENE_PATH := "res://scenes/Main.tscn"
 const STORY_SCENE_PATH := "res://scenes/Story.tscn"
 const TRAINING_SCENE_PATH := "res://scenes/Training.tscn"
+const MENU_METRICS_LOG_PATH := "user://menu_metrics.jsonl"
+const MENU_METRICS_SCHEMA_VERSION := 1
 const WINDOW_MODE_OPTIONS := [
 	GameSettingsStore.WINDOW_MODE_WINDOWED,
 	GameSettingsStore.WINDOW_MODE_MAXIMIZED,
@@ -68,6 +70,7 @@ var current_p2_preset_id := ""
 @onready var versus_button := $CenterPanel/VersusButton
 @onready var story_button := $CenterPanel/StoryButton
 @onready var training_button := $CenterPanel/TrainingButton
+@onready var guided_start_button := $CenterPanel/GuidedStartButton
 @onready var control_style_label := $CenterPanel/ControlStyleLabel
 @onready var control_style_button := $CenterPanel/ControlStyleButton
 @onready var video_settings_label := $CenterPanel/VideoSettingsLabel
@@ -92,6 +95,7 @@ func _ready() -> void:
 	versus_button.pressed.connect(_on_versus_pressed)
 	story_button.pressed.connect(_on_story_pressed)
 	training_button.pressed.connect(_on_training_pressed)
+	guided_start_button.pressed.connect(_on_guided_start_pressed)
 	control_style_button.pressed.connect(_on_control_style_button_pressed)
 	lang_en_button.pressed.connect(func(): _set_locale("en"))
 	lang_zh_button.pressed.connect(func(): _set_locale("zh"))
@@ -114,15 +118,31 @@ func _notification(what: int) -> void:
 		_refresh_text()
 
 func _on_versus_pressed() -> void:
+	_clear_onboarding_replay_session_flags()
 	_store_character_selection("vs")
+	SessionStateStore.set_value(SessionKeysStore.ONBOARDING_ENTRY_POINT, "vs")
+	_append_menu_metrics_log("enter_vs")
 	get_tree().change_scene_to_file(VS_SCENE_PATH)
 
 func _on_story_pressed() -> void:
+	_clear_onboarding_replay_session_flags()
 	_store_character_selection("story")
+	SessionStateStore.set_value(SessionKeysStore.ONBOARDING_ENTRY_POINT, "story")
+	_append_menu_metrics_log("enter_story")
 	get_tree().change_scene_to_file(STORY_SCENE_PATH)
 
 func _on_training_pressed() -> void:
+	_clear_onboarding_replay_session_flags()
 	_store_character_selection("training")
+	SessionStateStore.set_value(SessionKeysStore.ONBOARDING_ENTRY_POINT, "training")
+	_append_menu_metrics_log("enter_training")
+	get_tree().change_scene_to_file(TRAINING_SCENE_PATH)
+
+func _on_guided_start_pressed() -> void:
+	_store_character_selection("training")
+	SessionStateStore.set_value(SessionKeysStore.ONBOARDING_FORCE_REPLAY, true)
+	SessionStateStore.set_value(SessionKeysStore.ONBOARDING_ENTRY_POINT, "guided_start")
+	_append_menu_metrics_log("enter_guided_start")
 	get_tree().change_scene_to_file(TRAINING_SCENE_PATH)
 
 func _set_locale(locale: String) -> void:
@@ -133,13 +153,17 @@ func _set_locale(locale: String) -> void:
 
 func _refresh_text() -> void:
 	title_label.text = tr("MENU_TITLE")
-	subtitle_label.text = tr("MENU_SUBTITLE")
+	subtitle_label.text = _resolve_menu_text(
+		"MENU_SUBTITLE",
+		"Flow: Pick character + loadout -> choose mode -> start match."
+	)
 	p1_character_label.text = _resolve_menu_text("MENU_P1_CHARACTER", "P1 Character")
-	p2_character_label.text = _resolve_menu_text("MENU_P2_CHARACTER", "P2 Character")
+	p2_character_label.text = _resolve_menu_text("MENU_P2_CHARACTER_VS_ONLY", "Opponent Character (VS/Training)")
 	p1_profile_label.text = _resolve_menu_text("MENU_PROFILE_LOADING", "Loading profile...")
 	p2_profile_label.text = _resolve_menu_text("MENU_PROFILE_LOADING", "Loading profile...")
+	guided_start_button.text = _resolve_menu_text("MENU_GUIDED_START", "Guided Start (Training)")
 	versus_button.text = tr("MENU_VERSUS")
-	story_button.text = _resolve_menu_text("MENU_STORY", "Story Mode")
+	story_button.text = _resolve_menu_text("MENU_STORY_AUTO_RIVAL_BUTTON", "Story (Auto Rival)")
 	training_button.text = tr("MENU_TRAINING")
 	control_style_label.text = tr("MENU_CONTROL_STYLE")
 	control_style_button.text = _resolve_control_preset_label(current_control_preset)
@@ -148,6 +172,7 @@ func _refresh_text() -> void:
 	resolution_label.text = _resolve_menu_text("MENU_RESOLUTION", "Resolution")
 	_refresh_video_options()
 	_refresh_loadout_options()
+	_refresh_mode_hint_tooltips()
 	lang_label.text = tr("PAUSE_LANGUAGE")
 	lang_en_button.text = tr("PAUSE_LANG_EN")
 	lang_zh_button.text = tr("PAUSE_LANG_ZH")
@@ -161,6 +186,7 @@ func _refresh_text() -> void:
 	versus_button.disabled = not main_menu_interactive
 	story_button.disabled = not main_menu_interactive
 	training_button.disabled = not main_menu_interactive
+	guided_start_button.disabled = not main_menu_interactive
 	control_style_button.disabled = not main_menu_interactive
 	window_mode_option.disabled = not main_menu_interactive
 	resolution_option.disabled = not main_menu_interactive or not _is_resolution_editable(current_window_mode)
@@ -256,22 +282,32 @@ func _build_profile_preview_text(index: int, player_key: String) -> String:
 	var row_template := tr("MENU_PROFILE_ROW")
 	if row_template.find("%") == -1:
 		row_template = "%s | %s / %s"
-	var hint_template := tr("MENU_PROFILE_HINT_ROW")
-	if hint_template.find("%") == -1:
-		hint_template = "%s"
-	var hint_text := tr(str(profile.get("archetype_hint_key", "ARCHETYPE_HINT_ALL_ROUNDER")))
-	var loadout_text := _build_loadout_summary_line(player_key)
-	return "%s\n%s\n%s" % [
-		row_template % [archetype_label, signature_primary, signature_alt],
-		hint_template % [hint_text],
-		loadout_text
-	]
+	var base_text := row_template % [archetype_label, signature_primary, signature_alt]
+	var loadout_brief := _build_profile_loadout_brief(player_key, str(profile.get("character_id", "")))
+	if loadout_brief == "":
+		return base_text
+	return "%s | %s" % [base_text, loadout_brief]
 
 func _build_profile_hint_text(index: int) -> String:
 	if index < 0 or index >= character_profile_cache.size():
 		return ""
 	var profile := character_profile_cache[index]
 	return tr(str(profile.get("archetype_hint_key", "ARCHETYPE_HINT_ALL_ROUNDER")))
+
+func _build_profile_loadout_brief(player_key: String, character_id: String) -> String:
+	if character_id == "":
+		return ""
+	var current_loadout := _resolve_current_loadout_for_player(player_key, character_id)
+	var resolved := LoadoutResolverStore.resolve_character_loadout(character_id, current_loadout)
+	var summary := resolved.get("summary", {}) as Dictionary
+	var total_cost := int(summary.get("total_cost", 0))
+	var budget_cap := int(summary.get("budget_cap", LoadoutCatalogStore.get_budget_cap()))
+	var cost_label := _resolve_menu_text("MENU_LOADOUT_INLINE_COST_LABEL", "Loadout")
+	var text := "%s %d/%d" % [cost_label, total_cost, budget_cap]
+	if bool(resolved.get("used_fallback", false)):
+		var fallback_inline := _resolve_menu_text("MENU_LOADOUT_FALLBACK_INLINE", "Default Applied")
+		return "%s (%s)" % [text, fallback_inline]
+	return text
 
 func _resolve_archetype_label(archetype_key: String) -> String:
 	match archetype_key:
@@ -327,6 +363,47 @@ func _store_character_selection(match_mode: String) -> void:
 		SessionStateStore.set_value(SessionKeysStore.STORY_ROUND_INDEX, 0)
 	else:
 		SessionStateStore.clear_keys(PackedStringArray([SessionKeysStore.STORY_ROUND_INDEX]))
+
+func _clear_onboarding_replay_session_flags() -> void:
+	SessionStateStore.clear_keys(
+		PackedStringArray([
+			SessionKeysStore.ONBOARDING_FORCE_REPLAY,
+			SessionKeysStore.ONBOARDING_ENTRY_POINT
+		])
+	)
+
+func _append_menu_metrics_log(event_name: String) -> void:
+	if event_name.strip_edges() == "":
+		return
+	var p1_character_id := _get_selected_character_id("p1")
+	var p2_character_id := _get_selected_character_id("p2")
+	var p1_loadout := _resolve_selected_loadout("p1", p1_character_id)
+	var p2_loadout := _resolve_selected_loadout("p2", p2_character_id)
+	var p1_resolved := LoadoutResolverStore.resolve_character_loadout(p1_character_id, p1_loadout)
+	var p2_resolved := LoadoutResolverStore.resolve_character_loadout(p2_character_id, p2_loadout)
+	var record := {
+		"schema_version": MENU_METRICS_SCHEMA_VERSION,
+		"timestamp_utc": Time.get_datetime_string_from_system(true),
+		"event": event_name,
+		"locale": TranslationServer.get_locale(),
+		"control_preset": current_control_preset,
+		"window_mode": current_window_mode,
+		"resolution": GameSettingsStore.resolution_to_string(current_resolution),
+		"p1_character_id": p1_character_id,
+		"p2_character_id": p2_character_id,
+		"p1_loadout_fallback": bool(p1_resolved.get("used_fallback", false)),
+		"p2_loadout_fallback": bool(p2_resolved.get("used_fallback", false))
+	}
+	var line := JSON.stringify(record)
+	if line == "":
+		return
+	var file := FileAccess.open(MENU_METRICS_LOG_PATH, FileAccess.READ_WRITE)
+	if file == null:
+		file = FileAccess.open(MENU_METRICS_LOG_PATH, FileAccess.WRITE)
+	if file == null:
+		return
+	file.seek_end()
+	file.store_string("%s\n" % line)
 
 func _resolve_selected_loadout(player_key: String, character_id: String) -> Dictionary:
 	var current := current_p1_loadout if player_key == "p1" else current_p2_loadout
@@ -435,6 +512,7 @@ func _set_main_menu_interactive(enabled: bool) -> void:
 	versus_button.disabled = not enabled
 	story_button.disabled = not enabled
 	training_button.disabled = not enabled
+	guided_start_button.disabled = not enabled
 	control_style_button.disabled = not enabled
 	window_mode_option.disabled = not enabled
 	resolution_option.disabled = not enabled or not _is_resolution_editable(current_window_mode)
@@ -504,6 +582,7 @@ func _refresh_loadout_option_for_player(player_key: String) -> void:
 		else:
 			current_p2_preset_id = ""
 			current_p2_loadout = {}
+		option_button.tooltip_text = _build_loadout_tooltip(character_id, {})
 		is_refreshing_loadout_options = false
 		return
 	option_button.select(selected_index)
@@ -516,9 +595,11 @@ func _refresh_loadout_option_for_player(player_key: String) -> void:
 		current_p2_preset_id = str(selected_preset.get("id", ""))
 		current_p2_loadout = selected_loadout
 	option_button.disabled = not main_menu_interactive
+	_refresh_loadout_tooltip_for_player(player_key)
 	is_refreshing_loadout_options = false
 
 func _resolve_loadout_preset_label(character_id: String, preset: Dictionary) -> String:
+	var preset_prefix := _resolve_menu_text("MENU_LOADOUT_PRESET_PREFIX", "Preset")
 	var fallback_name := str(preset.get("display_name_fallback", "Preset"))
 	var key := str(preset.get("display_name_key", ""))
 	var name := fallback_name
@@ -528,7 +609,7 @@ func _resolve_loadout_preset_label(character_id: String, preset: Dictionary) -> 
 	var validation := LoadoutValidatorStore.validate_loadout(character_id, loadout)
 	var total_cost := int(validation.get("total_cost", 0))
 	var budget_cap := int(validation.get("budget_cap", LoadoutCatalogStore.get_budget_cap()))
-	return "%s (%d/%d)" % [name, total_cost, budget_cap]
+	return "%s: %s (%d/%d)" % [preset_prefix, name, total_cost, budget_cap]
 
 func _get_selected_character_id(player_key: String) -> String:
 	if character_options.is_empty():
@@ -561,6 +642,7 @@ func _on_p1_loadout_option_selected(index: int) -> void:
 	var preset := p1_loadout_presets[index]
 	current_p1_preset_id = str(preset.get("id", ""))
 	current_p1_loadout = (preset.get("loadout", {}) as Dictionary).duplicate(true)
+	_refresh_loadout_tooltip_for_player("p1")
 	_refresh_character_profile_preview()
 
 func _on_p2_loadout_option_selected(index: int) -> void:
@@ -571,10 +653,41 @@ func _on_p2_loadout_option_selected(index: int) -> void:
 	var preset := p2_loadout_presets[index]
 	current_p2_preset_id = str(preset.get("id", ""))
 	current_p2_loadout = (preset.get("loadout", {}) as Dictionary).duplicate(true)
+	_refresh_loadout_tooltip_for_player("p2")
 	_refresh_character_profile_preview()
 
-func _build_loadout_summary_line(player_key: String) -> String:
+func _refresh_mode_hint_tooltips() -> void:
+	var story_hint := _resolve_menu_text(
+		"MENU_STORY_AUTO_RIVAL_HINT",
+		"Story uses an automatic rival ladder. Opponent selection applies to Local VS and Training."
+	)
+	var versus_hint := _resolve_menu_text(
+		"MENU_VERSUS_HINT",
+		"Two local players share one screen. Best for immediate sparring."
+	)
+	var training_hint := _resolve_menu_text(
+		"MENU_TRAINING_HINT",
+		"Practice dummy behavior, frame advantage, and move timing."
+	)
+	var guided_hint := _resolve_menu_text(
+		"MENU_GUIDED_START_HINT",
+		"Starts Training with the onboarding sequence replayed from Step 1."
+	)
+	versus_button.tooltip_text = versus_hint
+	story_button.tooltip_text = story_hint
+	training_button.tooltip_text = training_hint
+	guided_start_button.tooltip_text = guided_hint
+	p2_character_option.tooltip_text = story_hint
+
+func _refresh_loadout_tooltip_for_player(player_key: String) -> void:
 	var character_id := _get_selected_character_id(player_key)
+	var current_loadout := _resolve_current_loadout_for_player(player_key, character_id)
+	var option_button := p1_loadout_option if player_key == "p1" else p2_loadout_option
+	if option_button == null:
+		return
+	option_button.tooltip_text = _build_loadout_tooltip(character_id, current_loadout)
+
+func _resolve_current_loadout_for_player(player_key: String, character_id: String) -> Dictionary:
 	var current_loadout: Dictionary = {}
 	if player_key == "p1":
 		current_loadout = current_p1_loadout.duplicate(true)
@@ -582,12 +695,44 @@ func _build_loadout_summary_line(player_key: String) -> String:
 		current_loadout = current_p2_loadout.duplicate(true)
 	if current_loadout.is_empty():
 		current_loadout = LoadoutCatalogStore.get_default_loadout(character_id)
-	var resolved := LoadoutResolverStore.resolve_character_loadout(character_id, current_loadout)
+	return current_loadout
+
+func _build_loadout_tooltip(character_id: String, loadout: Dictionary) -> String:
+	var resolved := LoadoutResolverStore.resolve_character_loadout(character_id, loadout)
 	var summary := resolved.get("summary", {}) as Dictionary
+	var used_fallback := bool(resolved.get("used_fallback", false))
+	var slot_hint := _resolve_menu_text(
+		"MENU_LOADOUT_SLOT_HINT",
+		"Loadout slots: 2 signatures + 1 ultimate + item + passive."
+	)
+	var status_text := _resolve_menu_text("MENU_LOADOUT_STATUS_READY", "Status: Ready")
+	if used_fallback:
+		status_text = _resolve_menu_text("MENU_LOADOUT_STATUS_FALLBACK", "Status: Fallback Applied")
+	var signature_a_name := str(summary.get("signature_a", "Signature A"))
+	var signature_b_name := str(summary.get("signature_b", "Signature B"))
+	var ultimate_name := str(summary.get("ultimate", "Ultimate"))
 	var item_name := str(summary.get("item", "Item"))
+	var passive_name := str(summary.get("passive", "Passive"))
 	var total_cost := int(summary.get("total_cost", 0))
 	var budget_cap := int(summary.get("budget_cap", LoadoutCatalogStore.get_budget_cap()))
-	return "%s [%d/%d]" % [item_name, total_cost, budget_cap]
+	var tooltip := "%s | %s\nA: %s | B: %s | U: %s\nItem: %s | Passive: %s\nCost: %d/%d" % [
+		slot_hint,
+		status_text,
+		signature_a_name,
+		signature_b_name,
+		ultimate_name,
+		item_name,
+		passive_name,
+		total_cost,
+		budget_cap
+	]
+	if used_fallback:
+		var fallback_hint := _resolve_menu_text(
+			"MENU_LOADOUT_FALLBACK_HINT",
+			"Invalid loadout detected. Default preset applied."
+		)
+		return "%s\n%s" % [tooltip, fallback_hint]
+	return tooltip
 
 func _resolve_menu_text(key: String, fallback: String) -> String:
 	var value := tr(key)
