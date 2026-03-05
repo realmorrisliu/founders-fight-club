@@ -3,6 +3,11 @@
 ## [Unreleased] - MVP Implementation
 
 ### Added
+- **Guided Start Path**: Added menu-level `Guided Start (Training)` entry that forces onboarding replay from step 1.
+- **Progressive Onboarding HUD**: Added in-match onboarding panel with step progression, skip, and replay controls.
+- **Onboarding Persistence**: Added settings-backed onboarding completion/hints state in `GameSettings.gd`.
+- **Menu Telemetry Log**: Added `user://menu_metrics.jsonl` events for mode entry and loadout fallback visibility.
+- **Onboarding Execution Doc**: Added `docs/project/ONBOARDING_MENU_EXECUTION_V1.md` with funnel and 14-point delivery map.
 - **Dash**: Added Dash mechanic (Key: `L`) with cooldown and duration logic in `Player.gd`.
 - **Hitstun**: Added Hitstun state (0.18s) preventing input during damage in `Player.gd`.
 - **Hitstop**: Added Global Hitstop (time freeze) on successful hits in `Match.gd`.
@@ -40,6 +45,10 @@
 - **Docs Consistency Pass**: Updated README and AI art docs to reflect current Doubao-first workflow and automation entrypoints.
 
 ### Changed
+- **Match.gd**: Added onboarding state machine, onboarding telemetry payload, and localized onboarding HUD updates.
+- **Match.gd**: Added round tuning anti-snowball lock (`round_tuning_leader_lock_stock_gap`) to reduce runaway leads.
+- **Menu.gd / Menu.tscn**: Reworked onboarding/menu path clarity with guided replay action and mode hints.
+- **HUD**: Added dedicated onboarding panel layout and bilingual text refresh.
 - **Match.gd**: Heavily refactored to handle camera, walls, input, and hitstop.
 - **Player.gd**: Expanded state machine with `block`, `hit_light`, `hit_heavy`, `fall`, and `getup` behavior.
 - **Player.gd**: Split `hit_landed` and `blocked_landed` flow for cleaner combat event handling.

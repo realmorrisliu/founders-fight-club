@@ -68,6 +68,8 @@ Recommended read order for gameplay content:
   - Implementation-ready spec for fixed-slot loadouts, character-linked items, evolution, and round-between tuning
 - `LOADOUT_BALANCE_QA_MATRIX.md`
   - Phase E wave-1 tuning table, balance checklist, and QA coverage matrix for the loadout/item system
+- `ONBOARDING_MENU_EXECUTION_V1.md`
+  - 14-point onboarding/menu optimization delivery plan with funnel, telemetry, and tuning knobs
 - `ENGINEERING_MODULE_GUIDELINES.md`
   - Module boundaries, dependency direction, refactor thresholds, and test gates
 
