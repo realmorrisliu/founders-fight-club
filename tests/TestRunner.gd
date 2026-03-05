@@ -7,6 +7,7 @@ const SessionStateStore := preload("res://scripts/SessionState.gd")
 const LoadoutValidatorStore := preload("res://scripts/loadout/LoadoutValidator.gd")
 const LoadoutResolverStore := preload("res://scripts/loadout/LoadoutResolver.gd")
 const EvolutionEngineStore := preload("res://scripts/loadout/EvolutionEngine.gd")
+const RoundTuningEngineStore := preload("res://scripts/loadout/RoundTuningEngine.gd")
 const REQUIRED_BASE_ATTACKS := ["light", "heavy", "special", "throw"]
 const SUITE_SMOKE := "smoke"
 const SUITE_FULL := "full"
@@ -49,14 +50,20 @@ func _run_smoke_suite() -> void:
 	await _test_pause_panel_menu_route()
 	await _test_training_timer_visibility()
 	await _test_training_quick_start_hint_renders()
+	await _test_onboarding_settings_and_guided_start_surface()
 	await _test_control_preset_profiles()
 	await _test_video_settings_profiles()
 	await _test_loadout_system_foundation()
 	await _test_loadout_session_flow_runtime_apply()
+	await _test_menu_loadout_fallback_surface()
 	await _test_loadout_item_trigger_and_cooldown_runtime()
 	await _test_loadout_item_evolution_boundaries()
 	await _test_loadout_wave1_tuning_profiles_present()
 	await _test_round_tuning_intermission_flow()
+	await _test_round_tuning_simultaneous_stock_fairness()
+	await _test_round_tuning_pick_cap_per_player()
+	await _test_round_tuning_leader_lock_gap()
+	await _test_round_tuning_max_charges_patch_grants_charges()
 	await _test_match_metrics_telemetry_schema()
 	await _test_directional_attack_variants()
 	await _test_local_dual_gamepad_input_actions()
@@ -661,6 +668,8 @@ func _test_training_timer_visibility() -> void:
 
 func _test_training_quick_start_hint_renders() -> void:
 	var previous_locale := TranslationServer.get_locale()
+	var previous_preset := GameSettingsStore.get_control_preset()
+	GameSettingsStore.apply_control_preset(GameSettingsStore.CONTROL_PRESET_MODERN)
 	var training_packed := load("res://scenes/Training.tscn")
 	_assert_true(training_packed is PackedScene, "training scene loads for quick-start hint test")
 	if training_packed is not PackedScene:
@@ -684,11 +693,76 @@ func _test_training_quick_start_hint_renders() -> void:
 			_assert_true(en_hint != "" and en_hint != "HUD_TRAINING_QUICK_HINT", "quick-start hint renders English localized text")
 			_assert_true(zh_hint != "" and zh_hint != "HUD_TRAINING_QUICK_HINT", "quick-start hint renders Chinese localized text")
 			_assert_true(en_hint != zh_hint, "quick-start hint changes with locale switch")
+			_assert_true(en_hint.find("Guard + L") != -1, "quick-start hint explains modern dodge input chord")
 	if is_instance_valid(training_node):
 		training_node.queue_free()
 	await process_frame
+	if previous_preset != "":
+		GameSettingsStore.apply_control_preset(previous_preset)
 	TranslationServer.set_locale(previous_locale)
 	await process_frame
+
+func _test_onboarding_settings_and_guided_start_surface() -> void:
+	var previous_settings := GameSettingsStore.get_onboarding_settings()
+	var previous_completed := bool(previous_settings.get("completed", false))
+	var previous_hints_enabled := bool(previous_settings.get("hints_enabled", true))
+	GameSettingsStore.set_onboarding_completed(false)
+	GameSettingsStore.set_onboarding_hints_enabled(true)
+	var latest_settings := GameSettingsStore.get_onboarding_settings()
+	_assert_true(
+		not bool(latest_settings.get("completed", true)) and bool(latest_settings.get("hints_enabled", false)),
+		"onboarding settings can persist completion and hint toggles"
+	)
+
+	var menu_packed := load("res://scenes/Menu.tscn")
+	_assert_true(menu_packed is PackedScene, "menu scene loads for guided-start surface test")
+	if menu_packed is PackedScene:
+		var menu_node := (menu_packed as PackedScene).instantiate()
+		get_root().add_child(menu_node)
+		await process_frame
+		await process_frame
+		var guided_button := menu_node.get_node_or_null("CenterPanel/GuidedStartButton")
+		_assert_true(guided_button is Button, "menu exposes guided onboarding start button")
+		if guided_button is Button:
+			_assert_true(
+				(guided_button as Button).text.strip_edges() != "",
+				"guided onboarding start button renders readable text"
+			)
+		if is_instance_valid(menu_node):
+			menu_node.queue_free()
+		await process_frame
+
+	SessionStateStore.set_value(SessionKeysStore.MATCH_MODE, "training")
+	SessionStateStore.set_value(SessionKeysStore.ONBOARDING_FORCE_REPLAY, true)
+	SessionStateStore.set_value(SessionKeysStore.ONBOARDING_ENTRY_POINT, "guided_start")
+	var training_packed := load("res://scenes/Training.tscn")
+	_assert_true(training_packed is PackedScene, "training scene loads for forced onboarding replay test")
+	if training_packed is PackedScene:
+		var training_node := (training_packed as PackedScene).instantiate()
+		get_root().add_child(training_node)
+		await process_frame
+		await process_frame
+		var onboarding_panel := training_node.get_node_or_null("Hud/OnboardingPanel")
+		_assert_true(onboarding_panel is CanvasItem, "training HUD exposes onboarding panel")
+		if onboarding_panel is CanvasItem:
+			_assert_true((onboarding_panel as CanvasItem).visible, "forced onboarding replay shows onboarding panel on match start")
+		var step_label := training_node.get_node_or_null("Hud/OnboardingPanel/StepLabel")
+		_assert_true(step_label is Label, "onboarding panel exposes step label")
+		if step_label is Label:
+			_assert_true((step_label as Label).text.strip_edges() != "", "onboarding panel renders active step text")
+		if is_instance_valid(training_node):
+			training_node.queue_free()
+		await process_frame
+
+	GameSettingsStore.set_onboarding_completed(previous_completed)
+	GameSettingsStore.set_onboarding_hints_enabled(previous_hints_enabled)
+	SessionStateStore.clear_keys(
+		PackedStringArray([
+			SessionKeysStore.MATCH_MODE,
+			SessionKeysStore.ONBOARDING_FORCE_REPLAY,
+			SessionKeysStore.ONBOARDING_ENTRY_POINT
+		])
+	)
 
 func _test_control_preset_profiles() -> void:
 	_replace_action_keyboard_keys("jump", [KEY_Z])
@@ -875,6 +949,57 @@ func _test_loadout_session_flow_runtime_apply() -> void:
 		SessionKeysStore.STORY_ROUND_INDEX
 	]))
 
+func _test_menu_loadout_fallback_surface() -> void:
+	var menu_packed := load("res://scenes/Menu.tscn")
+	_assert_true(menu_packed is PackedScene, "menu scene loads for loadout fallback surface test")
+	if menu_packed is not PackedScene:
+		return
+	var menu_node := (menu_packed as PackedScene).instantiate()
+	get_root().add_child(menu_node)
+	await process_frame
+	await process_frame
+	var p1_option := menu_node.get_node_or_null("CenterPanel/P1LoadoutOption")
+	var p1_profile_label := menu_node.get_node_or_null("CenterPanel/P1ProfileLabel")
+	var story_button := menu_node.get_node_or_null("CenterPanel/StoryButton")
+	var p2_character_label := menu_node.get_node_or_null("CenterPanel/P2CharacterLabel")
+	_assert_true(
+		p1_option is OptionButton and p1_profile_label is Label and story_button is Button and p2_character_label is Label,
+		"menu fallback surface test resolves key menu controls"
+	)
+	if story_button is Button:
+		var story_text := str(menu_node.call("_resolve_menu_text", "MENU_STORY_AUTO_RIVAL_BUTTON", "Story (Auto Rival)"))
+		_assert_true((story_button as Button).text == story_text, "story button surfaces automatic rival guidance in visible text")
+	if p2_character_label is Label:
+		var opponent_label_text := str(menu_node.call("_resolve_menu_text", "MENU_P2_CHARACTER_VS_ONLY", "Opponent (VS/Training)"))
+		_assert_true((p2_character_label as Label).text == opponent_label_text, "menu surfaces opponent scope guidance without tooltip dependency")
+	if p1_option is OptionButton and p1_profile_label is Label:
+		var invalid_loadout := LoadoutCatalogStore.get_default_loadout("mark_zuck")
+		menu_node.set("current_p1_loadout", invalid_loadout.duplicate(true))
+		menu_node.call("_refresh_loadout_tooltip_for_player", "p1")
+		menu_node.call("_refresh_character_profile_preview")
+		var fallback_hint := str(menu_node.call(
+			"_resolve_menu_text",
+			"MENU_LOADOUT_FALLBACK_HINT",
+			"Invalid loadout detected. Default preset applied."
+		))
+		var fallback_inline := str(menu_node.call("_resolve_menu_text", "MENU_LOADOUT_FALLBACK_INLINE", "Default Applied"))
+		var cost_label := str(menu_node.call("_resolve_menu_text", "MENU_LOADOUT_INLINE_COST_LABEL", "Loadout"))
+		_assert_true(
+			(p1_option as OptionButton).tooltip_text.find(fallback_hint) != -1,
+			"menu tooltip surfaces fallback warning when selected loadout is invalid"
+		)
+		_assert_true(
+			(p1_profile_label as Label).text.find(cost_label) != -1,
+			"menu profile row surfaces a clear loadout cost label"
+		)
+		_assert_true(
+			(p1_profile_label as Label).text.find(fallback_inline) != -1,
+			"menu profile row marks fallback-applied loadout with readable inline wording"
+		)
+	if is_instance_valid(menu_node):
+		menu_node.queue_free()
+	await process_frame
+
 func _test_loadout_item_trigger_and_cooldown_runtime() -> void:
 	var setup: Dictionary = await _spawn_test_players()
 	var p1 := setup.get("p1") as CharacterBody2D
@@ -1016,6 +1141,14 @@ func _test_match_metrics_telemetry_schema() -> void:
 				_assert_true(record.has("item_evolution_events"), "telemetry record exposes item evolution events")
 				_assert_true(record.has("item_evolution_success_rate"), "telemetry record exposes evolution success rate")
 				_assert_true(record.has("item_evolution_avg_trigger_time_seconds"), "telemetry record exposes evolution trigger timing")
+				_assert_true(record.has("onboarding"), "telemetry record exposes onboarding flow summary")
+				var onboarding_value: Variant = record.get("onboarding", {})
+				_assert_true(typeof(onboarding_value) == TYPE_DICTIONARY, "telemetry onboarding summary is dictionary")
+				if typeof(onboarding_value) == TYPE_DICTIONARY:
+					var onboarding := onboarding_value as Dictionary
+					_assert_true(onboarding.has("started"), "telemetry onboarding summary includes started flag")
+					_assert_true(onboarding.has("completed"), "telemetry onboarding summary includes completed flag")
+					_assert_true(onboarding.has("steps_completed"), "telemetry onboarding summary includes completed step list")
 	if is_instance_valid(match_node):
 		match_node.queue_free()
 	await process_frame
@@ -1101,6 +1234,121 @@ func _test_round_tuning_intermission_flow() -> void:
 		match_node.queue_free()
 	await process_frame
 
+func _test_round_tuning_simultaneous_stock_fairness() -> void:
+	var packed := load("res://scenes/Main.tscn")
+	_assert_true(packed is PackedScene, "main scene loads for round tuning fairness test")
+	if packed is not PackedScene:
+		return
+	var match_node := (packed as PackedScene).instantiate()
+	match_node.set("round_tuning_force_ui_in_headless", true)
+	get_root().add_child(match_node)
+	await process_frame
+	await process_frame
+	var panel := match_node.get_node_or_null("Hud/RoundTuningPanel")
+	var option_a_button := match_node.get_node_or_null("Hud/RoundTuningPanel/OptionAButton")
+	_assert_true(panel is Panel and option_a_button is Button, "round tuning fairness test resolves hud controls")
+	if panel is not Panel or option_a_button is not Button:
+		if is_instance_valid(match_node):
+			match_node.queue_free()
+		await process_frame
+		return
+	match_node.call("_lose_stocks_simultaneously")
+	await process_frame
+	_assert_true(bool(match_node.get("round_tuning_active")), "simultaneous stock loss opens a shared round tuning intermission")
+	(option_a_button as Button).emit_signal("pressed")
+	await process_frame
+	await process_frame
+	_assert_true(not bool(match_node.get("round_tuning_active")), "shared round tuning intermission completes in one pick")
+	var pick_counts_value: Variant = match_node.get("round_tuning_pick_counts")
+	_assert_true(typeof(pick_counts_value) == TYPE_DICTIONARY, "round tuning fairness test reads pick count map")
+	if typeof(pick_counts_value) == TYPE_DICTIONARY:
+		var pick_counts := pick_counts_value as Dictionary
+		var p1_picks := int(pick_counts.get("p1", 0))
+		var p2_picks := int(pick_counts.get("p2", 0))
+		_assert_true(
+			(p1_picks == 1 and p2_picks == 0) or (p1_picks == 0 and p2_picks == 1),
+			"simultaneous stock loss grants exactly one shared round tuning pick"
+		)
+	if is_instance_valid(match_node):
+		match_node.queue_free()
+	await process_frame
+
+func _test_round_tuning_pick_cap_per_player() -> void:
+	var packed := load("res://scenes/Main.tscn")
+	_assert_true(packed is PackedScene, "main scene loads for round tuning pick cap test")
+	if packed is not PackedScene:
+		return
+	var match_node := (packed as PackedScene).instantiate()
+	match_node.set("round_tuning_force_ui_in_headless", true)
+	match_node.set("round_tuning_max_picks_per_player", 2)
+	match_node.set("stock_count", 4)
+	get_root().add_child(match_node)
+	await process_frame
+	await process_frame
+	var option_a_button := match_node.get_node_or_null("Hud/RoundTuningPanel/OptionAButton")
+	_assert_true(option_a_button is Button, "round tuning pick cap test resolves hud controls")
+	if option_a_button is not Button:
+		if is_instance_valid(match_node):
+			match_node.queue_free()
+		await process_frame
+		return
+	for pick_index in range(2):
+		match_node.call("_lose_stock", "p1")
+		await process_frame
+		_assert_true(bool(match_node.get("round_tuning_active")), "round tuning opens while pick cap has remaining slots (%d)" % [pick_index + 1])
+		(option_a_button as Button).emit_signal("pressed")
+		await process_frame
+		await process_frame
+	match_node.call("_lose_stock", "p1")
+	await process_frame
+	_assert_true(not bool(match_node.get("round_tuning_active")), "round tuning blocks additional picks after player reaches cap")
+	var pick_counts_value: Variant = match_node.get("round_tuning_pick_counts")
+	_assert_true(typeof(pick_counts_value) == TYPE_DICTIONARY, "round tuning pick cap test reads pick counts")
+	if typeof(pick_counts_value) == TYPE_DICTIONARY:
+		var pick_counts := pick_counts_value as Dictionary
+		_assert_true(int(pick_counts.get("p1", 0)) == 2, "p1 pick count reaches configured per-player cap")
+	if is_instance_valid(match_node):
+		match_node.queue_free()
+	await process_frame
+
+func _test_round_tuning_leader_lock_gap() -> void:
+	var packed := load("res://scenes/Main.tscn")
+	_assert_true(packed is PackedScene, "main scene loads for round tuning leader lock test")
+	if packed is not PackedScene:
+		return
+	var match_node := (packed as PackedScene).instantiate()
+	match_node.set("round_tuning_leader_lock_stock_gap", 1)
+	get_root().add_child(match_node)
+	await process_frame
+	await process_frame
+	match_node.set("stocks", {"p1": 3, "p2": 1})
+	var p1_can_pick := bool(match_node.call("_can_player_receive_round_tuning_pick", "p1"))
+	var p2_can_pick := bool(match_node.call("_can_player_receive_round_tuning_pick", "p2"))
+	_assert_true(not p1_can_pick, "round tuning leader lock blocks extra pick for far-ahead player")
+	_assert_true(p2_can_pick, "round tuning leader lock still allows trailing player to pick")
+	if is_instance_valid(match_node):
+		match_node.queue_free()
+	await process_frame
+
+func _test_round_tuning_max_charges_patch_grants_charges() -> void:
+	var runtime := {
+		"max_charges": 1,
+		"charges_remaining": 1,
+		"round_tuning_options": [
+			{
+				"id": "charge_plus",
+				"patch": {"max_charges_delta": 1}
+			}
+		]
+	}
+	var upgraded := RoundTuningEngineStore.apply_round_tuning_option(runtime, "charge_plus")
+	_assert_true(int(upgraded.get("max_charges", 0)) == 2, "max_charges tuning increases runtime max charges")
+	_assert_true(int(upgraded.get("charges_remaining", 0)) == 2, "max_charges tuning grants an extra usable charge")
+	var depleted_runtime := runtime.duplicate(true)
+	depleted_runtime["charges_remaining"] = 0
+	var upgraded_from_zero := RoundTuningEngineStore.apply_round_tuning_option(depleted_runtime, "charge_plus")
+	_assert_true(int(upgraded_from_zero.get("charges_remaining", 0)) == 1, "max_charges tuning restores one charge even when depleted")
+
 func _is_round_tuning_patch_applied(before_item: Dictionary, after_item: Dictionary, option: Dictionary) -> bool:
 	var patch_value: Variant = option.get("patch", {})
 	if typeof(patch_value) != TYPE_DICTIONARY:
@@ -1124,11 +1372,18 @@ func _is_round_tuning_patch_applied(before_item: Dictionary, after_item: Diction
 		applied = applied and is_equal_approx(float(after_item.get("trigger_value", 1.0)), expected_trigger)
 	if patch.has("max_charges_delta"):
 		has_patch_clause = true
+		var before_max_charges := maxi(1, int(before_item.get("max_charges", 1)))
+		var before_remaining := clampi(int(before_item.get("charges_remaining", before_max_charges)), 0, before_max_charges)
+		var delta_charges := int(patch.get("max_charges_delta", 0))
 		var expected_max_charges := maxi(
 			1,
-			int(before_item.get("max_charges", 1)) + int(patch.get("max_charges_delta", 0))
+			before_max_charges + delta_charges
 		)
+		var expected_remaining := mini(before_remaining, expected_max_charges)
+		if delta_charges > 0:
+			expected_remaining = mini(expected_max_charges, before_remaining + delta_charges)
 		applied = applied and int(after_item.get("max_charges", 1)) == expected_max_charges
+		applied = applied and int(after_item.get("charges_remaining", 0)) == expected_remaining
 	if patch.has("effect_payload_patch"):
 		var payload_patch_value: Variant = patch.get("effect_payload_patch", {})
 		if typeof(payload_patch_value) == TYPE_DICTIONARY:

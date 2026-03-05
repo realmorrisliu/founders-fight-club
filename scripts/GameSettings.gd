@@ -8,6 +8,9 @@ const ENGINE_META_KEY := "ffc_control_preset"
 const DISPLAY_SETTINGS_SECTION := "display"
 const DISPLAY_SETTINGS_KEY_WINDOW_MODE := "window_mode"
 const DISPLAY_SETTINGS_KEY_RESOLUTION := "resolution"
+const ONBOARDING_SETTINGS_SECTION := "onboarding"
+const ONBOARDING_SETTINGS_KEY_COMPLETED := "completed"
+const ONBOARDING_SETTINGS_KEY_HINTS_ENABLED := "hints_enabled"
 
 const CONTROL_PRESET_MODERN := "modern"
 const CONTROL_PRESET_CLASSIC := "classic"
@@ -122,6 +125,36 @@ static func get_control_preset() -> String:
 static func has_control_preset() -> bool:
 	return get_control_preset() != ""
 
+static func get_onboarding_settings() -> Dictionary:
+	var config := ConfigFile.new()
+	var load_error := config.load(SETTINGS_PATH)
+	if load_error != OK:
+		var absolute_path := ProjectSettings.globalize_path(SETTINGS_PATH)
+		load_error = config.load(absolute_path)
+	var completed := false
+	var hints_enabled := true
+	if load_error == OK:
+		completed = bool(config.get_value(ONBOARDING_SETTINGS_SECTION, ONBOARDING_SETTINGS_KEY_COMPLETED, false))
+		hints_enabled = bool(config.get_value(ONBOARDING_SETTINGS_SECTION, ONBOARDING_SETTINGS_KEY_HINTS_ENABLED, true))
+	return {
+		"completed": completed,
+		"hints_enabled": hints_enabled
+	}
+
+static func is_onboarding_completed() -> bool:
+	return bool(get_onboarding_settings().get("completed", false))
+
+static func set_onboarding_completed(completed: bool) -> void:
+	var settings := get_onboarding_settings()
+	_set_onboarding_settings(completed, bool(settings.get("hints_enabled", true)))
+
+static func set_onboarding_hints_enabled(enabled: bool) -> void:
+	var settings := get_onboarding_settings()
+	_set_onboarding_settings(bool(settings.get("completed", false)), enabled)
+
+static func reset_onboarding_progress() -> void:
+	_set_onboarding_settings(false, true)
+
 static func get_video_settings() -> Dictionary:
 	var config := ConfigFile.new()
 	var load_error := config.load(SETTINGS_PATH)
@@ -207,6 +240,19 @@ static func _save_video_settings(window_mode: String, resolution: Vector2i) -> v
 	config.load(SETTINGS_PATH)
 	config.set_value(DISPLAY_SETTINGS_SECTION, DISPLAY_SETTINGS_KEY_WINDOW_MODE, normalize_window_mode(window_mode))
 	config.set_value(DISPLAY_SETTINGS_SECTION, DISPLAY_SETTINGS_KEY_RESOLUTION, resolution_to_string(resolution))
+	var save_error := config.save(SETTINGS_PATH)
+	if save_error == OK:
+		return
+	var absolute_path := ProjectSettings.globalize_path(SETTINGS_PATH)
+	var dir_path := absolute_path.get_base_dir()
+	DirAccess.make_dir_recursive_absolute(dir_path)
+	config.save(absolute_path)
+
+static func _set_onboarding_settings(completed: bool, hints_enabled: bool) -> void:
+	var config := ConfigFile.new()
+	config.load(SETTINGS_PATH)
+	config.set_value(ONBOARDING_SETTINGS_SECTION, ONBOARDING_SETTINGS_KEY_COMPLETED, completed)
+	config.set_value(ONBOARDING_SETTINGS_SECTION, ONBOARDING_SETTINGS_KEY_HINTS_ENABLED, hints_enabled)
 	var save_error := config.save(SETTINGS_PATH)
 	if save_error == OK:
 		return

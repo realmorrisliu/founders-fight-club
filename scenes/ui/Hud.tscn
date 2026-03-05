@@ -200,6 +200,53 @@ autowrap_mode = 2
 clip_text = true
 text = ""
 
+[node name="OnboardingPanel" type="Panel" parent="."]
+visible = false
+offset_left = 124.0
+offset_top = 142.0
+offset_right = 516.0
+offset_bottom = 252.0
+
+[node name="TitleLabel" type="Label" parent="OnboardingPanel"]
+offset_left = 12.0
+offset_top = 8.0
+offset_right = 380.0
+offset_bottom = 30.0
+theme_override_colors/font_color = Color(0.96, 0.98, 1, 1)
+text = "Quick Onboarding"
+
+[node name="StepLabel" type="Label" parent="OnboardingPanel"]
+offset_left = 12.0
+offset_top = 34.0
+offset_right = 380.0
+offset_bottom = 72.0
+theme_override_colors/font_color = Color(0.84, 0.92, 1, 1)
+autowrap_mode = 2
+clip_text = true
+text = "Move left / right to continue."
+
+[node name="ProgressLabel" type="Label" parent="OnboardingPanel"]
+offset_left = 12.0
+offset_top = 76.0
+offset_right = 190.0
+offset_bottom = 96.0
+theme_override_colors/font_color = Color(0.98, 0.90, 0.70, 1)
+text = "Step 1/6"
+
+[node name="SkipButton" type="Button" parent="OnboardingPanel"]
+offset_left = 214.0
+offset_top = 76.0
+offset_right = 294.0
+offset_bottom = 102.0
+text = "Skip"
+
+[node name="ReplayButton" type="Button" parent="OnboardingPanel"]
+offset_left = 304.0
+offset_top = 76.0
+offset_right = 384.0
+offset_bottom = 102.0
+text = "Replay"
+
 [node name="TrainingPanel" type="Panel" parent="."]
 offset_left = 20.0
 offset_top = 144.0
@@ -335,43 +382,145 @@ text = "-"
 
 [node name="RoundTuningPanel" type="Panel" parent="."]
 visible = false
-offset_left = 176.0
-offset_top = 146.0
-offset_right = 464.0
-offset_bottom = 298.0
+offset_left = 42.0
+offset_top = 108.0
+offset_right = 598.0
+offset_bottom = 406.0
 
 [node name="TitleLabel" type="Label" parent="RoundTuningPanel"]
-offset_left = 18.0
-offset_top = 14.0
-offset_right = 270.0
-offset_bottom = 36.0
-theme_override_colors/font_color = Color(0.94, 0.97, 1, 1)
+offset_left = 20.0
+offset_top = 12.0
+offset_right = 536.0
+offset_bottom = 34.0
+theme_override_colors/font_color = Color(0.96, 0.98, 1, 1)
 horizontal_alignment = 1
 text = "Round Tuning"
 
 [node name="HintLabel" type="Label" parent="RoundTuningPanel"]
-offset_left = 18.0
-offset_top = 40.0
-offset_right = 270.0
-offset_bottom = 66.0
+offset_left = 20.0
+offset_top = 38.0
+offset_right = 536.0
+offset_bottom = 62.0
 theme_override_colors/font_color = Color(0.82, 0.9, 0.98, 1)
 horizontal_alignment = 1
 autowrap_mode = 2
 text = "Pick 1 upgrade for the next rounds."
 
-[node name="OptionAButton" type="Button" parent="RoundTuningPanel"]
-offset_left = 26.0
-offset_top = 82.0
-offset_right = 262.0
-offset_bottom = 114.0
+[node name="OptionACard" type="Panel" parent="RoundTuningPanel"]
+offset_left = 20.0
+offset_top = 66.0
+offset_right = 268.0
+offset_bottom = 236.0
+
+[node name="TitleLabel" type="Label" parent="RoundTuningPanel/OptionACard"]
+offset_left = 10.0
+offset_top = 8.0
+offset_right = 238.0
+offset_bottom = 30.0
+theme_override_colors/font_color = Color(0.98, 0.95, 0.82, 1)
+clip_text = true
 text = "Option A"
 
-[node name="OptionBButton" type="Button" parent="RoundTuningPanel"]
-offset_left = 26.0
-offset_top = 120.0
-offset_right = 262.0
-offset_bottom = 152.0
+[node name="BenefitsHeaderLabel" type="Label" parent="RoundTuningPanel/OptionACard"]
+offset_left = 10.0
+offset_top = 34.0
+offset_right = 238.0
+offset_bottom = 52.0
+theme_override_colors/font_color = Color(0.76, 0.96, 0.82, 1)
+text = "Benefits"
+
+[node name="BenefitsLabel" type="Label" parent="RoundTuningPanel/OptionACard"]
+offset_left = 10.0
+offset_top = 52.0
+offset_right = 238.0
+offset_bottom = 108.0
+theme_override_colors/font_color = Color(0.90, 0.97, 0.93, 1)
+autowrap_mode = 2
+clip_text = true
+text = "-"
+
+[node name="TradeoffsHeaderLabel" type="Label" parent="RoundTuningPanel/OptionACard"]
+offset_left = 10.0
+offset_top = 114.0
+offset_right = 238.0
+offset_bottom = 132.0
+theme_override_colors/font_color = Color(0.98, 0.78, 0.72, 1)
+text = "Trade-offs"
+
+[node name="TradeoffsLabel" type="Label" parent="RoundTuningPanel/OptionACard"]
+offset_left = 10.0
+offset_top = 132.0
+offset_right = 238.0
+offset_bottom = 162.0
+theme_override_colors/font_color = Color(0.97, 0.91, 0.88, 1)
+autowrap_mode = 2
+clip_text = true
+text = "-"
+
+[node name="OptionBCard" type="Panel" parent="RoundTuningPanel"]
+offset_left = 288.0
+offset_top = 66.0
+offset_right = 536.0
+offset_bottom = 236.0
+
+[node name="TitleLabel" type="Label" parent="RoundTuningPanel/OptionBCard"]
+offset_left = 10.0
+offset_top = 8.0
+offset_right = 238.0
+offset_bottom = 30.0
+theme_override_colors/font_color = Color(0.98, 0.95, 0.82, 1)
+clip_text = true
 text = "Option B"
+
+[node name="BenefitsHeaderLabel" type="Label" parent="RoundTuningPanel/OptionBCard"]
+offset_left = 10.0
+offset_top = 34.0
+offset_right = 238.0
+offset_bottom = 52.0
+theme_override_colors/font_color = Color(0.76, 0.96, 0.82, 1)
+text = "Benefits"
+
+[node name="BenefitsLabel" type="Label" parent="RoundTuningPanel/OptionBCard"]
+offset_left = 10.0
+offset_top = 52.0
+offset_right = 238.0
+offset_bottom = 108.0
+theme_override_colors/font_color = Color(0.90, 0.97, 0.93, 1)
+autowrap_mode = 2
+clip_text = true
+text = "-"
+
+[node name="TradeoffsHeaderLabel" type="Label" parent="RoundTuningPanel/OptionBCard"]
+offset_left = 10.0
+offset_top = 114.0
+offset_right = 238.0
+offset_bottom = 132.0
+theme_override_colors/font_color = Color(0.98, 0.78, 0.72, 1)
+text = "Trade-offs"
+
+[node name="TradeoffsLabel" type="Label" parent="RoundTuningPanel/OptionBCard"]
+offset_left = 10.0
+offset_top = 132.0
+offset_right = 238.0
+offset_bottom = 162.0
+theme_override_colors/font_color = Color(0.97, 0.91, 0.88, 1)
+autowrap_mode = 2
+clip_text = true
+text = "-"
+
+[node name="OptionAButton" type="Button" parent="RoundTuningPanel"]
+offset_left = 20.0
+offset_top = 244.0
+offset_right = 268.0
+offset_bottom = 274.0
+text = "Choose"
+
+[node name="OptionBButton" type="Button" parent="RoundTuningPanel"]
+offset_left = 288.0
+offset_top = 244.0
+offset_right = 536.0
+offset_bottom = 274.0
+text = "Choose"
 
 [node name="PausePanel" type="Panel" parent="."]
 visible = false

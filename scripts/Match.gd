@@ -1,5 +1,6 @@
 extends Node2D
 
+const GameSettingsStore := preload("res://scripts/GameSettings.gd")
 const CharacterCatalogStore := preload("res://scripts/config/CharacterCatalog.gd")
 const LoadoutCatalogStore := preload("res://scripts/config/LoadoutCatalog.gd")
 const SessionKeysStore := preload("res://scripts/config/SessionKeys.gd")
@@ -105,6 +106,14 @@ const DIALOGUE_PACK_PATH := "res://assets/data/dialogue/DialoguePackV1.json"
 const DIALOGUE_LINE_DELAY_SECONDS := 0.45
 const MATCH_METRICS_LOG_PATH := "user://match_metrics.jsonl"
 const MATCH_METRICS_SCHEMA_VERSION := 2
+const ONBOARDING_STEPS := [
+	{"id": "move", "key": "HUD_ONBOARDING_STEP_MOVE", "fallback": "Move left / right to continue."},
+	{"id": "jump", "key": "HUD_ONBOARDING_STEP_JUMP", "fallback": "Jump once to continue."},
+	{"id": "guard", "key": "HUD_ONBOARDING_STEP_GUARD", "fallback": "Hold guard once to continue."},
+	{"id": "attack", "key": "HUD_ONBOARDING_STEP_ATTACK", "fallback": "Use light or heavy attack once."},
+	{"id": "dodge", "key": "HUD_ONBOARDING_STEP_DODGE", "fallback": "Press Guard + Dash to dodge."},
+	{"id": "special", "key": "HUD_ONBOARDING_STEP_SPECIAL", "fallback": "Use special or ultimate once."}
+]
 
 var time_left := ROUND_TIME_SECONDS
 var stocks := {"p1": 0, "p2": 0}
@@ -134,7 +143,10 @@ var sfx_player_pool_cursor := 0
 @export_enum("stand", "force_block", "random_block") var training_dummy_default_mode := "stand"
 @export var training_detail_default_visible := false
 @export var round_tuning_enabled := true
+@export_range(0, 5, 1) var round_tuning_max_picks_per_player := 2
+@export_range(0, 3, 1) var round_tuning_leader_lock_stock_gap := 2
 @export var round_tuning_force_ui_in_headless := false
+@export var onboarding_enabled := true
 
 @onready var player_1 := $Player1
 @onready var player_2 := $Player2
@@ -164,7 +176,18 @@ var pending_dialogue_tint := Color(1.0, 1.0, 1.0, 1.0)
 var round_tuning_active := false
 var round_tuning_pending_player_key := ""
 var round_tuning_option_cache: Array[Dictionary] = []
+var round_tuning_pending_queue: Array[String] = []
+var round_tuning_pick_counts := {"p1": 0, "p2": 0}
 var match_elapsed_seconds := 0.0
+var onboarding_active := false
+var onboarding_started := false
+var onboarding_completed := false
+var onboarding_skipped := false
+var onboarding_forced_replay := false
+var onboarding_step_index := 0
+var onboarding_steps_completed := PackedStringArray()
+var onboarding_completed_seconds := -1.0
+var onboarding_entry_point := "match_start"
 var telemetry_round_tuning_picks: Array[Dictionary] = []
 var telemetry_item_activation_events: Array[Dictionary] = []
 var telemetry_item_evolution_events: Array[Dictionary] = []
@@ -178,9 +201,9 @@ func _ready() -> void:
 	_resolve_stage_bounds_from_scene()
 	_apply_stage_bounds_to_players()
 	if player_1:
-		spawn_points["p1"] = player_1.position
+		spawn_points["p1"] = _resolve_spawn_point_for_player(player_1)
 	if player_2:
-		spawn_points["p2"] = player_2.position
+		spawn_points["p2"] = _resolve_spawn_point_for_player(player_2)
 	_reset_stocks()
 	training_options["enabled"] = training_scene_enabled
 	training_options["dummy_mode"] = training_dummy_default_mode
@@ -242,6 +265,10 @@ func _ready() -> void:
 			hud.training_options_changed.connect(_on_hud_training_options_changed)
 		if hud.has_signal("round_tuning_option_selected"):
 			hud.round_tuning_option_selected.connect(_on_hud_round_tuning_option_selected)
+		if hud.has_signal("onboarding_skip_requested"):
+			hud.onboarding_skip_requested.connect(_on_hud_onboarding_skip_requested)
+		if hud.has_signal("onboarding_replay_requested"):
+			hud.onboarding_replay_requested.connect(_on_hud_onboarding_replay_requested)
 		if hud.has_method("set_pause_visible"):
 			hud.set_pause_visible(false)
 		if hud.has_method("set_timer_visible"):
@@ -252,6 +279,7 @@ func _ready() -> void:
 			hud.set_training_controls_visible(training_controls_enabled)
 	
 	_apply_training_options()
+	_initialize_onboarding_flow()
 	_update_hud()
 	_refresh_result_text()
 	_trigger_pre_fight_dialogue()
@@ -274,6 +302,7 @@ func _process(delta: float) -> void:
 	if get_tree().paused:
 		return
 	match_elapsed_seconds += maxf(0.0, delta)
+	_update_onboarding_progress()
 	if match_over:
 		_update_story_round_transition(delta)
 		return
@@ -483,7 +512,16 @@ func _append_match_metrics_log(result_key: String) -> void:
 		"item_evolution_expected_count": evolution_expected_count,
 		"item_evolution_success_count": evolution_success_count,
 		"item_evolution_success_rate": evolution_success_rate,
-		"item_evolution_avg_trigger_time_seconds": _calc_average_evolution_trigger_seconds()
+		"item_evolution_avg_trigger_time_seconds": _calc_average_evolution_trigger_seconds(),
+		"onboarding": {
+			"started": onboarding_started,
+			"completed": onboarding_completed,
+			"skipped": onboarding_skipped,
+			"forced_replay": onboarding_forced_replay,
+			"entry_point": onboarding_entry_point,
+			"steps_completed": onboarding_steps_completed,
+			"completed_at_seconds": onboarding_completed_seconds
+		}
 	}
 	var line := JSON.stringify(record)
 	if line == "":
@@ -506,7 +544,22 @@ func _resolve_active_match_mode() -> String:
 	return "vs"
 
 func _reset_match_telemetry() -> void:
+	round_tuning_active = false
+	round_tuning_pending_player_key = ""
+	round_tuning_option_cache.clear()
+	round_tuning_pending_queue.clear()
+	round_tuning_pick_counts["p1"] = 0
+	round_tuning_pick_counts["p2"] = 0
 	match_elapsed_seconds = 0.0
+	onboarding_active = false
+	onboarding_started = false
+	onboarding_completed = false
+	onboarding_skipped = false
+	onboarding_forced_replay = false
+	onboarding_step_index = 0
+	onboarding_steps_completed = PackedStringArray()
+	onboarding_completed_seconds = -1.0
+	onboarding_entry_point = "match_start"
 	telemetry_round_tuning_picks.clear()
 	telemetry_item_activation_events.clear()
 	telemetry_item_evolution_events.clear()
@@ -675,6 +728,19 @@ func _apply_stage_bounds_to_players() -> void:
 		elif player_2.has_method("set_stage_bounds"):
 			player_2.call("set_stage_bounds", stage_left_x, stage_right_x)
 
+func _resolve_spawn_point_for_player(fighter: CharacterBody2D) -> Vector2:
+	if fighter == null:
+		return Vector2.ZERO
+	var spawn := fighter.global_position
+	var shape_node := fighter.get_node_or_null("CollisionShape2D")
+	if shape_node is CollisionShape2D:
+		var collision_shape := shape_node as CollisionShape2D
+		var rect_shape := collision_shape.shape as RectangleShape2D
+		if rect_shape != null:
+			var half_height := rect_shape.size.y * 0.5 * absf(collision_shape.global_scale.y)
+			spawn.y = stage_floor_y - half_height
+	return spawn
+
 func _lose_stock(player_key: String) -> void:
 	if not _uses_stock_rule():
 		return
@@ -697,7 +763,8 @@ func _lose_stock(player_key: String) -> void:
 		return
 	_respawn_player_by_key(player_key)
 	_update_hud()
-	_maybe_start_round_tuning_intermission(player_key)
+	var player_keys: Array[String] = [player_key]
+	_queue_round_tuning_intermissions(player_keys)
 
 func _lose_stocks_simultaneously() -> void:
 	if not _uses_stock_rule():
@@ -720,8 +787,54 @@ func _lose_stocks_simultaneously() -> void:
 	_respawn_player_by_key("p1")
 	_respawn_player_by_key("p2")
 	_update_hud()
-	if not _maybe_start_round_tuning_intermission("p1"):
-		_maybe_start_round_tuning_intermission("p2")
+	var shared_player_key := _resolve_shared_round_tuning_player_key(["p1", "p2"])
+	if shared_player_key != "":
+		var shared_keys: Array[String] = [shared_player_key]
+		_queue_round_tuning_intermissions(shared_keys)
+
+func _resolve_shared_round_tuning_player_key(player_keys: Array[String]) -> String:
+	var selected_key := ""
+	var selected_pick_count := 9999
+	for player_key_value in player_keys:
+		var player_key := str(player_key_value).strip_edges()
+		if player_key == "":
+			continue
+		if not _can_player_receive_round_tuning_pick(player_key):
+			continue
+		var options := _resolve_player_round_tuning_options(player_key)
+		if options.is_empty():
+			continue
+		var pick_count := int(round_tuning_pick_counts.get(player_key, 0))
+		if selected_key == "" or pick_count < selected_pick_count:
+			selected_key = player_key
+			selected_pick_count = pick_count
+	return selected_key
+
+func _queue_round_tuning_intermissions(player_keys: Array[String]) -> void:
+	if player_keys.is_empty():
+		return
+	for player_key_value in player_keys:
+		var player_key := str(player_key_value).strip_edges()
+		if player_key == "":
+			continue
+		if round_tuning_pending_queue.has(player_key):
+			continue
+		round_tuning_pending_queue.append(player_key)
+	_maybe_start_next_round_tuning_intermission()
+
+func _maybe_start_next_round_tuning_intermission() -> void:
+	if round_tuning_active:
+		return
+	if match_over:
+		round_tuning_pending_queue.clear()
+		return
+	while not round_tuning_pending_queue.is_empty():
+		var player_key := str(round_tuning_pending_queue.pop_front()).strip_edges()
+		if player_key == "":
+			continue
+		var started := _maybe_start_round_tuning_intermission(player_key)
+		if started and round_tuning_active:
+			return
 
 func _maybe_start_round_tuning_intermission(player_key: String) -> bool:
 	if not round_tuning_enabled:
@@ -731,6 +844,8 @@ func _maybe_start_round_tuning_intermission(player_key: String) -> bool:
 	if match_over:
 		return false
 	if round_tuning_active:
+		return false
+	if not _can_player_receive_round_tuning_pick(player_key):
 		return false
 	var options := _resolve_player_round_tuning_options(player_key)
 	if options.is_empty():
@@ -757,6 +872,19 @@ func _maybe_start_round_tuning_intermission(player_key: String) -> bool:
 		hud.set_pause_visible(false)
 	hud.show_round_tuning_options(round_tuning_option_cache)
 	return true
+
+func _can_player_receive_round_tuning_pick(player_key: String) -> bool:
+	var cap := maxi(0, round_tuning_max_picks_per_player)
+	if cap <= 0:
+		return false
+	var lock_gap := maxi(0, round_tuning_leader_lock_stock_gap)
+	if lock_gap > 0 and _uses_stock_rule():
+		var self_stock := int(stocks.get(player_key, 0))
+		var other_key := "p2" if player_key == "p1" else "p1"
+		var other_stock := int(stocks.get(other_key, 0))
+		if self_stock - other_stock >= lock_gap:
+			return false
+	return int(round_tuning_pick_counts.get(player_key, 0)) < cap
 
 func _resolve_player_round_tuning_options(player_key: String) -> Array[Dictionary]:
 	var fighter := _get_player_by_key(player_key)
@@ -797,6 +925,8 @@ func _cancel_round_tuning_intermission() -> void:
 		hud.hide_round_tuning_options()
 
 func _record_round_tuning_pick(player_key: String, option_id: String) -> void:
+	var current_count := int(round_tuning_pick_counts.get(player_key, 0))
+	round_tuning_pick_counts[player_key] = current_count + 1
 	telemetry_round_tuning_picks.append(
 		{
 			"player_key": player_key,
@@ -826,6 +956,129 @@ func _get_player_by_key(player_key: String) -> CharacterBody2D:
 	if player_key == "p2":
 		return player_2
 	return null
+
+func _initialize_onboarding_flow() -> void:
+	onboarding_active = false
+	onboarding_started = false
+	onboarding_completed = false
+	onboarding_skipped = false
+	onboarding_step_index = 0
+	onboarding_steps_completed = PackedStringArray()
+	onboarding_completed_seconds = -1.0
+	onboarding_forced_replay = false
+	onboarding_entry_point = "match_start"
+	if not onboarding_enabled:
+		_refresh_onboarding_hud()
+		return
+	if SessionStateStore.has_value(SessionKeysStore.ONBOARDING_ENTRY_POINT):
+		onboarding_entry_point = str(SessionStateStore.get_value(SessionKeysStore.ONBOARDING_ENTRY_POINT, "match_start"))
+	var force_replay := false
+	if SessionStateStore.has_value(SessionKeysStore.ONBOARDING_FORCE_REPLAY):
+		force_replay = bool(SessionStateStore.get_value(SessionKeysStore.ONBOARDING_FORCE_REPLAY, false))
+	onboarding_forced_replay = force_replay
+	SessionStateStore.clear_keys(
+		PackedStringArray([
+			SessionKeysStore.ONBOARDING_FORCE_REPLAY,
+			SessionKeysStore.ONBOARDING_ENTRY_POINT
+		])
+	)
+	var onboarding_settings := GameSettingsStore.get_onboarding_settings()
+	var hints_enabled := bool(onboarding_settings.get("hints_enabled", true))
+	var already_completed := bool(onboarding_settings.get("completed", false))
+	if not force_replay and (not hints_enabled or already_completed):
+		_refresh_onboarding_hud()
+		return
+	_start_onboarding_sequence()
+
+func _start_onboarding_sequence() -> void:
+	onboarding_active = true
+	onboarding_started = true
+	onboarding_completed = false
+	onboarding_skipped = false
+	onboarding_step_index = 0
+	onboarding_steps_completed = PackedStringArray()
+	onboarding_completed_seconds = -1.0
+	_refresh_onboarding_hud()
+
+func _update_onboarding_progress() -> void:
+	if not onboarding_active:
+		return
+	if onboarding_step_index < 0 or onboarding_step_index >= ONBOARDING_STEPS.size():
+		_complete_onboarding(false)
+		return
+	var step := ONBOARDING_STEPS[onboarding_step_index] as Dictionary
+	var step_id := str(step.get("id", "")).strip_edges()
+	if step_id == "":
+		onboarding_step_index += 1
+		_refresh_onboarding_hud()
+		return
+	if not _is_onboarding_step_completed(step_id):
+		return
+	onboarding_steps_completed.append(step_id)
+	onboarding_step_index += 1
+	if onboarding_step_index >= ONBOARDING_STEPS.size():
+		_complete_onboarding(false)
+		return
+	_refresh_onboarding_hud()
+
+func _is_onboarding_step_completed(step_id: String) -> bool:
+	if player_1 == null:
+		return false
+	var attack_state := str(player_1.get("attack_state"))
+	match step_id:
+		"move":
+			return Input.is_action_just_pressed("move_left") or Input.is_action_just_pressed("move_right") or absf(player_1.velocity.x) >= 24.0
+		"jump":
+			return Input.is_action_just_pressed("jump") or player_1.velocity.y <= -48.0
+		"guard":
+			return Input.is_action_just_pressed("block") or Input.is_action_pressed("block")
+		"attack":
+			return (
+				Input.is_action_just_pressed("attack_light")
+				or Input.is_action_just_pressed("attack_heavy")
+				or attack_state.begins_with("light")
+				or attack_state.begins_with("heavy")
+			)
+		"dodge":
+			return (
+				(Input.is_action_pressed("block") and Input.is_action_just_pressed("dash"))
+				or (Input.is_action_pressed("block") and Input.is_action_pressed("dash"))
+			)
+		"special":
+			return (
+				Input.is_action_just_pressed("attack_special")
+				or attack_state == "special"
+				or attack_state == "ultimate"
+				or attack_state.begins_with("signature_")
+			)
+	return false
+
+func _complete_onboarding(skipped: bool) -> void:
+	onboarding_active = false
+	onboarding_completed = true
+	onboarding_skipped = skipped
+	onboarding_completed_seconds = match_elapsed_seconds
+	GameSettingsStore.set_onboarding_completed(true)
+	_refresh_onboarding_hud()
+
+func _refresh_onboarding_hud() -> void:
+	if hud == null or not hud.has_method("set_onboarding_state"):
+		return
+	if not onboarding_active:
+		hud.set_onboarding_state(false, "", "", "", false, false)
+		return
+	var step := ONBOARDING_STEPS[onboarding_step_index] as Dictionary
+	var step_key := str(step.get("key", "")).strip_edges()
+	var step_fallback := str(step.get("fallback", "Follow the prompt to continue."))
+	var step_text := _tr_or_fallback(step_key, step_fallback)
+	var progress_template := _tr_or_fallback("HUD_ONBOARDING_PROGRESS", "Step %d/%d")
+	var progress_text := ""
+	if progress_template.find("%") == -1:
+		progress_text = "Step %d/%d" % [onboarding_step_index + 1, ONBOARDING_STEPS.size()]
+	else:
+		progress_text = progress_template % [onboarding_step_index + 1, ONBOARDING_STEPS.size()]
+	var title_text := _tr_or_fallback("HUD_ONBOARDING_TITLE", "Quick Onboarding")
+	hud.set_onboarding_state(true, title_text, step_text, progress_text, true, true)
 
 func _on_player_health_changed() -> void:
 	_update_hud()
@@ -1021,6 +1274,7 @@ func _on_hud_restart_requested() -> void:
 
 func _on_hud_menu_requested() -> void:
 	_cancel_round_tuning_intermission()
+	round_tuning_pending_queue.clear()
 	_clear_hitstop()
 	if story_mode_active:
 		SessionStateStore.clear_keys(PackedStringArray([SessionKeysStore.STORY_ROUND_INDEX]))
@@ -1030,6 +1284,7 @@ func _on_hud_menu_requested() -> void:
 func _on_locale_changed(_locale: String) -> void:
 	_update_hud()
 	_refresh_result_text()
+	_refresh_onboarding_hud()
 	if hud and hud.has_method("set_training_options"):
 		hud.set_training_options(training_options)
 
@@ -1055,6 +1310,19 @@ func _on_hud_round_tuning_option_selected(option_id: String) -> void:
 	if hud and hud.has_method("set_pause_visible"):
 		hud.set_pause_visible(false)
 	_update_hud()
+	_maybe_start_next_round_tuning_intermission()
+
+func _on_hud_onboarding_skip_requested() -> void:
+	if not onboarding_active:
+		return
+	_complete_onboarding(true)
+
+func _on_hud_onboarding_replay_requested() -> void:
+	if not onboarding_enabled:
+		return
+	onboarding_forced_replay = true
+	onboarding_entry_point = "hud_replay"
+	_start_onboarding_sequence()
 
 func _on_player_loadout_item_activated(
 	fighter: Node,
@@ -1615,3 +1883,9 @@ func _dialogue_locale_key() -> String:
 	if locale.begins_with("zh"):
 		return "zh"
 	return "en"
+
+func _tr_or_fallback(key: String, fallback: String) -> String:
+	var value := tr(key)
+	if value == key:
+		return fallback
+	return value
