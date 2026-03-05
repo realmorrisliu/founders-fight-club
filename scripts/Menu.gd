@@ -3,8 +3,11 @@ extends Control
 const GameSettingsStore := preload("res://scripts/GameSettings.gd")
 const LocalizationRegistryStore := preload("res://scripts/config/LocalizationRegistry.gd")
 const CharacterCatalogStore := preload("res://scripts/config/CharacterCatalog.gd")
+const LoadoutCatalogStore := preload("res://scripts/config/LoadoutCatalog.gd")
 const SessionKeysStore := preload("res://scripts/config/SessionKeys.gd")
 const SessionStateStore := preload("res://scripts/SessionState.gd")
+const LoadoutResolverStore := preload("res://scripts/loadout/LoadoutResolver.gd")
+const LoadoutValidatorStore := preload("res://scripts/loadout/LoadoutValidator.gd")
 const VS_SCENE_PATH := "res://scenes/Main.tscn"
 const STORY_SCENE_PATH := "res://scenes/Story.tscn"
 const TRAINING_SCENE_PATH := "res://scenes/Training.tscn"
@@ -44,6 +47,13 @@ var current_resolution := GameSettingsStore.DEFAULT_RESOLUTION
 var main_menu_interactive := true
 var character_profile_cache: Array[Dictionary] = []
 var is_refreshing_video_options := false
+var is_refreshing_loadout_options := false
+var p1_loadout_presets: Array[Dictionary] = []
+var p2_loadout_presets: Array[Dictionary] = []
+var current_p1_loadout: Dictionary = {}
+var current_p2_loadout: Dictionary = {}
+var current_p1_preset_id := ""
+var current_p2_preset_id := ""
 
 @onready var title_label := $CenterPanel/TitleLabel
 @onready var subtitle_label := $CenterPanel/SubtitleLabel
@@ -51,6 +61,8 @@ var is_refreshing_video_options := false
 @onready var p2_character_label := $CenterPanel/P2CharacterLabel
 @onready var p1_character_option := $CenterPanel/P1CharacterOption
 @onready var p2_character_option := $CenterPanel/P2CharacterOption
+@onready var p1_loadout_option := $CenterPanel/P1LoadoutOption
+@onready var p2_loadout_option := $CenterPanel/P2LoadoutOption
 @onready var p1_profile_label := $CenterPanel/P1ProfileLabel
 @onready var p2_profile_label := $CenterPanel/P2ProfileLabel
 @onready var versus_button := $CenterPanel/VersusButton
@@ -85,11 +97,14 @@ func _ready() -> void:
 	lang_zh_button.pressed.connect(func(): _set_locale("zh"))
 	window_mode_option.item_selected.connect(_on_window_mode_option_selected)
 	resolution_option.item_selected.connect(_on_resolution_option_selected)
-	p1_character_option.item_selected.connect(func(_index: int): _refresh_character_profile_preview())
-	p2_character_option.item_selected.connect(func(_index: int): _refresh_character_profile_preview())
+	p1_character_option.item_selected.connect(_on_p1_character_option_selected)
+	p2_character_option.item_selected.connect(_on_p2_character_option_selected)
+	p1_loadout_option.item_selected.connect(_on_p1_loadout_option_selected)
+	p2_loadout_option.item_selected.connect(_on_p2_loadout_option_selected)
 	first_launch_classic_button.pressed.connect(func(): _on_first_launch_preset_selected(GameSettingsStore.CONTROL_PRESET_CLASSIC))
 	first_launch_modern_button.pressed.connect(func(): _on_first_launch_preset_selected(GameSettingsStore.CONTROL_PRESET_MODERN))
 	_populate_character_options()
+	_initialize_loadout_presets()
 	_initialize_control_preset()
 	_initialize_video_settings()
 	_refresh_text()
@@ -132,6 +147,7 @@ func _refresh_text() -> void:
 	window_mode_label.text = _resolve_menu_text("MENU_WINDOW_MODE", "Window Mode")
 	resolution_label.text = _resolve_menu_text("MENU_RESOLUTION", "Resolution")
 	_refresh_video_options()
+	_refresh_loadout_options()
 	lang_label.text = tr("PAUSE_LANGUAGE")
 	lang_en_button.text = tr("PAUSE_LANG_EN")
 	lang_zh_button.text = tr("PAUSE_LANG_ZH")
@@ -150,6 +166,8 @@ func _refresh_text() -> void:
 	resolution_option.disabled = not main_menu_interactive or not _is_resolution_editable(current_window_mode)
 	p1_character_option.disabled = not main_menu_interactive
 	p2_character_option.disabled = not main_menu_interactive
+	p1_loadout_option.disabled = not main_menu_interactive
+	p2_loadout_option.disabled = not main_menu_interactive
 	_refresh_character_profile_preview()
 
 func _ensure_translations_registered() -> void:
@@ -171,6 +189,15 @@ func _populate_character_options() -> void:
 	elif p2_character_option.item_count > 0:
 		p2_character_option.select(0)
 	_refresh_character_profile_preview()
+
+func _initialize_loadout_presets() -> void:
+	_refresh_loadout_options()
+	var p1_character_id := _get_selected_character_id("p1")
+	var p2_character_id := _get_selected_character_id("p2")
+	if p1_character_id != "":
+		current_p1_loadout = LoadoutCatalogStore.get_default_loadout(p1_character_id)
+	if p2_character_id != "":
+		current_p2_loadout = LoadoutCatalogStore.get_default_loadout(p2_character_id)
 
 func _build_character_profile(character: Dictionary) -> Dictionary:
 	var character_id := str(character.get("id", "")).strip_edges()
@@ -213,12 +240,12 @@ func _build_character_profile(character: Dictionary) -> Dictionary:
 func _refresh_character_profile_preview() -> void:
 	if p1_profile_label == null or p2_profile_label == null:
 		return
-	p1_profile_label.text = _build_profile_preview_text(p1_character_option.selected)
-	p2_profile_label.text = _build_profile_preview_text(p2_character_option.selected)
+	p1_profile_label.text = _build_profile_preview_text(p1_character_option.selected, "p1")
+	p2_profile_label.text = _build_profile_preview_text(p2_character_option.selected, "p2")
 	p1_profile_label.tooltip_text = _build_profile_hint_text(p1_character_option.selected)
 	p2_profile_label.tooltip_text = _build_profile_hint_text(p2_character_option.selected)
 
-func _build_profile_preview_text(index: int) -> String:
+func _build_profile_preview_text(index: int, player_key: String) -> String:
 	if index < 0 or index >= character_profile_cache.size():
 		return "-"
 	var profile := character_profile_cache[index]
@@ -233,9 +260,11 @@ func _build_profile_preview_text(index: int) -> String:
 	if hint_template.find("%") == -1:
 		hint_template = "%s"
 	var hint_text := tr(str(profile.get("archetype_hint_key", "ARCHETYPE_HINT_ALL_ROUNDER")))
-	return "%s\n%s" % [
+	var loadout_text := _build_loadout_summary_line(player_key)
+	return "%s\n%s\n%s" % [
 		row_template % [archetype_label, signature_primary, signature_alt],
-		hint_template % [hint_text]
+		hint_template % [hint_text],
+		loadout_text
 	]
 
 func _build_profile_hint_text(index: int) -> String:
@@ -284,10 +313,26 @@ func _store_character_selection(match_mode: String) -> void:
 	SessionStateStore.set_value(SessionKeysStore.PLAYER_2_TABLE_PATH, str(p2_character.get("attack_table_path", "")))
 	SessionStateStore.set_value(SessionKeysStore.PLAYER_1_NAME, str(p1_character.get("name", "Player 1")))
 	SessionStateStore.set_value(SessionKeysStore.PLAYER_2_NAME, str(p2_character.get("name", "Player 2")))
+	var p1_character_id := str(p1_character.get("id", ""))
+	var p2_character_id := str(p2_character.get("id", ""))
+	var p1_loadout := _resolve_selected_loadout("p1", p1_character_id)
+	var p2_loadout := _resolve_selected_loadout("p2", p2_character_id)
+	var p1_resolved := LoadoutResolverStore.resolve_character_loadout(p1_character_id, p1_loadout)
+	var p2_resolved := LoadoutResolverStore.resolve_character_loadout(p2_character_id, p2_loadout)
+	current_p1_loadout = (p1_resolved.get("loadout", {}) as Dictionary).duplicate(true)
+	current_p2_loadout = (p2_resolved.get("loadout", {}) as Dictionary).duplicate(true)
+	SessionStateStore.set_value(SessionKeysStore.PLAYER_1_LOADOUT, current_p1_loadout.duplicate(true))
+	SessionStateStore.set_value(SessionKeysStore.PLAYER_2_LOADOUT, current_p2_loadout.duplicate(true))
 	if match_mode == "story":
 		SessionStateStore.set_value(SessionKeysStore.STORY_ROUND_INDEX, 0)
 	else:
 		SessionStateStore.clear_keys(PackedStringArray([SessionKeysStore.STORY_ROUND_INDEX]))
+
+func _resolve_selected_loadout(player_key: String, character_id: String) -> Dictionary:
+	var current := current_p1_loadout if player_key == "p1" else current_p2_loadout
+	if not current.is_empty():
+		return current.duplicate(true)
+	return LoadoutCatalogStore.get_default_loadout(character_id)
 
 func _initialize_control_preset() -> void:
 	var saved_preset := GameSettingsStore.get_control_preset()
@@ -397,6 +442,8 @@ func _set_main_menu_interactive(enabled: bool) -> void:
 	lang_zh_button.disabled = not enabled or TranslationServer.get_locale().begins_with("zh")
 	p1_character_option.disabled = not enabled
 	p2_character_option.disabled = not enabled
+	p1_loadout_option.disabled = not enabled
+	p2_loadout_option.disabled = not enabled
 
 func _apply_control_preset(preset: String, persist: bool) -> void:
 	var normalized := GameSettingsStore.normalize_control_preset(preset)
@@ -422,6 +469,125 @@ func _resolve_window_mode_label(window_mode: String) -> String:
 			return _resolve_menu_text("MENU_WINDOW_MODE_BORDERLESS", "Borderless")
 		_:
 			return _resolve_menu_text("MENU_WINDOW_MODE_WINDOWED", "Windowed")
+
+func _refresh_loadout_options() -> void:
+	_refresh_loadout_option_for_player("p1")
+	_refresh_loadout_option_for_player("p2")
+
+func _refresh_loadout_option_for_player(player_key: String) -> void:
+	var character_id := _get_selected_character_id(player_key)
+	var option_button := p1_loadout_option if player_key == "p1" else p2_loadout_option
+	if option_button == null:
+		return
+	var presets := LoadoutCatalogStore.get_preset_options(character_id)
+	is_refreshing_loadout_options = true
+	option_button.clear()
+	for preset in presets:
+		var text := _resolve_loadout_preset_label(character_id, preset)
+		option_button.add_item(text)
+	if player_key == "p1":
+		p1_loadout_presets = presets
+	else:
+		p2_loadout_presets = presets
+	var selected_index := 0
+	var selected_preset_id := current_p1_preset_id if player_key == "p1" else current_p2_preset_id
+	if selected_preset_id != "":
+		for index in range(presets.size()):
+			var preset := presets[index]
+			if str(preset.get("id", "")) == selected_preset_id:
+				selected_index = index
+				break
+	if presets.is_empty():
+		if player_key == "p1":
+			current_p1_preset_id = ""
+			current_p1_loadout = {}
+		else:
+			current_p2_preset_id = ""
+			current_p2_loadout = {}
+		is_refreshing_loadout_options = false
+		return
+	option_button.select(selected_index)
+	var selected_preset := presets[selected_index]
+	var selected_loadout := (selected_preset.get("loadout", {}) as Dictionary).duplicate(true)
+	if player_key == "p1":
+		current_p1_preset_id = str(selected_preset.get("id", ""))
+		current_p1_loadout = selected_loadout
+	else:
+		current_p2_preset_id = str(selected_preset.get("id", ""))
+		current_p2_loadout = selected_loadout
+	option_button.disabled = not main_menu_interactive
+	is_refreshing_loadout_options = false
+
+func _resolve_loadout_preset_label(character_id: String, preset: Dictionary) -> String:
+	var fallback_name := str(preset.get("display_name_fallback", "Preset"))
+	var key := str(preset.get("display_name_key", ""))
+	var name := fallback_name
+	if key != "":
+		name = _resolve_menu_text(key, fallback_name)
+	var loadout := (preset.get("loadout", {}) as Dictionary).duplicate(true)
+	var validation := LoadoutValidatorStore.validate_loadout(character_id, loadout)
+	var total_cost := int(validation.get("total_cost", 0))
+	var budget_cap := int(validation.get("budget_cap", LoadoutCatalogStore.get_budget_cap()))
+	return "%s (%d/%d)" % [name, total_cost, budget_cap]
+
+func _get_selected_character_id(player_key: String) -> String:
+	if character_options.is_empty():
+		return ""
+	var option: OptionButton = p1_character_option if player_key == "p1" else p2_character_option
+	var selected_index := 0
+	if option != null:
+		selected_index = option.selected
+	var clamped_index := clampi(selected_index, 0, character_options.size() - 1)
+	var character := character_options[clamped_index]
+	return str(character.get("id", "")).strip_edges()
+
+func _on_p1_character_option_selected(_index: int) -> void:
+	current_p1_preset_id = ""
+	current_p1_loadout = {}
+	_refresh_loadout_option_for_player("p1")
+	_refresh_character_profile_preview()
+
+func _on_p2_character_option_selected(_index: int) -> void:
+	current_p2_preset_id = ""
+	current_p2_loadout = {}
+	_refresh_loadout_option_for_player("p2")
+	_refresh_character_profile_preview()
+
+func _on_p1_loadout_option_selected(index: int) -> void:
+	if is_refreshing_loadout_options:
+		return
+	if index < 0 or index >= p1_loadout_presets.size():
+		return
+	var preset := p1_loadout_presets[index]
+	current_p1_preset_id = str(preset.get("id", ""))
+	current_p1_loadout = (preset.get("loadout", {}) as Dictionary).duplicate(true)
+	_refresh_character_profile_preview()
+
+func _on_p2_loadout_option_selected(index: int) -> void:
+	if is_refreshing_loadout_options:
+		return
+	if index < 0 or index >= p2_loadout_presets.size():
+		return
+	var preset := p2_loadout_presets[index]
+	current_p2_preset_id = str(preset.get("id", ""))
+	current_p2_loadout = (preset.get("loadout", {}) as Dictionary).duplicate(true)
+	_refresh_character_profile_preview()
+
+func _build_loadout_summary_line(player_key: String) -> String:
+	var character_id := _get_selected_character_id(player_key)
+	var current_loadout: Dictionary = {}
+	if player_key == "p1":
+		current_loadout = current_p1_loadout.duplicate(true)
+	else:
+		current_loadout = current_p2_loadout.duplicate(true)
+	if current_loadout.is_empty():
+		current_loadout = LoadoutCatalogStore.get_default_loadout(character_id)
+	var resolved := LoadoutResolverStore.resolve_character_loadout(character_id, current_loadout)
+	var summary := resolved.get("summary", {}) as Dictionary
+	var item_name := str(summary.get("item", "Item"))
+	var total_cost := int(summary.get("total_cost", 0))
+	var budget_cap := int(summary.get("budget_cap", LoadoutCatalogStore.get_budget_cap()))
+	return "%s [%d/%d]" % [item_name, total_cost, budget_cap]
 
 func _resolve_menu_text(key: String, fallback: String) -> String:
 	var value := tr(key)

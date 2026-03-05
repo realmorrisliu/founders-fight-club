@@ -64,6 +64,10 @@ Recommended read order for gameplay content:
   - Step-by-step task backlog and automated test gates for roster skill rollout
 - `SKILL_RUNTIME_ARCHITECTURE.md`
   - Runtime skill system architecture, data contract, and coverage strategy
+- `LOADOUT_ITEM_SYSTEM_SPEC.md`
+  - Implementation-ready spec for fixed-slot loadouts, character-linked items, evolution, and round-between tuning
+- `LOADOUT_BALANCE_QA_MATRIX.md`
+  - Phase E wave-1 tuning table, balance checklist, and QA coverage matrix for the loadout/item system
 - `ENGINEERING_MODULE_GUIDELINES.md`
   - Module boundaries, dependency direction, refactor thresholds, and test gates
 

@@ -6,6 +6,8 @@ const PlayerSignatureAttackBuilderStore := preload("res://scripts/player/PlayerS
 const PlayerAttackRuntimeBuilderStore := preload("res://scripts/player/PlayerAttackRuntimeBuilder.gd")
 const StageConfigStore := preload("res://scripts/config/StageConfig.gd")
 const GameSettingsStore := preload("res://scripts/GameSettings.gd")
+const EvolutionEngineStore := preload("res://scripts/loadout/EvolutionEngine.gd")
+const RoundTuningEngineStore := preload("res://scripts/loadout/RoundTuningEngine.gd")
 
 signal health_changed
 signal defeated
@@ -13,6 +15,14 @@ signal hit_landed(attacker: Node, target: Node, attack_kind: String, is_counter:
 signal blocked_landed(attacker: Node, target: Node, attack_kind: String)
 signal tech_recovered(fighter: Node, tech_kind: String)
 signal throw_teched(attacker: Node, target: Node)
+signal loadout_item_activated(fighter: Node, item_id: String, activation_count: int, elapsed_seconds: float)
+signal loadout_item_evolved(
+	fighter: Node,
+	from_item_id: String,
+	to_item_id: String,
+	activation_count: int,
+	elapsed_seconds: float
+)
 
 const MAX_HP := 100
 const MOVE_SPEED := 220.0
@@ -301,6 +311,14 @@ var local_input_prefix := "p1"
 var local_gamepad_device := 0
 var platform_drop_through_time := 0.0
 var hitstop_active := false
+var loadout_attack_overrides: Dictionary = {}
+var loadout_item_runtime: Dictionary = {}
+var loadout_passive_runtime: Dictionary = {}
+var loadout_passive_damage_multiplier := 1.0
+var loadout_passive_speed_multiplier := 1.0
+var loadout_passive_startup_multiplier := 1.0
+var loadout_passive_chip_bonus := 0.0
+var loadout_match_elapsed_seconds := 0.0
 
 static var _ledge_occupancy_by_side := {
 	-1: 0,
@@ -336,6 +354,7 @@ func _physics_process(delta: float) -> void:
 		_update_facing()
 		_update_visual()
 		return
+	loadout_match_elapsed_seconds += maxf(0.0, delta)
 	platform_drop_through_time = maxf(0.0, platform_drop_through_time - delta)
 	_update_platform_collision_mask()
 	var was_on_floor := was_on_floor_last_frame
@@ -1380,11 +1399,49 @@ func get_training_dummy_options() -> Dictionary:
 		"dummy_mode": training_dummy_mode
 	}
 
+func apply_loadout_runtime(resolved_loadout: Dictionary) -> void:
+	loadout_attack_overrides.clear()
+	loadout_item_runtime.clear()
+	loadout_passive_runtime.clear()
+	loadout_passive_damage_multiplier = 1.0
+	loadout_passive_speed_multiplier = 1.0
+	loadout_passive_startup_multiplier = 1.0
+	loadout_passive_chip_bonus = 0.0
+	loadout_match_elapsed_seconds = 0.0
+	if resolved_loadout.is_empty():
+		return
+	var attack_overrides_value: Variant = resolved_loadout.get("attack_overrides", {})
+	if typeof(attack_overrides_value) == TYPE_DICTIONARY:
+		loadout_attack_overrides = (attack_overrides_value as Dictionary).duplicate(true)
+	var item_runtime_value: Variant = resolved_loadout.get("item_runtime", {})
+	if typeof(item_runtime_value) == TYPE_DICTIONARY:
+		loadout_item_runtime = (item_runtime_value as Dictionary).duplicate(true)
+	var passive_runtime_value: Variant = resolved_loadout.get("passive_runtime", {})
+	if typeof(passive_runtime_value) == TYPE_DICTIONARY:
+		loadout_passive_runtime = (passive_runtime_value as Dictionary).duplicate(true)
+	_apply_loadout_attack_overrides()
+	_apply_loadout_passive_runtime()
+
+func get_round_tuning_options() -> Array[Dictionary]:
+	return RoundTuningEngineStore.get_round_tuning_options(loadout_item_runtime)
+
+func apply_round_tuning_option(option_id: String) -> void:
+	loadout_item_runtime = RoundTuningEngineStore.apply_round_tuning_option(loadout_item_runtime, option_id)
+
+func get_loadout_runtime_snapshot() -> Dictionary:
+	return {
+		"attack_overrides": loadout_attack_overrides.duplicate(true),
+		"item_runtime": loadout_item_runtime.duplicate(true),
+		"passive_runtime": loadout_passive_runtime.duplicate(true)
+	}
+
 func apply_attack_table(resource: Resource) -> void:
 	if resource == null:
 		return
 	attack_table_resource = resource
 	_setup_attack_data()
+	_apply_loadout_attack_overrides()
+	_apply_loadout_passive_runtime()
 	_refresh_ai_style_profile()
 
 func get_character_id() -> String:
@@ -1531,6 +1588,7 @@ func _update_skill_runtime(delta: float) -> void:
 	_update_skill_cooldowns(delta)
 	_update_status_timers(delta)
 	_update_skill_entities(delta)
+	_update_loadout_item_runtime(delta)
 
 func _update_skill_cooldowns(delta: float) -> void:
 	if skill_cooldowns.is_empty():
@@ -1605,6 +1663,111 @@ func _update_skill_entities(delta: float) -> void:
 		remaining_entities.append(entity)
 	skill_entities = remaining_entities
 
+func _update_loadout_item_runtime(delta: float) -> void:
+	if loadout_item_runtime.is_empty():
+		return
+	var cooldown_remaining := maxf(0.0, float(loadout_item_runtime.get("cooldown_remaining", 0.0)) - delta)
+	loadout_item_runtime["cooldown_remaining"] = cooldown_remaining
+
+func _notify_loadout_item_event(event_type: String, event_payload: Dictionary = {}) -> void:
+	if loadout_item_runtime.is_empty():
+		return
+	var trigger_type := str(loadout_item_runtime.get("trigger_type", ""))
+	if trigger_type == "":
+		return
+	var should_progress := false
+	match trigger_type:
+		"hit_count":
+			should_progress = event_type == "hit_landed"
+		"block_count":
+			should_progress = event_type == "block_landed"
+		"attack_count":
+			should_progress = event_type == "attack_started"
+		"combo_count":
+			should_progress = event_type == "combo_step"
+		_:
+			should_progress = false
+	if not should_progress:
+		return
+	var step := maxf(1.0, float(event_payload.get("step", 1.0)))
+	var trigger_progress := float(loadout_item_runtime.get("trigger_progress", 0.0)) + step
+	loadout_item_runtime["trigger_progress"] = trigger_progress
+	_try_activate_loadout_item()
+
+func _try_activate_loadout_item() -> void:
+	if loadout_item_runtime.is_empty():
+		return
+	var cooldown_remaining := float(loadout_item_runtime.get("cooldown_remaining", 0.0))
+	if cooldown_remaining > 0.0:
+		return
+	var charges_remaining := int(loadout_item_runtime.get("charges_remaining", 0))
+	if charges_remaining <= 0:
+		return
+	var trigger_value := maxf(1.0, float(loadout_item_runtime.get("trigger_value", 1.0)))
+	var trigger_progress := float(loadout_item_runtime.get("trigger_progress", 0.0))
+	if trigger_progress < trigger_value:
+		return
+	var item_id_before := str(loadout_item_runtime.get("id", "")).strip_edges()
+	_activate_loadout_item_effect()
+	loadout_item_runtime["trigger_progress"] = 0.0
+	loadout_item_runtime["charges_remaining"] = maxi(0, charges_remaining - 1)
+	loadout_item_runtime["cooldown_remaining"] = maxf(0.0, float(loadout_item_runtime.get("cooldown_seconds", 0.0)))
+	loadout_item_runtime["activation_count"] = int(loadout_item_runtime.get("activation_count", 0)) + 1
+	if item_id_before != "":
+		loadout_item_activated.emit(
+			self,
+			item_id_before,
+			int(loadout_item_runtime.get("activation_count", 0)),
+			loadout_match_elapsed_seconds
+		)
+	var evolution_result := EvolutionEngineStore.maybe_evolve_item(get_character_id(), loadout_item_runtime)
+	if bool(evolution_result.get("evolved", false)):
+		var next_runtime_value: Variant = evolution_result.get("item_runtime", {})
+		if typeof(next_runtime_value) == TYPE_DICTIONARY:
+			var next_runtime := (next_runtime_value as Dictionary).duplicate(true)
+			next_runtime["cooldown_remaining"] = minf(
+				float(next_runtime.get("cooldown_seconds", 0.0)),
+				float(loadout_item_runtime.get("cooldown_remaining", 0.0))
+			)
+			var evolved_item_id := str(next_runtime.get("id", "")).strip_edges()
+			if item_id_before != "" and evolved_item_id != "" and evolved_item_id != item_id_before:
+				loadout_item_evolved.emit(
+					self,
+					item_id_before,
+					evolved_item_id,
+					int(loadout_item_runtime.get("activation_count", 0)),
+					loadout_match_elapsed_seconds
+				)
+			loadout_item_runtime = next_runtime
+
+func _activate_loadout_item_effect() -> void:
+	if loadout_item_runtime.is_empty():
+		return
+	var effect_type := str(loadout_item_runtime.get("effect_type", ""))
+	var payload_value: Variant = loadout_item_runtime.get("effect_payload", {})
+	var payload: Dictionary = {}
+	if typeof(payload_value) == TYPE_DICTIONARY:
+		payload = (payload_value as Dictionary).duplicate(true)
+	match effect_type:
+		"buff":
+			_apply_install_buff(payload)
+		"hype":
+			_gain_hype(float(payload.get("amount", 0.0)))
+		"cooldown_refund":
+			_apply_item_cooldown_refund(payload)
+		_:
+			pass
+
+func _apply_item_cooldown_refund(payload: Dictionary) -> void:
+	if payload.is_empty():
+		return
+	var refund_seconds := maxf(0.0, float(payload.get("seconds", 0.0)))
+	if refund_seconds <= 0.0:
+		return
+	for key in skill_cooldowns.keys():
+		var kind := str(key)
+		skill_cooldowns[kind] = maxf(0.0, float(skill_cooldowns.get(kind, 0.0)) - refund_seconds)
+
 func _update_skill_entity_visual(entity: Dictionary, is_delayed: bool) -> void:
 	var node_value: Variant = entity.get("node", null)
 	if node_value == null or not (node_value is Node2D):
@@ -1673,7 +1836,7 @@ func _apply_skill_entity_hit(target: Node, payload: Dictionary) -> void:
 		"slow_factor": float(payload.get("slow_factor", 0.65)),
 		"root_seconds": float(payload.get("root_seconds", 0.0)),
 		"status_scale_on_block": float(payload.get("status_scale_on_block", 0.5)),
-		"chip_bonus": install_chip_bonus
+		"chip_bonus": install_chip_bonus + loadout_passive_chip_bonus
 	}
 	var hit_result: Variant = target.call("apply_damage", damage, knockback, hitstun, kind, meta)
 	if typeof(hit_result) != TYPE_DICTIONARY:
@@ -1683,12 +1846,16 @@ func _apply_skill_entity_hit(target: Node, payload: Dictionary) -> void:
 		return
 	if bool(result_dict.get("blocked", false)):
 		_gain_hype(HYPE_GAIN_ON_BLOCK)
+		_notify_loadout_item_event("block_landed")
 		blocked_landed.emit(self, target, kind)
 	else:
 		_gain_hype(HYPE_GAIN_ON_HIT)
 		var combo_count := _record_combo_hit(target)
 		if result_dict.has("damage_total"):
 			_record_combo_damage(int(result_dict.get("damage_total", 0)))
+		_notify_loadout_item_event("hit_landed")
+		if combo_count >= 2:
+			_notify_loadout_item_event("combo_step", {"step": 1.0})
 		hit_landed.emit(self, target, kind, false, combo_count)
 
 func _on_attack_active_started(data: Dictionary) -> void:
@@ -1851,24 +2018,22 @@ func _is_rooted() -> bool:
 	return status_root_time > 0.0
 
 func _get_move_speed_multiplier() -> float:
-	var multiplier := install_speed_multiplier
+	var multiplier := install_speed_multiplier * loadout_passive_speed_multiplier
 	if status_slow_time > 0.0:
 		multiplier *= status_slow_factor
 	return clampf(multiplier, 0.2, 2.0)
 
 func _get_damage_multiplier_for_attack(kind: String) -> float:
-	if install_buff_time <= 0.0:
-		return 1.0
-	if kind == "throw":
-		return 1.0
-	return maxf(1.0, install_damage_multiplier)
+	var multiplier := loadout_passive_damage_multiplier
+	if install_buff_time > 0.0 and kind != "throw":
+		multiplier *= maxf(1.0, install_damage_multiplier)
+	return maxf(1.0, multiplier)
 
 func _get_startup_multiplier_for_attack(kind: String) -> float:
-	if install_buff_time <= 0.0:
-		return 1.0
-	if kind == "throw":
-		return 1.0
-	return clampf(install_startup_multiplier, 0.55, 1.0)
+	var multiplier := loadout_passive_startup_multiplier
+	if install_buff_time > 0.0 and kind != "throw":
+		multiplier *= clampf(install_startup_multiplier, 0.55, 1.0)
+	return clampf(multiplier, 0.55, 1.0)
 
 func _resolve_directional_special_kind() -> String:
 	var pressing_down := down_input_buffer_time > 0.0
@@ -1934,13 +2099,14 @@ func _gain_hype(amount: float) -> void:
 	hype_meter = clampf(hype_meter + amount, 0.0, HYPE_MAX)
 
 func _build_attack_meta(data: Dictionary, is_counter_hit: bool) -> Dictionary:
+	var attack_chip_bonus := float(data.get("chip_bonus", 0.0))
 	var meta := {
 		"blockstun": float(data.get("blockstun", BLOCKSTUN_SECONDS)),
 		"counter": is_counter_hit,
 		"block_type": str(data.get("block_type", "mid")),
 		"air_blockable": bool(data.get("air_blockable", true)),
 		"throw_techable": bool(data.get("throw_techable", false)),
-		"chip_bonus": install_chip_bonus
+		"chip_bonus": attack_chip_bonus + install_chip_bonus + loadout_passive_chip_bonus
 	}
 	var control_value: Variant = data.get("control", {})
 	if typeof(control_value) == TYPE_DICTIONARY:
@@ -2106,6 +2272,61 @@ func _setup_attack_data() -> void:
 		BLOCKSTUN_SECONDS,
 		self
 	)
+	_apply_loadout_attack_overrides()
+
+func _apply_loadout_attack_overrides() -> void:
+	if loadout_attack_overrides.is_empty():
+		return
+	for slot_key in loadout_attack_overrides.keys():
+		var patch_value: Variant = loadout_attack_overrides.get(slot_key, {})
+		if typeof(patch_value) != TYPE_DICTIONARY:
+			continue
+		var patch := (patch_value as Dictionary).duplicate(true)
+		var attack_key := str(patch.get("attack_entry_key", str(slot_key)))
+		if attack_key == "":
+			continue
+		var entry := _get_attack_data(attack_key).duplicate(true)
+		if entry.is_empty():
+			entry = _default_attack_entry_for_kind(attack_key)
+		if patch.has("damage_scale"):
+			var current_damage := int(entry.get("damage", 0))
+			var scaled_damage := int(round(float(current_damage) * float(patch.get("damage_scale", 1.0))))
+			entry["damage"] = maxi(1, scaled_damage)
+		if patch.has("cooldown"):
+			entry["cooldown"] = maxf(0.0, float(patch.get("cooldown", 0.0)))
+		if patch.has("effect"):
+			var effect_value: Variant = patch.get("effect", {})
+			if typeof(effect_value) == TYPE_DICTIONARY:
+				entry["effect"] = (effect_value as Dictionary).duplicate(true)
+		if patch.has("control"):
+			var control_value: Variant = patch.get("control", {})
+			if typeof(control_value) == TYPE_DICTIONARY:
+				entry["control"] = (control_value as Dictionary).duplicate(true)
+		if patch.has("display_name"):
+			entry["display_name"] = str(patch.get("display_name", ""))
+		if patch.has("chip_bonus"):
+			entry["chip_bonus"] = float(patch.get("chip_bonus", 0.0))
+		if patch.has("block_type"):
+			entry["block_type"] = str(patch.get("block_type", "mid"))
+		runtime_attack_data[attack_key] = entry
+
+func _apply_loadout_passive_runtime() -> void:
+	loadout_passive_damage_multiplier = 1.0
+	loadout_passive_speed_multiplier = 1.0
+	loadout_passive_startup_multiplier = 1.0
+	loadout_passive_chip_bonus = 0.0
+	if loadout_passive_runtime.is_empty():
+		return
+	if str(loadout_passive_runtime.get("effect_type", "")) != "stat":
+		return
+	var payload_value: Variant = loadout_passive_runtime.get("effect_payload", {})
+	if typeof(payload_value) != TYPE_DICTIONARY:
+		return
+	var payload := payload_value as Dictionary
+	loadout_passive_damage_multiplier = maxf(1.0, float(payload.get("damage_multiplier", 1.0)))
+	loadout_passive_speed_multiplier = maxf(1.0, float(payload.get("speed_multiplier", 1.0)))
+	loadout_passive_startup_multiplier = clampf(float(payload.get("startup_multiplier", 1.0)), 0.60, 1.0)
+	loadout_passive_chip_bonus = maxf(0.0, float(payload.get("chip_bonus", 0.0)))
 
 func _inject_directional_basic_attack_variants() -> void:
 	runtime_attack_data = PlayerAttackRuntimeBuilderStore.inject_directional_basic_attack_variants(runtime_attack_data)
@@ -2222,6 +2443,7 @@ func _start_attack(kind: String) -> void:
 	_apply_hitbox_profile()
 	_start_skill_cooldown_for_kind(kind)
 	_consume_hype_for_attack(kind)
+	_notify_loadout_item_event("attack_started")
 
 func _clear_attack_state() -> void:
 	attack_state = ""
@@ -2397,6 +2619,7 @@ func _on_hitbox_body_entered(body: Node) -> void:
 			_on_attack_blocked(data)
 			next_attack_is_counter = false
 			_reset_combo_chain()
+			_notify_loadout_item_event("block_landed")
 			if is_ai:
 				_plan_ai_combo_follow_up(true)
 			if typeof(hit_result) == TYPE_DICTIONARY:
@@ -2415,6 +2638,9 @@ func _on_hitbox_body_entered(body: Node) -> void:
 			var combo_damage := combo_damage_total
 			if typeof(hit_result) == TYPE_DICTIONARY:
 				combo_damage = _record_combo_damage(int((hit_result as Dictionary).get("damage_total", 0)))
+			_notify_loadout_item_event("hit_landed")
+			if combo_count >= 2:
+				_notify_loadout_item_event("combo_step", {"step": 1.0})
 			if typeof(hit_result) == TYPE_DICTIONARY:
 				_record_training_exchange("hit", attack_state, data, hit_result as Dictionary, is_counter_hit, combo_count, combo_damage, damage)
 			if is_ai:
@@ -3186,6 +3412,8 @@ func get_runtime_status_snapshot() -> Dictionary:
 		"slow_seconds": status_slow_time,
 		"root_seconds": status_root_time,
 		"install_seconds": install_buff_time,
+		"loadout_item_cooldown": float(loadout_item_runtime.get("cooldown_remaining", 0.0)),
+		"loadout_item_charges": int(loadout_item_runtime.get("charges_remaining", 0)),
 		"cooldowns": {
 			"signature_a": float(skill_cooldowns.get("signature_a", 0.0)),
 			"signature_b": float(skill_cooldowns.get("signature_b", 0.0)),

@@ -21,7 +21,7 @@ grow_vertical = 2
 color = Color(0.08, 0.11, 0.16, 1)
 
 [node name="CenterPanel" type="Panel" parent="."]
-custom_minimum_size = Vector2(360, 596)
+custom_minimum_size = Vector2(360, 680)
 layout_mode = 1
 anchors_preset = 8
 anchor_left = 0.5
@@ -29,9 +29,9 @@ anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
 offset_left = -180.0
-offset_top = -298.0
+offset_top = -340.0
 offset_right = 180.0
-offset_bottom = 298.0
+offset_bottom = 340.0
 grow_horizontal = 2
 grow_vertical = 2
 
@@ -70,138 +70,150 @@ offset_bottom = 130.0
 
 [node name="P1ProfileLabel" type="Label" parent="CenterPanel"]
 offset_left = 50.0
-offset_top = 132.0
+offset_top = 164.0
 offset_right = 310.0
-offset_bottom = 158.0
+offset_bottom = 190.0
 theme_override_colors/font_color = Color(0.72, 0.84, 0.98, 1)
 horizontal_alignment = 1
 autowrap_mode = 2
-clip_text = true
+clip_text = false
 text = "-"
+
+[node name="P1LoadoutOption" type="OptionButton" parent="CenterPanel"]
+offset_left = 50.0
+offset_top = 132.0
+offset_right = 310.0
+offset_bottom = 162.0
 
 [node name="P2CharacterLabel" type="Label" parent="CenterPanel"]
 offset_left = 50.0
-offset_top = 160.0
+offset_top = 192.0
 offset_right = 310.0
-offset_bottom = 180.0
+offset_bottom = 212.0
 theme_override_colors/font_color = Color(0.88, 0.93, 1, 1)
 horizontal_alignment = 1
 text = "Opponent Character"
 
 [node name="P2CharacterOption" type="OptionButton" parent="CenterPanel"]
 offset_left = 50.0
-offset_top = 182.0
+offset_top = 214.0
 offset_right = 310.0
-offset_bottom = 214.0
+offset_bottom = 246.0
+
+[node name="P2LoadoutOption" type="OptionButton" parent="CenterPanel"]
+offset_left = 50.0
+offset_top = 248.0
+offset_right = 310.0
+offset_bottom = 278.0
 
 [node name="P2ProfileLabel" type="Label" parent="CenterPanel"]
 offset_left = 50.0
-offset_top = 216.0
+offset_top = 280.0
 offset_right = 310.0
-offset_bottom = 242.0
+offset_bottom = 306.0
 theme_override_colors/font_color = Color(0.72, 0.84, 0.98, 1)
 horizontal_alignment = 1
 autowrap_mode = 2
-clip_text = true
+clip_text = false
 text = "-"
 
 [node name="VersusButton" type="Button" parent="CenterPanel"]
 offset_left = 50.0
-offset_top = 246.0
+offset_top = 310.0
 offset_right = 310.0
-offset_bottom = 278.0
+offset_bottom = 342.0
 text = "Local VS"
 
 [node name="StoryButton" type="Button" parent="CenterPanel"]
 offset_left = 50.0
-offset_top = 282.0
+offset_top = 346.0
 offset_right = 310.0
-offset_bottom = 314.0
+offset_bottom = 378.0
 text = "Story Mode"
 
 [node name="TrainingButton" type="Button" parent="CenterPanel"]
 offset_left = 50.0
-offset_top = 318.0
+offset_top = 382.0
 offset_right = 310.0
-offset_bottom = 350.0
+offset_bottom = 414.0
 text = "Training Mode"
 
 [node name="ControlStyleLabel" type="Label" parent="CenterPanel"]
 offset_left = 50.0
-offset_top = 354.0
+offset_top = 418.0
 offset_right = 310.0
-offset_bottom = 374.0
+offset_bottom = 438.0
 theme_override_colors/font_color = Color(0.88, 0.93, 1, 1)
 horizontal_alignment = 1
 text = "Control Style"
 
 [node name="ControlStyleButton" type="Button" parent="CenterPanel"]
 offset_left = 50.0
-offset_top = 378.0
+offset_top = 442.0
 offset_right = 310.0
-offset_bottom = 410.0
+offset_bottom = 474.0
 text = "Modern"
 
 [node name="VideoSettingsLabel" type="Label" parent="CenterPanel"]
 offset_left = 50.0
-offset_top = 414.0
+offset_top = 478.0
 offset_right = 310.0
-offset_bottom = 434.0
+offset_bottom = 498.0
 theme_override_colors/font_color = Color(0.88, 0.93, 1, 1)
 horizontal_alignment = 1
 text = "Video"
 
 [node name="WindowModeLabel" type="Label" parent="CenterPanel"]
 offset_left = 50.0
-offset_top = 438.0
+offset_top = 502.0
 offset_right = 310.0
-offset_bottom = 458.0
+offset_bottom = 522.0
 theme_override_colors/font_color = Color(0.88, 0.93, 1, 1)
 horizontal_alignment = 1
 text = "Window Mode"
 
 [node name="WindowModeOption" type="OptionButton" parent="CenterPanel"]
 offset_left = 50.0
-offset_top = 460.0
+offset_top = 524.0
 offset_right = 310.0
-offset_bottom = 492.0
+offset_bottom = 556.0
 
 [node name="ResolutionLabel" type="Label" parent="CenterPanel"]
 offset_left = 50.0
-offset_top = 496.0
+offset_top = 560.0
 offset_right = 310.0
-offset_bottom = 516.0
+offset_bottom = 580.0
 theme_override_colors/font_color = Color(0.88, 0.93, 1, 1)
 horizontal_alignment = 1
 text = "Resolution"
 
 [node name="ResolutionOption" type="OptionButton" parent="CenterPanel"]
 offset_left = 50.0
-offset_top = 518.0
+offset_top = 582.0
 offset_right = 310.0
-offset_bottom = 550.0
+offset_bottom = 614.0
 
 [node name="LanguageLabel" type="Label" parent="CenterPanel"]
 offset_left = 50.0
-offset_top = 554.0
+offset_top = 618.0
 offset_right = 310.0
-offset_bottom = 574.0
+offset_bottom = 638.0
 theme_override_colors/font_color = Color(0.88, 0.93, 1, 1)
 horizontal_alignment = 1
 text = "Language"
 
 [node name="LangEnButton" type="Button" parent="CenterPanel"]
 offset_left = 74.0
-offset_top = 566.0
+offset_top = 630.0
 offset_right = 164.0
-offset_bottom = 594.0
+offset_bottom = 658.0
 text = "English"
 
 [node name="LangZhButton" type="Button" parent="CenterPanel"]
 offset_left = 176.0
-offset_top = 566.0
+offset_top = 630.0
 offset_right = 266.0
-offset_bottom = 594.0
+offset_bottom = 658.0
 text = "中文"
 
 [node name="FirstLaunchControlOverlay" type="ColorRect" parent="."]

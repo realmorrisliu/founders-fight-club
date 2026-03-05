@@ -1,9 +1,11 @@
 extends Node2D
 
 const CharacterCatalogStore := preload("res://scripts/config/CharacterCatalog.gd")
+const LoadoutCatalogStore := preload("res://scripts/config/LoadoutCatalog.gd")
 const SessionKeysStore := preload("res://scripts/config/SessionKeys.gd")
 const StageConfigStore := preload("res://scripts/config/StageConfig.gd")
 const SessionStateStore := preload("res://scripts/SessionState.gd")
+const LoadoutResolverStore := preload("res://scripts/loadout/LoadoutResolver.gd")
 
 const ROUND_TIME_SECONDS := 60.0
 const WIN_RULE_HP_TIMER := "hp_timer"
@@ -101,6 +103,8 @@ const SFX_VOLUME_DB := {
 }
 const DIALOGUE_PACK_PATH := "res://assets/data/dialogue/DialoguePackV1.json"
 const DIALOGUE_LINE_DELAY_SECONDS := 0.45
+const MATCH_METRICS_LOG_PATH := "user://match_metrics.jsonl"
+const MATCH_METRICS_SCHEMA_VERSION := 2
 
 var time_left := ROUND_TIME_SECONDS
 var stocks := {"p1": 0, "p2": 0}
@@ -129,6 +133,8 @@ var sfx_player_pool_cursor := 0
 @export var training_controls_enabled := false
 @export_enum("stand", "force_block", "random_block") var training_dummy_default_mode := "stand"
 @export var training_detail_default_visible := false
+@export var round_tuning_enabled := true
+@export var round_tuning_force_ui_in_headless := false
 
 @onready var player_1 := $Player1
 @onready var player_2 := $Player2
@@ -142,6 +148,7 @@ var training_options := TRAINING_DEFAULT_OPTIONS.duplicate(true)
 var selected_character_ids := {"p1": "", "p2": ""}
 var selected_character_names := {"p1": "Player 1", "p2": "Player 2"}
 var selected_character_profiles := {"p1": {}, "p2": {}}
+var selected_character_loadouts := {"p1": {}, "p2": {}}
 var dialogue_pack := {}
 var dialogue_rng := RandomNumberGenerator.new()
 var story_mode_active := false
@@ -154,6 +161,14 @@ var dialogue_timer: Timer
 var pending_dialogue_text := ""
 var pending_dialogue_duration := 0.0
 var pending_dialogue_tint := Color(1.0, 1.0, 1.0, 1.0)
+var round_tuning_active := false
+var round_tuning_pending_player_key := ""
+var round_tuning_option_cache: Array[Dictionary] = []
+var match_elapsed_seconds := 0.0
+var telemetry_round_tuning_picks: Array[Dictionary] = []
+var telemetry_item_activation_events: Array[Dictionary] = []
+var telemetry_item_evolution_events: Array[Dictionary] = []
+var telemetry_expected_item_evolution_count := 0
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -178,6 +193,7 @@ func _ready() -> void:
 	_setup_sfx_player_pool()
 	_apply_selected_character_tables()
 	_apply_session_match_mode()
+	_reset_match_telemetry()
 	_load_dialogue_pack()
 	_setup_dialogue_timer()
 
@@ -204,6 +220,14 @@ func _ready() -> void:
 		player_1.throw_teched.connect(_on_throw_teched)
 	if player_2 and player_2.has_signal("throw_teched"):
 		player_2.throw_teched.connect(_on_throw_teched)
+	if player_1 and player_1.has_signal("loadout_item_activated"):
+		player_1.loadout_item_activated.connect(_on_player_loadout_item_activated)
+	if player_2 and player_2.has_signal("loadout_item_activated"):
+		player_2.loadout_item_activated.connect(_on_player_loadout_item_activated)
+	if player_1 and player_1.has_signal("loadout_item_evolved"):
+		player_1.loadout_item_evolved.connect(_on_player_loadout_item_evolved)
+	if player_2 and player_2.has_signal("loadout_item_evolved"):
+		player_2.loadout_item_evolved.connect(_on_player_loadout_item_evolved)
 
 	if hud:
 		if hud.has_signal("resume_requested"):
@@ -216,6 +240,8 @@ func _ready() -> void:
 			hud.locale_changed.connect(_on_locale_changed)
 		if hud.has_signal("training_options_changed"):
 			hud.training_options_changed.connect(_on_hud_training_options_changed)
+		if hud.has_signal("round_tuning_option_selected"):
+			hud.round_tuning_option_selected.connect(_on_hud_round_tuning_option_selected)
 		if hud.has_method("set_pause_visible"):
 			hud.set_pause_visible(false)
 		if hud.has_method("set_timer_visible"):
@@ -247,6 +273,7 @@ func _process(delta: float) -> void:
 	_update_hitstop_state()
 	if get_tree().paused:
 		return
+	match_elapsed_seconds += maxf(0.0, delta)
 	if match_over:
 		_update_story_round_transition(delta)
 		return
@@ -419,13 +446,118 @@ func _end_match(result_key: String) -> void:
 		return
 	match_over = true
 	match_result_key = result_key
+	_cancel_round_tuning_intermission()
 	_clear_hitstop()
 	get_tree().paused = false
 	if hud and hud.has_method("set_pause_visible"):
 		hud.set_pause_visible(false)
 	_refresh_result_text()
+	_append_match_metrics_log(result_key)
 	_queue_story_progression(result_key)
 	_trigger_victory_dialogue(result_key)
+
+func _append_match_metrics_log(result_key: String) -> void:
+	var p1_loadout := (selected_character_loadouts.get("p1", {}) as Dictionary).duplicate(true)
+	var p2_loadout := (selected_character_loadouts.get("p2", {}) as Dictionary).duplicate(true)
+	var evolution_success_count := telemetry_item_evolution_events.size()
+	var evolution_expected_count := maxi(0, telemetry_expected_item_evolution_count)
+	var evolution_success_rate := 0.0
+	if evolution_expected_count > 0:
+		evolution_success_rate = float(evolution_success_count) / float(evolution_expected_count)
+	var record := {
+		"schema_version": MATCH_METRICS_SCHEMA_VERSION,
+		"timestamp_utc": Time.get_datetime_string_from_system(true),
+		"match_mode": _resolve_active_match_mode(),
+		"result": result_key,
+		"match_elapsed_seconds": match_elapsed_seconds,
+		"p1_character_id": str(selected_character_ids.get("p1", "")),
+		"p2_character_id": str(selected_character_ids.get("p2", "")),
+		"p1_loadout": p1_loadout,
+		"p2_loadout": p2_loadout,
+		"p1_loadout_signature": _build_loadout_signature("p1", p1_loadout),
+		"p2_loadout_signature": _build_loadout_signature("p2", p2_loadout),
+		"loadout_picks": _build_loadout_pick_entries(),
+		"round_tuning_picks": telemetry_round_tuning_picks.duplicate(true),
+		"item_activation_events": telemetry_item_activation_events.duplicate(true),
+		"item_evolution_events": telemetry_item_evolution_events.duplicate(true),
+		"item_evolution_expected_count": evolution_expected_count,
+		"item_evolution_success_count": evolution_success_count,
+		"item_evolution_success_rate": evolution_success_rate,
+		"item_evolution_avg_trigger_time_seconds": _calc_average_evolution_trigger_seconds()
+	}
+	var line := JSON.stringify(record)
+	if line == "":
+		return
+	var file := FileAccess.open(MATCH_METRICS_LOG_PATH, FileAccess.READ_WRITE)
+	if file == null:
+		file = FileAccess.open(MATCH_METRICS_LOG_PATH, FileAccess.WRITE)
+	if file == null:
+		return
+	file.seek_end()
+	file.store_string("%s\n" % line)
+
+func _resolve_active_match_mode() -> String:
+	if training_scene_enabled:
+		return "training"
+	if story_mode_active:
+		return STORY_SCENE_MODE
+	if SessionStateStore.has_value(SessionKeysStore.MATCH_MODE):
+		return str(SessionStateStore.get_value(SessionKeysStore.MATCH_MODE, "vs")).to_lower()
+	return "vs"
+
+func _reset_match_telemetry() -> void:
+	match_elapsed_seconds = 0.0
+	telemetry_round_tuning_picks.clear()
+	telemetry_item_activation_events.clear()
+	telemetry_item_evolution_events.clear()
+	telemetry_expected_item_evolution_count = _count_expected_item_evolutions()
+
+func _count_expected_item_evolutions() -> int:
+	var expected := 0
+	for player_key in ["p1", "p2"]:
+		var character_id := str(selected_character_ids.get(player_key, "")).strip_edges()
+		var loadout := (selected_character_loadouts.get(player_key, {}) as Dictionary).duplicate(true)
+		var item_id := str(loadout.get("item", "")).strip_edges()
+		if character_id == "" or item_id == "":
+			continue
+		var item_def := LoadoutCatalogStore.get_item_definition(character_id, item_id)
+		if item_def.is_empty():
+			continue
+		var evolution_id := str(item_def.get("evolution_id", "")).strip_edges()
+		if evolution_id != "":
+			expected += 1
+	return expected
+
+func _build_loadout_signature(player_key: String, loadout: Dictionary) -> String:
+	var character_id := str(selected_character_ids.get(player_key, "")).strip_edges()
+	var signature_a := str(loadout.get("signature_a", "")).strip_edges()
+	var signature_b := str(loadout.get("signature_b", "")).strip_edges()
+	var ultimate := str(loadout.get("ultimate", "")).strip_edges()
+	var item := str(loadout.get("item", "")).strip_edges()
+	var passive := str(loadout.get("passive", "")).strip_edges()
+	return "|".join([character_id, signature_a, signature_b, ultimate, item, passive])
+
+func _build_loadout_pick_entries() -> Dictionary:
+	var picks := {}
+	for player_key in ["p1", "p2"]:
+		var loadout := (selected_character_loadouts.get(player_key, {}) as Dictionary).duplicate(true)
+		picks[player_key] = {
+			"character_id": str(selected_character_ids.get(player_key, "")),
+			"signature_a": str(loadout.get("signature_a", "")),
+			"signature_b": str(loadout.get("signature_b", "")),
+			"ultimate": str(loadout.get("ultimate", "")),
+			"item": str(loadout.get("item", "")),
+			"passive": str(loadout.get("passive", ""))
+		}
+	return picks
+
+func _calc_average_evolution_trigger_seconds() -> float:
+	if telemetry_item_evolution_events.is_empty():
+		return -1.0
+	var sum := 0.0
+	for event in telemetry_item_evolution_events:
+		sum += float(event.get("elapsed_seconds", 0.0))
+	return sum / float(telemetry_item_evolution_events.size())
 
 func _queue_story_progression(result_key: String) -> void:
 	story_round_transition_time = 0.0
@@ -455,11 +587,14 @@ func _update_story_round_transition(delta: float) -> void:
 func _restart_match() -> void:
 	if story_mode_active:
 		SessionStateStore.set_value(SessionKeysStore.STORY_ROUND_INDEX, 0)
+	_cancel_round_tuning_intermission()
 	_clear_hitstop()
 	get_tree().paused = false
 	get_tree().reload_current_scene()
 
 func _toggle_pause() -> void:
+	if round_tuning_active:
+		return
 	var is_paused = get_tree().paused
 	get_tree().paused = not is_paused
 	if hud and hud.has_method("set_pause_visible"):
@@ -562,6 +697,7 @@ func _lose_stock(player_key: String) -> void:
 		return
 	_respawn_player_by_key(player_key)
 	_update_hud()
+	_maybe_start_round_tuning_intermission(player_key)
 
 func _lose_stocks_simultaneously() -> void:
 	if not _uses_stock_rule():
@@ -584,6 +720,90 @@ func _lose_stocks_simultaneously() -> void:
 	_respawn_player_by_key("p1")
 	_respawn_player_by_key("p2")
 	_update_hud()
+	if not _maybe_start_round_tuning_intermission("p1"):
+		_maybe_start_round_tuning_intermission("p2")
+
+func _maybe_start_round_tuning_intermission(player_key: String) -> bool:
+	if not round_tuning_enabled:
+		return false
+	if not _uses_stock_rule():
+		return false
+	if match_over:
+		return false
+	if round_tuning_active:
+		return false
+	var options := _resolve_player_round_tuning_options(player_key)
+	if options.is_empty():
+		return false
+	round_tuning_pending_player_key = player_key
+	round_tuning_option_cache.clear()
+	for option in options:
+		round_tuning_option_cache.append(option.duplicate(true))
+	var should_force_pick := OS.has_feature("headless") and not round_tuning_force_ui_in_headless
+	if hud == null or not hud.has_method("show_round_tuning_options"):
+		should_force_pick = true
+	if should_force_pick:
+		var option_id := str(round_tuning_option_cache[0].get("id", "")).strip_edges()
+		if option_id != "":
+			_record_round_tuning_pick(player_key, option_id)
+			_apply_round_tuning_option_to_player(player_key, option_id)
+		round_tuning_pending_player_key = ""
+		round_tuning_option_cache.clear()
+		_update_hud()
+		return true
+	round_tuning_active = true
+	get_tree().paused = true
+	if hud.has_method("set_pause_visible"):
+		hud.set_pause_visible(false)
+	hud.show_round_tuning_options(round_tuning_option_cache)
+	return true
+
+func _resolve_player_round_tuning_options(player_key: String) -> Array[Dictionary]:
+	var fighter := _get_player_by_key(player_key)
+	var options: Array[Dictionary] = []
+	if fighter == null:
+		return options
+	if not fighter.has_method("get_round_tuning_options"):
+		return options
+	var options_value: Variant = fighter.call("get_round_tuning_options")
+	if typeof(options_value) != TYPE_ARRAY:
+		return options
+	for option_variant in options_value:
+		if typeof(option_variant) != TYPE_DICTIONARY:
+			continue
+		var option := (option_variant as Dictionary).duplicate(true)
+		var option_id := str(option.get("id", "")).strip_edges()
+		if option_id == "":
+			continue
+		options.append(option)
+		if options.size() >= 2:
+			break
+	return options
+
+func _apply_round_tuning_option_to_player(player_key: String, option_id: String) -> bool:
+	var fighter := _get_player_by_key(player_key)
+	if fighter == null:
+		return false
+	if not fighter.has_method("apply_round_tuning_option"):
+		return false
+	fighter.call("apply_round_tuning_option", option_id)
+	return true
+
+func _cancel_round_tuning_intermission() -> void:
+	round_tuning_active = false
+	round_tuning_pending_player_key = ""
+	round_tuning_option_cache.clear()
+	if hud and hud.has_method("hide_round_tuning_options"):
+		hud.hide_round_tuning_options()
+
+func _record_round_tuning_pick(player_key: String, option_id: String) -> void:
+	telemetry_round_tuning_picks.append(
+		{
+			"player_key": player_key,
+			"option_id": option_id,
+			"elapsed_seconds": match_elapsed_seconds
+		}
+	)
 
 func _respawn_player_by_key(player_key: String) -> void:
 	var fighter := _get_player_by_key(player_key)
@@ -800,6 +1020,7 @@ func _on_hud_restart_requested() -> void:
 	_restart_match()
 
 func _on_hud_menu_requested() -> void:
+	_cancel_round_tuning_intermission()
 	_clear_hitstop()
 	if story_mode_active:
 		SessionStateStore.clear_keys(PackedStringArray([SessionKeysStore.STORY_ROUND_INDEX]))
@@ -811,6 +1032,68 @@ func _on_locale_changed(_locale: String) -> void:
 	_refresh_result_text()
 	if hud and hud.has_method("set_training_options"):
 		hud.set_training_options(training_options)
+
+func _on_hud_round_tuning_option_selected(option_id: String) -> void:
+	if not round_tuning_active:
+		return
+	var selected_option_id := option_id.strip_edges()
+	if selected_option_id == "":
+		return
+	var option_exists := false
+	for option in round_tuning_option_cache:
+		if str(option.get("id", "")) == selected_option_id:
+			option_exists = true
+			break
+	if not option_exists:
+		return
+	var player_key := round_tuning_pending_player_key
+	if player_key != "":
+		_record_round_tuning_pick(player_key, selected_option_id)
+		_apply_round_tuning_option_to_player(player_key, selected_option_id)
+	_cancel_round_tuning_intermission()
+	get_tree().paused = false
+	if hud and hud.has_method("set_pause_visible"):
+		hud.set_pause_visible(false)
+	_update_hud()
+
+func _on_player_loadout_item_activated(
+	fighter: Node,
+	item_id: String,
+	activation_count: int,
+	elapsed_seconds: float
+) -> void:
+	var player_key := _resolve_player_key_for_node(fighter)
+	if player_key == "":
+		return
+	telemetry_item_activation_events.append(
+		{
+			"player_key": player_key,
+			"item_id": item_id,
+			"activation_count": activation_count,
+			"elapsed_seconds": elapsed_seconds
+		}
+	)
+
+func _on_player_loadout_item_evolved(
+	fighter: Node,
+	from_item_id: String,
+	to_item_id: String,
+	activation_count: int,
+	elapsed_seconds: float
+) -> void:
+	var player_key := _resolve_player_key_for_node(fighter)
+	if player_key == "":
+		return
+	telemetry_item_evolution_events.append(
+		{
+			"player_key": player_key,
+			"from_item_id": from_item_id,
+			"to_item_id": to_item_id,
+			"activation_count": activation_count,
+			"elapsed_seconds": elapsed_seconds
+		}
+	)
+	_show_combat_callout("HUD_CALLOUT_ITEM_EVOLVED", Color(1.0, 0.92, 0.68, 1.0))
 
 func _show_combat_callout(message_key: String, tint: Color) -> void:
 	if hud and hud.has_method("show_combat_callout"):
@@ -1009,6 +1292,7 @@ func _apply_selected_character_tables() -> void:
 		SessionKeysStore.PLAYER_1_TABLE_PATH,
 		SessionKeysStore.PLAYER_1_ID,
 		SessionKeysStore.PLAYER_1_NAME,
+		SessionKeysStore.PLAYER_1_LOADOUT,
 		"p1"
 	)
 	_apply_selected_character_table_for_player(
@@ -1016,6 +1300,7 @@ func _apply_selected_character_tables() -> void:
 		SessionKeysStore.PLAYER_2_TABLE_PATH,
 		SessionKeysStore.PLAYER_2_ID,
 		SessionKeysStore.PLAYER_2_NAME,
+		SessionKeysStore.PLAYER_2_LOADOUT,
 		"p2"
 	)
 	if _is_story_session_mode():
@@ -1026,6 +1311,7 @@ func _apply_selected_character_table_for_player(
 	table_path_key: String,
 	character_id_key: String,
 	character_name_key: String,
+	loadout_key: String,
 	player_key: String
 ) -> void:
 	if player == null:
@@ -1058,6 +1344,15 @@ func _apply_selected_character_table_for_player(
 	if display_name == "":
 		display_name = "Player 1" if player_key == "p1" else "Player 2"
 	selected_character_names[player_key] = display_name
+	var selected_loadout := {}
+	if SessionStateStore.has_value(loadout_key):
+		var loadout_value: Variant = SessionStateStore.get_value(loadout_key, {})
+		if typeof(loadout_value) == TYPE_DICTIONARY:
+			selected_loadout = (loadout_value as Dictionary).duplicate(true)
+	var resolved_loadout := LoadoutResolverStore.resolve_character_loadout(character_id, selected_loadout)
+	selected_character_loadouts[player_key] = (resolved_loadout.get("loadout", {}) as Dictionary).duplicate(true)
+	if player.has_method("apply_loadout_runtime"):
+		player.call("apply_loadout_runtime", resolved_loadout)
 	var profile := {}
 	if player.has_method("get_character_profile"):
 		var profile_value: Variant = player.call("get_character_profile")
@@ -1079,6 +1374,7 @@ func _apply_selected_character_table_for_player(
 				"ultimate": "Ultimate"
 			}
 		}
+	profile["loadout_summary"] = (resolved_loadout.get("summary", {}) as Dictionary).duplicate(true)
 	selected_character_profiles[player_key] = profile
 
 func _is_story_session_mode() -> bool:
@@ -1116,10 +1412,18 @@ func _apply_story_opponent_round() -> void:
 			player_2.call("apply_attack_table", loaded as Resource)
 	selected_character_ids["p2"] = str(opponent_data.get("id", selected_character_ids.get("p2", "")))
 	selected_character_names["p2"] = str(opponent_data.get("name", selected_character_names.get("p2", "Player 2")))
+	var opponent_id := str(selected_character_ids.get("p2", ""))
+	var default_loadout := LoadoutCatalogStore.get_default_loadout(opponent_id)
+	var resolved_loadout := LoadoutResolverStore.resolve_character_loadout(opponent_id, default_loadout)
+	selected_character_loadouts["p2"] = (resolved_loadout.get("loadout", {}) as Dictionary).duplicate(true)
+	if player_2 and player_2.has_method("apply_loadout_runtime"):
+		player_2.call("apply_loadout_runtime", resolved_loadout)
 	if player_2 and player_2.has_method("get_character_profile"):
 		var profile_value: Variant = player_2.call("get_character_profile")
 		if typeof(profile_value) == TYPE_DICTIONARY:
-			selected_character_profiles["p2"] = (profile_value as Dictionary).duplicate(true)
+			var profile := (profile_value as Dictionary).duplicate(true)
+			profile["loadout_summary"] = (resolved_loadout.get("summary", {}) as Dictionary).duplicate(true)
+			selected_character_profiles["p2"] = profile
 
 func _apply_session_match_mode() -> void:
 	story_mode_active = false

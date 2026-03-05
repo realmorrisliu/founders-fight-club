@@ -1,8 +1,12 @@
 extends SceneTree
 
 const GameSettingsStore := preload("res://scripts/GameSettings.gd")
+const LoadoutCatalogStore := preload("res://scripts/config/LoadoutCatalog.gd")
 const SessionKeysStore := preload("res://scripts/config/SessionKeys.gd")
 const SessionStateStore := preload("res://scripts/SessionState.gd")
+const LoadoutValidatorStore := preload("res://scripts/loadout/LoadoutValidator.gd")
+const LoadoutResolverStore := preload("res://scripts/loadout/LoadoutResolver.gd")
+const EvolutionEngineStore := preload("res://scripts/loadout/EvolutionEngine.gd")
 const REQUIRED_BASE_ATTACKS := ["light", "heavy", "special", "throw"]
 const SUITE_SMOKE := "smoke"
 const SUITE_FULL := "full"
@@ -47,6 +51,13 @@ func _run_smoke_suite() -> void:
 	await _test_training_quick_start_hint_renders()
 	await _test_control_preset_profiles()
 	await _test_video_settings_profiles()
+	await _test_loadout_system_foundation()
+	await _test_loadout_session_flow_runtime_apply()
+	await _test_loadout_item_trigger_and_cooldown_runtime()
+	await _test_loadout_item_evolution_boundaries()
+	await _test_loadout_wave1_tuning_profiles_present()
+	await _test_round_tuning_intermission_flow()
+	await _test_match_metrics_telemetry_schema()
 	await _test_directional_attack_variants()
 	await _test_local_dual_gamepad_input_actions()
 	await _test_forward_tap_triggers_ground_dash()
@@ -208,6 +219,7 @@ func _test_main_scene_prototype_signature_coverage() -> void:
 	if packed is not PackedScene:
 		return
 	var match_node := (packed as PackedScene).instantiate()
+	match_node.set("round_tuning_enabled", false)
 	get_root().add_child(match_node)
 	await process_frame
 	await process_frame
@@ -237,6 +249,7 @@ func _test_main_scene_runtime_match_flow() -> void:
 	if packed is not PackedScene:
 		return
 	var match_node := (packed as PackedScene).instantiate()
+	match_node.set("round_tuning_enabled", false)
 	get_root().add_child(match_node)
 	await process_frame
 	await process_frame
@@ -745,6 +758,393 @@ func _test_video_settings_profiles() -> void:
 	)
 
 	GameSettingsStore.set_video_settings(original_mode, original_resolution)
+
+func _test_loadout_system_foundation() -> void:
+	var character_id := "sam_altmyn"
+	var pool := LoadoutCatalogStore.get_character_pool(character_id)
+	var skills := pool.get("skills", []) as Array
+	var items := pool.get("items", []) as Array
+	var passives := pool.get("passives", []) as Array
+	var presets := pool.get("presets", []) as Array
+	_assert_true(not skills.is_empty(), "loadout foundation exposes skill pool entries")
+	_assert_true(not items.is_empty(), "loadout foundation exposes item pool entries")
+	_assert_true(not passives.is_empty(), "loadout foundation exposes passive pool entries")
+	_assert_true(not presets.is_empty(), "loadout foundation exposes preset options")
+
+	var default_loadout := LoadoutCatalogStore.get_default_loadout(character_id)
+	var default_validation := LoadoutValidatorStore.validate_loadout(character_id, default_loadout)
+	_assert_true(bool(default_validation.get("is_valid", false)), "default loadout passes validator gate")
+	_assert_true(
+		int(default_validation.get("total_cost", 0)) <= int(default_validation.get("budget_cap", 0)),
+		"default loadout stays within budget cap"
+	)
+
+	var mismatched_owner_loadout := LoadoutCatalogStore.get_default_loadout("mark_zuck")
+	var owner_mismatch_validation := LoadoutValidatorStore.validate_loadout(character_id, mismatched_owner_loadout)
+	_assert_true(not bool(owner_mismatch_validation.get("is_valid", true)), "validator rejects owner-mismatched loadout")
+
+	var overflow_loadout := default_loadout.duplicate(true)
+	overflow_loadout["ultimate"] = "%s_ultimate_overclock" % character_id
+	overflow_loadout["item"] = "%s_item_hype_loop" % character_id
+	overflow_loadout["passive"] = "%s_passive_pressure_stack" % character_id
+	var overflow_validation := LoadoutValidatorStore.validate_loadout(character_id, overflow_loadout)
+	_assert_true(not bool(overflow_validation.get("is_valid", true)), "validator rejects budget-overflow loadout")
+
+	var tag_overflow_loadout := default_loadout.duplicate(true)
+	tag_overflow_loadout["signature_b"] = "%s_signature_b_mobility" % character_id
+	tag_overflow_loadout["item"] = "%s_item_hype_loop" % character_id
+	var tag_overflow_validation := LoadoutValidatorStore.validate_loadout(character_id, tag_overflow_loadout)
+	_assert_true(not bool(tag_overflow_validation.get("is_valid", true)), "validator rejects tag-limit overflow loadout")
+
+	var resolved := LoadoutResolverStore.resolve_character_loadout(character_id, mismatched_owner_loadout)
+	var resolved_validation := resolved.get("validation", {}) as Dictionary
+	_assert_true(bool(resolved.get("used_fallback", false)), "resolver falls back to default for invalid loadout")
+	_assert_true(bool(resolved_validation.get("is_valid", false)), "resolver fallback result is validator-clean")
+
+func _test_loadout_session_flow_runtime_apply() -> void:
+	var menu_packed := load("res://scenes/Menu.tscn")
+	_assert_true(menu_packed is PackedScene, "menu scene loads for loadout session flow test")
+	if menu_packed is not PackedScene:
+		return
+	var menu_node := (menu_packed as PackedScene).instantiate()
+	get_root().add_child(menu_node)
+	await process_frame
+	await process_frame
+
+	var p1_option := menu_node.get_node_or_null("CenterPanel/P1LoadoutOption")
+	var p2_option := menu_node.get_node_or_null("CenterPanel/P2LoadoutOption")
+	_assert_true(p1_option is OptionButton and p2_option is OptionButton, "menu exposes loadout preset selectors for both players")
+	if p1_option is OptionButton and (p1_option as OptionButton).item_count > 1:
+		(p1_option as OptionButton).select(1)
+		menu_node.call("_on_p1_loadout_option_selected", 1)
+	if p2_option is OptionButton and (p2_option as OptionButton).item_count > 1:
+		(p2_option as OptionButton).select(1)
+		menu_node.call("_on_p2_loadout_option_selected", 1)
+	menu_node.call("_store_character_selection", "vs")
+	var p1_loadout_value: Variant = SessionStateStore.get_value(SessionKeysStore.PLAYER_1_LOADOUT, {})
+	var p2_loadout_value: Variant = SessionStateStore.get_value(SessionKeysStore.PLAYER_2_LOADOUT, {})
+	_assert_true(typeof(p1_loadout_value) == TYPE_DICTIONARY and not (p1_loadout_value as Dictionary).is_empty(), "session flow stores p1 loadout payload")
+	_assert_true(typeof(p2_loadout_value) == TYPE_DICTIONARY and not (p2_loadout_value as Dictionary).is_empty(), "session flow stores p2 loadout payload")
+	if is_instance_valid(menu_node):
+		menu_node.queue_free()
+	await process_frame
+
+	var main_packed := load("res://scenes/Main.tscn")
+	_assert_true(main_packed is PackedScene, "main scene loads for runtime loadout apply test")
+	if main_packed is not PackedScene:
+		SessionStateStore.clear_keys(PackedStringArray([
+			SessionKeysStore.MATCH_MODE,
+			SessionKeysStore.PLAYER_1_LOADOUT,
+			SessionKeysStore.PLAYER_2_LOADOUT
+		]))
+		return
+	var match_node := (main_packed as PackedScene).instantiate()
+	get_root().add_child(match_node)
+	await process_frame
+	await process_frame
+	var player_1 := match_node.get_node_or_null("Player1")
+	_assert_true(player_1 != null, "runtime loadout apply test resolves player1")
+	if player_1 != null and player_1.has_method("get_loadout_runtime_snapshot"):
+		var snapshot_value: Variant = player_1.call("get_loadout_runtime_snapshot")
+		_assert_true(typeof(snapshot_value) == TYPE_DICTIONARY, "player exposes loadout runtime snapshot")
+		if typeof(snapshot_value) == TYPE_DICTIONARY:
+			var snapshot := snapshot_value as Dictionary
+			var attack_overrides := snapshot.get("attack_overrides", {}) as Dictionary
+			var item_runtime := snapshot.get("item_runtime", {}) as Dictionary
+			_assert_true(not attack_overrides.is_empty(), "runtime loadout applies attack overrides to player")
+			_assert_true(not item_runtime.is_empty(), "runtime loadout applies item runtime state to player")
+	var selected_loadouts_value: Variant = match_node.get("selected_character_loadouts")
+	_assert_true(typeof(selected_loadouts_value) == TYPE_DICTIONARY, "match exposes selected character loadouts")
+	if typeof(selected_loadouts_value) == TYPE_DICTIONARY:
+		var selected_loadouts := selected_loadouts_value as Dictionary
+		var p1_loadout := selected_loadouts.get("p1", {}) as Dictionary
+		_assert_true(not p1_loadout.is_empty(), "match stores resolved p1 loadout")
+	if is_instance_valid(match_node):
+		match_node.queue_free()
+	await process_frame
+	SessionStateStore.clear_keys(PackedStringArray([
+		SessionKeysStore.MATCH_MODE,
+		SessionKeysStore.PLAYER_1_ID,
+		SessionKeysStore.PLAYER_2_ID,
+		SessionKeysStore.PLAYER_1_TABLE_PATH,
+		SessionKeysStore.PLAYER_2_TABLE_PATH,
+		SessionKeysStore.PLAYER_1_NAME,
+		SessionKeysStore.PLAYER_2_NAME,
+		SessionKeysStore.PLAYER_1_LOADOUT,
+		SessionKeysStore.PLAYER_2_LOADOUT,
+		SessionKeysStore.STORY_ROUND_INDEX
+	]))
+
+func _test_loadout_item_trigger_and_cooldown_runtime() -> void:
+	var setup: Dictionary = await _spawn_test_players()
+	var p1 := setup.get("p1") as CharacterBody2D
+	var host := setup.get("host") as Node2D
+	if p1 == null or host == null:
+		return
+	var character_id := "sam_altmyn"
+	var loadout := LoadoutCatalogStore.get_default_loadout(character_id)
+	var resolved := LoadoutResolverStore.resolve_character_loadout(character_id, loadout)
+	p1.call("apply_loadout_runtime", resolved)
+	await process_frame
+	var before_snapshot_value: Variant = p1.call("get_loadout_runtime_snapshot")
+	_assert_true(typeof(before_snapshot_value) == TYPE_DICTIONARY, "loadout item trigger test can read runtime snapshot before events")
+	if typeof(before_snapshot_value) != TYPE_DICTIONARY:
+		host.queue_free()
+		await process_frame
+		return
+	var before_snapshot := (before_snapshot_value as Dictionary).duplicate(true)
+	var before_item := before_snapshot.get("item_runtime", {}) as Dictionary
+	_assert_true(not before_item.is_empty(), "loadout item trigger test has runtime item payload")
+	if before_item.is_empty():
+		host.queue_free()
+		await process_frame
+		return
+	var trigger_steps := int(ceil(float(before_item.get("trigger_value", 1.0))))
+	for _index in range(maxi(1, trigger_steps)):
+		p1.call("_notify_loadout_item_event", "hit_landed")
+	var after_snapshot_value: Variant = p1.call("get_loadout_runtime_snapshot")
+	_assert_true(typeof(after_snapshot_value) == TYPE_DICTIONARY, "loadout item trigger test can read runtime snapshot after activation")
+	if typeof(after_snapshot_value) == TYPE_DICTIONARY:
+		var after_snapshot := (after_snapshot_value as Dictionary).duplicate(true)
+		var after_item := after_snapshot.get("item_runtime", {}) as Dictionary
+		_assert_true(
+			int(after_item.get("activation_count", 0)) == int(before_item.get("activation_count", 0)) + 1,
+			"loadout item trigger threshold increments activation counter"
+		)
+		_assert_true(float(after_item.get("cooldown_remaining", 0.0)) > 0.0, "loadout item activation starts cooldown timer")
+		_assert_true(
+			int(after_item.get("charges_remaining", 0)) == int(before_item.get("charges_remaining", 0)) - 1,
+			"loadout item activation consumes one charge"
+		)
+		var locked_activation_count := int(after_item.get("activation_count", 0))
+		for _index in range(maxi(2, trigger_steps * 2)):
+			p1.call("_notify_loadout_item_event", "hit_landed")
+		var cooldown_snapshot_value: Variant = p1.call("get_loadout_runtime_snapshot")
+		if typeof(cooldown_snapshot_value) == TYPE_DICTIONARY:
+			var cooldown_snapshot := cooldown_snapshot_value as Dictionary
+			var cooldown_item := cooldown_snapshot.get("item_runtime", {}) as Dictionary
+			_assert_true(
+				int(cooldown_item.get("activation_count", 0)) == locked_activation_count,
+				"loadout item does not re-activate while cooldown is active"
+			)
+	host.queue_free()
+	await process_frame
+
+func _test_loadout_item_evolution_boundaries() -> void:
+	var character_id := "sam_altmyn"
+	var item_id := "%s_item_brand_core" % character_id
+	var runtime := LoadoutResolverStore.build_item_runtime_from_definition(character_id, item_id)
+	_assert_true(not runtime.is_empty(), "loadout evolution boundary test resolves item runtime definition")
+	if runtime.is_empty():
+		return
+	var evolution_id := str(runtime.get("evolution_id", "")).strip_edges()
+	_assert_true(evolution_id != "", "loadout evolution boundary test has evolution target")
+	if evolution_id == "":
+		return
+	var required_activations := maxi(1, int(runtime.get("evolution_after_activations", 2)))
+	var before_threshold := runtime.duplicate(true)
+	before_threshold["activation_count"] = required_activations - 1
+	var before_result := EvolutionEngineStore.maybe_evolve_item(character_id, before_threshold)
+	_assert_true(
+		not bool(before_result.get("evolved", true)),
+		"evolution does not trigger before required activation count"
+	)
+	var on_threshold := runtime.duplicate(true)
+	on_threshold["activation_count"] = required_activations
+	var threshold_result := EvolutionEngineStore.maybe_evolve_item(character_id, on_threshold)
+	_assert_true(bool(threshold_result.get("evolved", false)), "evolution triggers once activation threshold is reached")
+	var evolved_runtime_value: Variant = threshold_result.get("item_runtime", {})
+	_assert_true(typeof(evolved_runtime_value) == TYPE_DICTIONARY, "evolution boundary test returns evolved runtime payload")
+	if typeof(evolved_runtime_value) == TYPE_DICTIONARY:
+		var evolved_runtime := evolved_runtime_value as Dictionary
+		_assert_true(str(evolved_runtime.get("id", "")) == evolution_id, "evolution resolves expected target item id")
+
+func _test_loadout_wave1_tuning_profiles_present() -> void:
+	var tuning_profiles := LoadoutCatalogStore.get_wave1_character_tuning_profiles()
+	var wave1_ids := ["elon_mvsk", "mark_zuck", "sam_altmyn", "peter_thyell"]
+	for character_id in wave1_ids:
+		_assert_true(
+			tuning_profiles.has(character_id),
+			"wave1 tuning profile exists for %s" % character_id
+		)
+	var elon_pool := LoadoutCatalogStore.get_character_pool("elon_mvsk")
+	var elon_items := elon_pool.get("item_by_id", {}) as Dictionary
+	var elon_hype := elon_items.get("elon_mvsk_item_hype_loop", {}) as Dictionary
+	_assert_true(
+		is_equal_approx(float(elon_hype.get("trigger_value", 2.0)), 1.0),
+		"wave1 tuning applies Elon hype trigger reduction"
+	)
+	var sam_pool := LoadoutCatalogStore.get_character_pool("sam_altmyn")
+	var sam_items := sam_pool.get("item_by_id", {}) as Dictionary
+	var sam_core := sam_items.get("sam_altmyn_item_brand_core", {}) as Dictionary
+	_assert_true(
+		is_equal_approx(float(sam_core.get("cooldown_seconds", 6.0)), 5.5),
+		"wave1 tuning applies Sam core cooldown adjustment"
+	)
+
+func _test_match_metrics_telemetry_schema() -> void:
+	var metrics_path := ProjectSettings.globalize_path("user://match_metrics.jsonl")
+	if FileAccess.file_exists(metrics_path):
+		DirAccess.remove_absolute(metrics_path)
+	var packed := load("res://scenes/Main.tscn")
+	_assert_true(packed is PackedScene, "main scene loads for telemetry schema test")
+	if packed is not PackedScene:
+		return
+	var match_node := (packed as PackedScene).instantiate()
+	match_node.set("round_tuning_enabled", false)
+	get_root().add_child(match_node)
+	await process_frame
+	await process_frame
+	match_node.call("_end_match", "p1_win")
+	await process_frame
+	_assert_true(FileAccess.file_exists(metrics_path), "telemetry schema test writes match metrics jsonl file")
+	if FileAccess.file_exists(metrics_path):
+		var text := FileAccess.get_file_as_string(metrics_path)
+		var lines := text.split("\n", false)
+		_assert_true(not lines.is_empty(), "telemetry schema test writes at least one metrics line")
+		if not lines.is_empty():
+			var parsed: Variant = JSON.parse_string(lines[lines.size() - 1])
+			_assert_true(typeof(parsed) == TYPE_DICTIONARY, "telemetry schema test parses latest jsonl line")
+			if typeof(parsed) == TYPE_DICTIONARY:
+				var record := parsed as Dictionary
+				_assert_true(int(record.get("schema_version", 0)) >= 2, "telemetry record exposes schema version >= 2")
+				_assert_true(record.has("p1_loadout_signature"), "telemetry record exposes p1 loadout signature")
+				_assert_true(record.has("p2_loadout_signature"), "telemetry record exposes p2 loadout signature")
+				_assert_true(record.has("loadout_picks"), "telemetry record exposes loadout pick payload")
+				_assert_true(record.has("round_tuning_picks"), "telemetry record exposes round tuning pick events")
+				_assert_true(record.has("item_activation_events"), "telemetry record exposes item activation events")
+				_assert_true(record.has("item_evolution_events"), "telemetry record exposes item evolution events")
+				_assert_true(record.has("item_evolution_success_rate"), "telemetry record exposes evolution success rate")
+				_assert_true(record.has("item_evolution_avg_trigger_time_seconds"), "telemetry record exposes evolution trigger timing")
+	if is_instance_valid(match_node):
+		match_node.queue_free()
+	await process_frame
+
+func _test_round_tuning_intermission_flow() -> void:
+	var packed := load("res://scenes/Main.tscn")
+	_assert_true(packed is PackedScene, "main scene loads for round tuning intermission test")
+	if packed is not PackedScene:
+		return
+	var match_node := (packed as PackedScene).instantiate()
+	match_node.set("round_tuning_force_ui_in_headless", true)
+	get_root().add_child(match_node)
+	await process_frame
+	await process_frame
+	var player_1 := match_node.get_node_or_null("Player1")
+	var panel := match_node.get_node_or_null("Hud/RoundTuningPanel")
+	var option_a_button := match_node.get_node_or_null("Hud/RoundTuningPanel/OptionAButton")
+	_assert_true(player_1 != null, "round tuning test resolves player1")
+	_assert_true(panel is Panel and option_a_button is Button, "round tuning test resolves hud intermission controls")
+	if player_1 == null or panel is not Panel or option_a_button is not Button:
+		if is_instance_valid(match_node):
+			match_node.queue_free()
+		await process_frame
+		return
+	var before_snapshot_value: Variant = player_1.call("get_loadout_runtime_snapshot")
+	_assert_true(typeof(before_snapshot_value) == TYPE_DICTIONARY, "round tuning test can read pre-intermission runtime snapshot")
+	var before_snapshot := {}
+	if typeof(before_snapshot_value) == TYPE_DICTIONARY:
+		before_snapshot = (before_snapshot_value as Dictionary).duplicate(true)
+	var before_item_runtime := before_snapshot.get("item_runtime", {}) as Dictionary
+	var option_values: Variant = player_1.call("get_round_tuning_options")
+	_assert_true(typeof(option_values) == TYPE_ARRAY, "round tuning test can read player tuning options")
+	if typeof(option_values) != TYPE_ARRAY:
+		if is_instance_valid(match_node):
+			match_node.queue_free()
+		await process_frame
+		return
+	var options := option_values as Array
+	_assert_true(options.size() >= 1, "round tuning test has at least one available option")
+	if options.is_empty() or typeof(options[0]) != TYPE_DICTIONARY:
+		if is_instance_valid(match_node):
+			match_node.queue_free()
+		await process_frame
+		return
+	var first_option := (options[0] as Dictionary).duplicate(true)
+	var first_option_id := str(first_option.get("id", "")).strip_edges()
+	_assert_true(first_option_id != "", "round tuning option has stable id")
+	match_node.call("_lose_stock", "p1")
+	await process_frame
+	_assert_true((panel as Panel).visible, "round tuning panel opens after non-final stock loss")
+	_assert_true(bool(match_node.get("round_tuning_active")), "round tuning state enters active intermission")
+	_assert_true(get_root().get_tree().paused, "round tuning intermission pauses active match loop")
+	(option_a_button as Button).emit_signal("pressed")
+	await process_frame
+	await process_frame
+	_assert_true(not (panel as Panel).visible, "round tuning panel closes after selecting an option")
+	_assert_true(not bool(match_node.get("round_tuning_active")), "round tuning state exits after option selection")
+	_assert_true(not get_root().get_tree().paused, "round tuning selection restores match pause state")
+	var after_snapshot_value: Variant = player_1.call("get_loadout_runtime_snapshot")
+	_assert_true(typeof(after_snapshot_value) == TYPE_DICTIONARY, "round tuning test can read post-selection runtime snapshot")
+	var after_item_runtime := {}
+	if typeof(after_snapshot_value) == TYPE_DICTIONARY:
+		var after_snapshot := (after_snapshot_value as Dictionary).duplicate(true)
+		after_item_runtime = (after_snapshot.get("item_runtime", {}) as Dictionary).duplicate(true)
+		_assert_true(
+			_is_round_tuning_patch_applied(before_item_runtime, after_item_runtime, first_option),
+			"round tuning selection applies item runtime patch for subsequent stocks"
+		)
+	if not after_item_runtime.is_empty():
+		match_node.set("round_tuning_enabled", false)
+		match_node.call("_lose_stock", "p1")
+		await process_frame
+		var persisted_snapshot_value: Variant = player_1.call("get_loadout_runtime_snapshot")
+		_assert_true(typeof(persisted_snapshot_value) == TYPE_DICTIONARY, "round tuning test can read runtime snapshot after next stock loss")
+		if typeof(persisted_snapshot_value) == TYPE_DICTIONARY:
+			var persisted_snapshot := persisted_snapshot_value as Dictionary
+			var persisted_item_runtime := persisted_snapshot.get("item_runtime", {}) as Dictionary
+			_assert_true(
+				_is_round_tuning_patch_applied(before_item_runtime, persisted_item_runtime, first_option),
+				"round tuning patch persists for subsequent in-match stocks"
+			)
+	if is_instance_valid(match_node):
+		match_node.queue_free()
+	await process_frame
+
+func _is_round_tuning_patch_applied(before_item: Dictionary, after_item: Dictionary, option: Dictionary) -> bool:
+	var patch_value: Variant = option.get("patch", {})
+	if typeof(patch_value) != TYPE_DICTIONARY:
+		return false
+	var patch := patch_value as Dictionary
+	var has_patch_clause := false
+	var applied := true
+	if patch.has("cooldown_seconds_delta"):
+		has_patch_clause = true
+		var expected_cooldown := maxf(
+			0.0,
+			float(before_item.get("cooldown_seconds", 0.0)) + float(patch.get("cooldown_seconds_delta", 0.0))
+		)
+		applied = applied and is_equal_approx(float(after_item.get("cooldown_seconds", 0.0)), expected_cooldown)
+	if patch.has("trigger_value_delta"):
+		has_patch_clause = true
+		var expected_trigger := maxf(
+			1.0,
+			float(before_item.get("trigger_value", 1.0)) + float(patch.get("trigger_value_delta", 0.0))
+		)
+		applied = applied and is_equal_approx(float(after_item.get("trigger_value", 1.0)), expected_trigger)
+	if patch.has("max_charges_delta"):
+		has_patch_clause = true
+		var expected_max_charges := maxi(
+			1,
+			int(before_item.get("max_charges", 1)) + int(patch.get("max_charges_delta", 0))
+		)
+		applied = applied and int(after_item.get("max_charges", 1)) == expected_max_charges
+	if patch.has("effect_payload_patch"):
+		var payload_patch_value: Variant = patch.get("effect_payload_patch", {})
+		if typeof(payload_patch_value) == TYPE_DICTIONARY:
+			has_patch_clause = true
+			var payload_patch := payload_patch_value as Dictionary
+			var before_payload := before_item.get("effect_payload", {}) as Dictionary
+			var after_payload := after_item.get("effect_payload", {}) as Dictionary
+			for key in payload_patch.keys():
+				var before_value: Variant = before_payload.get(key, 0.0)
+				var delta_value: Variant = payload_patch[key]
+				if before_value is int or before_value is float:
+					var expected_value := float(before_value) + float(delta_value)
+					applied = applied and is_equal_approx(float(after_payload.get(key, 0.0)), expected_value)
+				else:
+					applied = applied and after_payload.get(key, null) == delta_value
+	return has_patch_clause and applied
 
 func _action_has_keyboard_key(action_name: String, keycode: int) -> bool:
 	if not InputMap.has_action(action_name):

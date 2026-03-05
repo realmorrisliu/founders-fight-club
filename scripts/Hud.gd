@@ -7,6 +7,7 @@ signal restart_requested
 signal menu_requested
 signal locale_changed(locale: String)
 signal training_options_changed(options: Dictionary)
+signal round_tuning_option_selected(option_id: String)
 
 const MATCH_UI_MODE_HP_TIMER := "hp_timer"
 const MATCH_UI_MODE_STOCK := "stock"
@@ -51,6 +52,11 @@ const MATCH_UI_MODE_STOCK := "stock"
 @onready var language_label := $PausePanel/LanguageLabel
 @onready var lang_en_button := $PausePanel/LangEnButton
 @onready var lang_zh_button := $PausePanel/LangZhButton
+@onready var round_tuning_panel := $RoundTuningPanel
+@onready var round_tuning_title_label := $RoundTuningPanel/TitleLabel
+@onready var round_tuning_hint_label := $RoundTuningPanel/HintLabel
+@onready var round_tuning_option_a_button := $RoundTuningPanel/OptionAButton
+@onready var round_tuning_option_b_button := $RoundTuningPanel/OptionBButton
 
 var cached_timer_seconds := 60.0
 var cached_p1_hp := 100
@@ -81,6 +87,7 @@ var training_panel_visible := true
 var training_controls_visible := true
 var training_log_entries: Array[Dictionary] = []
 const TRAINING_LOG_MAX_ENTRIES := 8
+var round_tuning_options: Array[Dictionary] = []
 
 func _ready() -> void:
 	_ensure_translations_registered()
@@ -94,6 +101,8 @@ func _ready() -> void:
 		hit_type_callout_label.visible = false
 	if dialogue_label:
 		dialogue_label.visible = false
+	if round_tuning_panel:
+		round_tuning_panel.visible = false
 	resume_button.pressed.connect(_on_resume_pressed)
 	restart_button.pressed.connect(_on_restart_pressed)
 	back_menu_button.pressed.connect(_on_back_menu_pressed)
@@ -102,7 +111,38 @@ func _ready() -> void:
 	training_mode_button.pressed.connect(_on_training_mode_pressed)
 	training_dummy_button.pressed.connect(_on_training_dummy_pressed)
 	training_detail_button.pressed.connect(_on_training_detail_pressed)
+	if round_tuning_option_a_button:
+		round_tuning_option_a_button.pressed.connect(_on_round_tuning_option_a_pressed)
+	if round_tuning_option_b_button:
+		round_tuning_option_b_button.pressed.connect(_on_round_tuning_option_b_pressed)
 	_refresh_ui_text()
+
+func show_round_tuning_options(options: Array[Dictionary], title_text: String = "") -> void:
+	round_tuning_options.clear()
+	for option_variant in options:
+		if typeof(option_variant) != TYPE_DICTIONARY:
+			continue
+		round_tuning_options.append((option_variant as Dictionary).duplicate(true))
+	if round_tuning_options.is_empty():
+		hide_round_tuning_options()
+		return
+	if round_tuning_panel:
+		round_tuning_panel.visible = true
+	pause_panel.visible = false
+	if title_text.strip_edges() != "":
+		round_tuning_title_label.text = title_text
+	else:
+		round_tuning_title_label.text = _tr_or_fallback("HUD_ROUND_TUNING_TITLE", "Round Tuning")
+	round_tuning_hint_label.text = _tr_or_fallback(
+		"HUD_ROUND_TUNING_HINT",
+		"Pick 1 upgrade for the next rounds."
+	)
+	_refresh_round_tuning_option_buttons()
+
+func hide_round_tuning_options() -> void:
+	round_tuning_options.clear()
+	if round_tuning_panel:
+		round_tuning_panel.visible = false
 
 func set_training_data(info: Dictionary) -> void:
 	cached_training_info = info.duplicate(true)
@@ -294,6 +334,10 @@ func _refresh_ui_text() -> void:
 	lang_en_button.text = tr("PAUSE_LANG_EN")
 	lang_zh_button.text = tr("PAUSE_LANG_ZH")
 	_update_language_buttons()
+	if round_tuning_panel and round_tuning_panel.visible:
+		round_tuning_title_label.text = _tr_or_fallback("HUD_ROUND_TUNING_TITLE", "Round Tuning")
+		round_tuning_hint_label.text = _tr_or_fallback("HUD_ROUND_TUNING_HINT", "Pick 1 upgrade for the next rounds.")
+		_refresh_round_tuning_option_buttons()
 
 func set_combat_state(p1_state: Dictionary, p2_state: Dictionary) -> void:
 	cached_p1_combat_state = p1_state.duplicate(true)
@@ -710,6 +754,48 @@ func _on_lang_en_pressed() -> void:
 
 func _on_lang_zh_pressed() -> void:
 	_set_locale("zh")
+
+func _refresh_round_tuning_option_buttons() -> void:
+	if round_tuning_option_a_button == null or round_tuning_option_b_button == null:
+		return
+	var fallback_a := _tr_or_fallback("HUD_ROUND_TUNING_OPTION_FALLBACK_A", "Option A")
+	var fallback_b := _tr_or_fallback("HUD_ROUND_TUNING_OPTION_FALLBACK_B", "Option B")
+	if round_tuning_options.size() >= 1:
+		round_tuning_option_a_button.visible = true
+		round_tuning_option_a_button.text = _resolve_round_tuning_option_text(round_tuning_options[0], fallback_a)
+	else:
+		round_tuning_option_a_button.visible = false
+		round_tuning_option_a_button.text = fallback_a
+	if round_tuning_options.size() >= 2:
+		round_tuning_option_b_button.visible = true
+		round_tuning_option_b_button.text = _resolve_round_tuning_option_text(round_tuning_options[1], fallback_b)
+	else:
+		round_tuning_option_b_button.visible = false
+		round_tuning_option_b_button.text = fallback_b
+
+func _resolve_round_tuning_option_text(option: Dictionary, fallback: String) -> String:
+	var key := str(option.get("display_name_key", "")).strip_edges()
+	var fallback_text := str(option.get("display_name_fallback", fallback)).strip_edges()
+	if fallback_text == "":
+		fallback_text = fallback
+	if key == "":
+		return fallback_text
+	return _tr_or_fallback(key, fallback_text)
+
+func _on_round_tuning_option_a_pressed() -> void:
+	_emit_round_tuning_option_selected(0)
+
+func _on_round_tuning_option_b_pressed() -> void:
+	_emit_round_tuning_option_selected(1)
+
+func _emit_round_tuning_option_selected(index: int) -> void:
+	if index < 0 or index >= round_tuning_options.size():
+		return
+	var option := round_tuning_options[index]
+	var option_id := str(option.get("id", "")).strip_edges()
+	if option_id == "":
+		return
+	round_tuning_option_selected.emit(option_id)
 
 func _set_locale(locale: String) -> void:
 	if TranslationServer.get_locale().begins_with(locale):
