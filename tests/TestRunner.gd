@@ -8,6 +8,7 @@ const LoadoutValidatorStore := preload("res://scripts/loadout/LoadoutValidator.g
 const LoadoutResolverStore := preload("res://scripts/loadout/LoadoutResolver.gd")
 const EvolutionEngineStore := preload("res://scripts/loadout/EvolutionEngine.gd")
 const RoundTuningEngineStore := preload("res://scripts/loadout/RoundTuningEngine.gd")
+const AttackTableStore := preload("res://scripts/resources/AttackTable.gd")
 const REQUIRED_BASE_ATTACKS := ["light", "heavy", "special", "throw"]
 const SUITE_SMOKE := "smoke"
 const SUITE_FULL := "full"
@@ -1954,7 +1955,7 @@ func _test_skill_runtime_primitives() -> void:
 	if p1 == null or p2 == null or host == null:
 		return
 
-	var custom_table := AttackTable.new()
+	var custom_table = AttackTableStore.new()
 	custom_table.character_id = "runtime_test"
 	custom_table.display_name = "Runtime Test"
 	custom_table.attacks = {
