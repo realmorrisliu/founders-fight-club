@@ -885,12 +885,13 @@ func _test_menu_focus_path_and_summary_cards() -> void:
 		var guided_hint_label := menu_node.get_node_or_null("CenterPanel/GuidedHintLabel")
 		var p1_summary := menu_node.get_node_or_null("P1SummaryPanel/BodyLabel")
 		var p2_summary := menu_node.get_node_or_null("P2SummaryPanel/BodyLabel")
-		var route_cards := menu_node.get_node_or_null("P2SummaryPanel/RouteCards")
+		var route_preview_mode := menu_node.get_node_or_null("P2SummaryPanel/RoutePreviewModeLabel")
+		var route_preview_footer := menu_node.get_node_or_null("P2SummaryPanel/RoutePreviewFooterLabel")
 		var p2_option := menu_node.get_node_or_null("CenterPanel/P2CharacterOption")
 		var control_button := menu_node.get_node_or_null("CenterPanel/ControlStyleButton")
 		_assert_true(
-			advanced_button is Button and quick_start_label is Label and mode_step_label is Label and guided_button is Button and guided_hint_label is Label and p1_summary is Label and p2_summary is Label and route_cards is VBoxContainer,
-			"focused path summary test resolves helper labels, guided CTA, summary cards, and route cards"
+			advanced_button is Button and quick_start_label is Label and mode_step_label is Label and guided_button is Button and guided_hint_label is Label and p1_summary is Label and p2_summary is Label and route_preview_mode is Label and route_preview_footer is Label,
+			"focused path summary test resolves helper labels, guided CTA, summary cards, and route preview labels"
 		)
 		if quick_start_label is CanvasItem:
 			_assert_true((quick_start_label as CanvasItem).visible, "focused menu path surfaces recommended first-run helper copy")
@@ -904,11 +905,16 @@ func _test_menu_focus_path_and_summary_cards() -> void:
 			var p1_text := (p1_summary as Label).text
 			_assert_true(p1_text.find("Core Loop") != -1, "p1 summary card surfaces the compact gameplan line")
 			_assert_true(p1_text.find("Budget:") != -1, "p1 summary card surfaces budget state")
-		if p2_summary is CanvasItem:
-			_assert_true(not (p2_summary as CanvasItem).visible, "collapsed menu hides the verbose rival body copy on the right card")
-		if route_cards is VBoxContainer:
-			_assert_true((route_cards as VBoxContainer).visible, "collapsed menu repurposes the right summary card into route cards")
-			_assert_true((route_cards as VBoxContainer).get_child_count() == 4, "collapsed menu shows all four route cards")
+		if p2_summary is Label:
+			_assert_true((p2_summary as Label).text.find("Replays move") != -1, "collapsed menu swaps the right summary body into a guided mode preview")
+		if route_preview_mode is Label:
+			_assert_true((route_preview_mode as Label).text.find("Guided") != -1, "collapsed menu defaults the right preview card to guided start")
+		if route_preview_footer is Label:
+			_assert_true((route_preview_footer as Label).text.find("Training") != -1, "collapsed menu preview explains where the selected route goes next")
+		menu_node.call("_set_route_preview", "story")
+		await process_frame
+		if route_preview_mode is Label:
+			_assert_true((route_preview_mode as Label).text.find("Story") != -1, "mode preview follows route hover and focus state")
 		if p2_option is CanvasItem:
 			_assert_true(not (p2_option as CanvasItem).visible, "focused menu path hides opponent picker until advanced setup is expanded")
 		if control_button is CanvasItem:
@@ -921,8 +927,10 @@ func _test_menu_focus_path_and_summary_cards() -> void:
 			_assert_true(not (mode_step_label as CanvasItem).visible, "advanced setup hides simplified mode step copy")
 		if guided_hint_label is CanvasItem:
 			_assert_true(not (guided_hint_label as CanvasItem).visible, "advanced setup hides the guided replay helper line")
-		if route_cards is CanvasItem:
-			_assert_true(not (route_cards as CanvasItem).visible, "advanced setup hides route cards so the rival preview can return")
+		if route_preview_mode is CanvasItem:
+			_assert_true(not (route_preview_mode as CanvasItem).visible, "advanced setup hides the route preview headline so the rival preview can return")
+		if route_preview_footer is CanvasItem:
+			_assert_true(not (route_preview_footer as CanvasItem).visible, "advanced setup hides the route preview footer so the rival preview can return")
 		if p2_option is CanvasItem:
 			_assert_true((p2_option as CanvasItem).visible, "advanced toggle reveals opponent setup controls")
 		if control_button is CanvasItem:

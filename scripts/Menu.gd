@@ -46,11 +46,67 @@ const MENU_SLOT_PREVIEW_CONFIG := [
 	{"key": "passive", "summary_key": "passive", "profile_key": "", "label_key": "MENU_SUMMARY_PASSIVE", "fallback": "Passive"}
 ]
 const MENU_ROUTE_CARD_CONFIG := [
-	{"id": "guided", "title_key": "MENU_SUMMARY_ROUTE_GUIDED", "title_fallback": "Guided", "desc_key": "MENU_SUMMARY_ROUTE_GUIDED_HINT", "desc_fallback": "Best first run. Replays move, jump, guard, dodge, and special."},
-	{"id": "story", "title_key": "MENU_SUMMARY_ROUTE_STORY", "title_fallback": "Story", "desc_key": "MENU_SUMMARY_ROUTE_STORY_HINT", "desc_fallback": "Solo ladder with automatic rivals."},
-	{"id": "versus", "title_key": "MENU_SUMMARY_ROUTE_VS", "title_fallback": "VS", "desc_key": "MENU_SUMMARY_ROUTE_VS_HINT", "desc_fallback": "Two local fighters on one screen."},
-	{"id": "training", "title_key": "MENU_SUMMARY_ROUTE_TRAINING", "title_fallback": "Training", "desc_key": "MENU_SUMMARY_ROUTE_TRAINING_HINT", "desc_fallback": "Sandbox for drills, dummy logic, and timing."}
+	{
+		"id": "guided",
+		"title_key": "MENU_SUMMARY_ROUTE_GUIDED",
+		"title_fallback": "Guided",
+		"desc_key": "MENU_SUMMARY_ROUTE_GUIDED_HINT",
+		"desc_fallback": "Best first run. Replays move, jump, guard, dodge, and special.",
+		"best_key": "MENU_ROUTE_PREVIEW_GUIDED_BEST",
+		"best_fallback": "First session",
+		"next_key": "MENU_ROUTE_PREVIEW_GUIDED_NEXT",
+		"next_fallback": "Training with onboarding replay"
+	},
+	{
+		"id": "story",
+		"title_key": "MENU_SUMMARY_ROUTE_STORY",
+		"title_fallback": "Story",
+		"desc_key": "MENU_SUMMARY_ROUTE_STORY_HINT",
+		"desc_fallback": "Solo ladder with automatic rivals.",
+		"best_key": "MENU_ROUTE_PREVIEW_STORY_BEST",
+		"best_fallback": "Solo ladder",
+		"next_key": "MENU_ROUTE_PREVIEW_STORY_NEXT",
+		"next_fallback": "Story mode with automatic rivals"
+	},
+	{
+		"id": "versus",
+		"title_key": "MENU_SUMMARY_ROUTE_VS",
+		"title_fallback": "VS",
+		"desc_key": "MENU_SUMMARY_ROUTE_VS_HINT",
+		"desc_fallback": "Two local fighters on one screen.",
+		"best_key": "MENU_ROUTE_PREVIEW_VS_BEST",
+		"best_fallback": "Two local players",
+		"next_key": "MENU_ROUTE_PREVIEW_VS_NEXT",
+		"next_fallback": "Immediate sparring match"
+	},
+	{
+		"id": "training",
+		"title_key": "MENU_SUMMARY_ROUTE_TRAINING",
+		"title_fallback": "Training",
+		"desc_key": "MENU_SUMMARY_ROUTE_TRAINING_HINT",
+		"desc_fallback": "Sandbox for drills, dummy logic, and timing.",
+		"best_key": "MENU_ROUTE_PREVIEW_TRAINING_BEST",
+		"best_fallback": "Drills and timing",
+		"next_key": "MENU_ROUTE_PREVIEW_TRAINING_NEXT",
+		"next_fallback": "Sandbox with dummy logic"
+	}
 ]
+const MENU_BUTTON_STORY_PALETTE := {
+	"normal_fill": Color(0.23, 0.18, 0.08, 0.96),
+	"hover_fill": Color(0.31, 0.24, 0.08, 0.99),
+	"pressed_fill": Color(0.17, 0.13, 0.06, 0.99),
+	"disabled_fill": Color(0.14, 0.12, 0.10, 0.84),
+	"border": Color(1.0, 0.83, 0.43, 1.0),
+	"font_color": Color(1.0, 0.96, 0.88, 1.0)
+}
+const MENU_BUTTON_VERSUS_PALETTE := {
+	"normal_fill": Color(0.27, 0.14, 0.14, 0.96),
+	"hover_fill": Color(0.35, 0.18, 0.18, 0.99),
+	"pressed_fill": Color(0.20, 0.10, 0.10, 0.99),
+	"disabled_fill": Color(0.14, 0.12, 0.10, 0.84),
+	"border": Color(1.0, 0.62, 0.50, 1.0),
+	"font_color": Color(1.0, 0.95, 0.94, 1.0)
+}
 const MENU_BUTTON_PRIMARY_PALETTE := {
 	"normal_fill": Color(0.13, 0.26, 0.46, 0.97),
 	"hover_fill": Color(0.18, 0.34, 0.58, 0.99),
@@ -125,10 +181,12 @@ var summary_slot_labels := {"p1": {}, "p2": {}}
 var summary_slot_cards := {"p1": {}, "p2": {}}
 var summary_slot_badge_labels := {"p1": {}, "p2": {}}
 var summary_slot_grids := {"p1": null, "p2": null}
-var route_cards_container: VBoxContainer
-var route_card_title_labels := {}
-var route_card_desc_labels := {}
+var current_route_preview_id := "guided"
 var guided_hint_label: Label
+var route_preview_icon_rect: TextureRect
+var route_preview_mode_label: Label
+var route_preview_tag_label: Label
+var route_preview_footer_label: Label
 
 @onready var background_rect := $Background
 @onready var center_panel := $CenterPanel
@@ -186,6 +244,10 @@ func _ready() -> void:
 	guided_start_button.pressed.connect(_on_guided_start_pressed)
 	control_style_button.pressed.connect(_on_control_style_button_pressed)
 	advanced_toggle_button.pressed.connect(_on_advanced_toggle_pressed)
+	_bind_route_preview_button(guided_start_button, "guided")
+	_bind_route_preview_button(story_button, "story")
+	_bind_route_preview_button(versus_button, "versus")
+	_bind_route_preview_button(training_button, "training")
 	lang_en_button.pressed.connect(func(): _set_locale("en"))
 	lang_zh_button.pressed.connect(func(): _set_locale("zh"))
 	window_mode_option.item_selected.connect(_on_window_mode_option_selected)
@@ -240,15 +302,12 @@ func _apply_runtime_skin() -> void:
 			"BackdropTexture",
 			_load_ui_texture(MENU_OVERLAY_PANEL_TEXTURE_PATH, Vector2i(430, 220), Color(0.18, 0.16, 0.12, 0.98))
 		)
+	UiSkinStore.apply_button_skin(guided_start_button, MENU_BUTTON_WARM_PALETTE)
+	UiSkinStore.apply_button_skin(story_button, MENU_BUTTON_STORY_PALETTE)
+	UiSkinStore.apply_button_skin(versus_button, MENU_BUTTON_VERSUS_PALETTE)
+	UiSkinStore.apply_button_skin(training_button, MENU_BUTTON_PRIMARY_PALETTE)
+	UiSkinStore.apply_button_skin(first_launch_modern_button, MENU_BUTTON_PRIMARY_PALETTE)
 	for button in [
-		guided_start_button,
-		first_launch_modern_button
-	]:
-		UiSkinStore.apply_button_skin(button, MENU_BUTTON_PRIMARY_PALETTE)
-	for button in [
-		story_button,
-		versus_button,
-		training_button,
 		control_style_button,
 		advanced_toggle_button,
 		lang_en_button,
@@ -266,9 +325,9 @@ func _apply_runtime_skin() -> void:
 	]:
 		UiSkinStore.apply_button_skin(option_button, MENU_BUTTON_SECONDARY_PALETTE)
 	_assign_menu_button_icons()
-	_apply_menu_typography()
 	_ensure_guided_hint_label()
-	_ensure_route_cards()
+	_ensure_route_preview()
+	_apply_menu_typography()
 	_ensure_summary_slot_previews()
 
 func _apply_menu_typography() -> void:
@@ -293,6 +352,12 @@ func _apply_menu_typography() -> void:
 	guided_start_button.add_theme_font_size_override("font_size", 15)
 	for button in [story_button, versus_button, training_button, control_style_button, advanced_toggle_button]:
 		button.add_theme_font_size_override("font_size", 14)
+	if route_preview_mode_label:
+		route_preview_mode_label.add_theme_font_size_override("font_size", 18)
+	if route_preview_tag_label:
+		route_preview_tag_label.add_theme_font_size_override("font_size", 11)
+	if route_preview_footer_label:
+		route_preview_footer_label.add_theme_font_size_override("font_size", 11)
 
 func _ensure_guided_hint_label() -> void:
 	if center_panel == null:
@@ -309,67 +374,50 @@ func _ensure_guided_hint_label() -> void:
 	guided_hint_label.add_theme_font_size_override("font_size", 12)
 	center_panel.add_child(guided_hint_label)
 
-func _ensure_route_cards() -> void:
+func _ensure_route_preview() -> void:
 	if p2_summary_panel == null:
 		return
-	route_cards_container = p2_summary_panel.get_node_or_null("RouteCards") as VBoxContainer
-	if route_cards_container == null:
-		route_cards_container = VBoxContainer.new()
-		route_cards_container.name = "RouteCards"
-		route_cards_container.position = Vector2(18, 58)
-		route_cards_container.custom_minimum_size = Vector2(244, 286)
-		route_cards_container.add_theme_constant_override("separation", 10)
-		p2_summary_panel.add_child(route_cards_container)
-	if route_cards_container.get_child_count() > 0:
-		return
-	for config_variant in MENU_ROUTE_CARD_CONFIG:
-		var config := config_variant as Dictionary
-		var card := Control.new()
-		card.name = "%sRouteCard" % str(config.get("id", "Route")).capitalize()
-		card.custom_minimum_size = Vector2(244, 58)
-		card.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		route_cards_container.add_child(card)
-		UiSkinStore.ensure_backdrop(
-			card,
-			"BackdropTexture",
-			_load_ui_texture(MENU_SLOT_CARD_TEXTURE_PATH, Vector2i(244, 58), Color(0.12, 0.18, 0.30, 0.96)),
-			Color(0.92, 0.97, 1.0, 1.0)
-		)
-		var icon_rect := TextureRect.new()
-		icon_rect.name = "Icon"
-		icon_rect.position = Vector2(8, 16)
-		icon_rect.size = Vector2(24, 24)
-		icon_rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-		icon_rect.stretch_mode = TextureRect.STRETCH_SCALE
-		icon_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		icon_rect.texture = _load_ui_texture(
-			str(MENU_ROUTE_ICON_PATHS.get(str(config.get("id", "")), MENU_ROUTE_ICON_PATHS["guided"])),
-			Vector2i(24, 24),
-			Color(0.96, 0.98, 1.0, 1.0)
-		)
-		card.add_child(icon_rect)
-		var title := Label.new()
-		title.name = "TitleLabel"
-		title.position = Vector2(40, 8)
-		title.size = Vector2(190, 18)
-		title.clip_text = true
-		title.add_theme_color_override("font_color", Color(0.98, 0.95, 0.84, 1.0))
-		title.add_theme_font_size_override("font_size", 13)
-		card.add_child(title)
-		route_card_title_labels[str(config.get("id", ""))] = title
-		var desc := Label.new()
-		desc.name = "DescriptionLabel"
-		desc.position = Vector2(40, 24)
-		desc.size = Vector2(190, 26)
-		desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		desc.clip_text = true
-		desc.add_theme_color_override("font_color", Color(0.84, 0.91, 0.99, 1.0))
-		desc.add_theme_font_size_override("font_size", 11)
-		card.add_child(desc)
-		route_card_desc_labels[str(config.get("id", ""))] = desc
+	route_preview_icon_rect = p2_summary_panel.get_node_or_null("RoutePreviewIcon") as TextureRect
+	if route_preview_icon_rect == null:
+		route_preview_icon_rect = TextureRect.new()
+		route_preview_icon_rect.name = "RoutePreviewIcon"
+		route_preview_icon_rect.position = Vector2(18, 58)
+		route_preview_icon_rect.size = Vector2(38, 38)
+		route_preview_icon_rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		route_preview_icon_rect.stretch_mode = TextureRect.STRETCH_SCALE
+		route_preview_icon_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		p2_summary_panel.add_child(route_preview_icon_rect)
+	route_preview_mode_label = p2_summary_panel.get_node_or_null("RoutePreviewModeLabel") as Label
+	if route_preview_mode_label == null:
+		route_preview_mode_label = Label.new()
+		route_preview_mode_label.name = "RoutePreviewModeLabel"
+		route_preview_mode_label.position = Vector2(68, 58)
+		route_preview_mode_label.size = Vector2(176, 24)
+		route_preview_mode_label.clip_text = true
+		route_preview_mode_label.add_theme_color_override("font_color", Color(0.98, 0.95, 0.84, 1.0))
+		p2_summary_panel.add_child(route_preview_mode_label)
+	route_preview_tag_label = p2_summary_panel.get_node_or_null("RoutePreviewTagLabel") as Label
+	if route_preview_tag_label == null:
+		route_preview_tag_label = Label.new()
+		route_preview_tag_label.name = "RoutePreviewTagLabel"
+		route_preview_tag_label.position = Vector2(68, 84)
+		route_preview_tag_label.size = Vector2(176, 18)
+		route_preview_tag_label.clip_text = true
+		route_preview_tag_label.add_theme_color_override("font_color", Color(0.79, 0.89, 1.0, 1.0))
+		p2_summary_panel.add_child(route_preview_tag_label)
+	route_preview_footer_label = p2_summary_panel.get_node_or_null("RoutePreviewFooterLabel") as Label
+	if route_preview_footer_label == null:
+		route_preview_footer_label = Label.new()
+		route_preview_footer_label.name = "RoutePreviewFooterLabel"
+		route_preview_footer_label.position = Vector2(18, 326)
+		route_preview_footer_label.size = Vector2(244, 34)
+		route_preview_footer_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		route_preview_footer_label.clip_text = true
+		route_preview_footer_label.add_theme_color_override("font_color", Color(0.78, 0.88, 1.0, 1.0))
+		p2_summary_panel.add_child(route_preview_footer_label)
 
 func _assign_menu_button_icons() -> void:
-	guided_start_button.icon = _load_ui_texture(MENU_ROUTE_ICON_PATHS["guided"], Vector2i(24, 24), Color(0.42, 0.84, 1.0, 1.0))
+	guided_start_button.icon = _load_ui_texture(MENU_ROUTE_ICON_PATHS["guided"], Vector2i(24, 24), Color(1.0, 0.84, 0.47, 1.0))
 	story_button.icon = _load_ui_texture(MENU_ROUTE_ICON_PATHS["story"], Vector2i(24, 24), Color(1.0, 0.83, 0.43, 1.0))
 	versus_button.icon = _load_ui_texture(MENU_ROUTE_ICON_PATHS["versus"], Vector2i(24, 24), Color(1.0, 0.60, 0.48, 1.0))
 	training_button.icon = _load_ui_texture(MENU_ROUTE_ICON_PATHS["training"], Vector2i(24, 24), Color(0.42, 0.84, 1.0, 1.0))
@@ -390,20 +438,55 @@ func _refresh_guided_hint_label() -> void:
 		"Training opens with the onboarding path replayed from Step 1."
 	)
 
-func _refresh_route_cards() -> void:
-	if route_cards_container == null:
+func _refresh_route_preview() -> void:
+	var show_preview := not advanced_setup_expanded
+	for node in [route_preview_icon_rect, route_preview_mode_label, route_preview_tag_label, route_preview_footer_label]:
+		if node is CanvasItem:
+			(node as CanvasItem).visible = show_preview
+	if not show_preview:
 		return
-	var show_routes := not advanced_setup_expanded
-	route_cards_container.visible = show_routes
+	var config := _resolve_route_preview_config(current_route_preview_id)
+	var route_id := str(config.get("id", "guided"))
+	var title_text := _resolve_menu_text(str(config.get("title_key", "")), str(config.get("title_fallback", route_id.capitalize())))
+	var best_text := _resolve_menu_text(str(config.get("best_key", "")), str(config.get("best_fallback", "")))
+	var desc_text := _resolve_menu_text(str(config.get("desc_key", "")), str(config.get("desc_fallback", "")))
+	var next_text := _resolve_menu_text(str(config.get("next_key", "")), str(config.get("next_fallback", "")))
+	if route_preview_icon_rect:
+		route_preview_icon_rect.texture = _load_ui_texture(
+			str(MENU_ROUTE_ICON_PATHS.get(route_id, MENU_ROUTE_ICON_PATHS["guided"])),
+			Vector2i(38, 38),
+			Color(0.96, 0.98, 1.0, 1.0)
+		)
+	if route_preview_mode_label:
+		route_preview_mode_label.text = title_text
+	if route_preview_tag_label:
+		route_preview_tag_label.text = "%s: %s" % [
+			_resolve_menu_text("MENU_ROUTE_PREVIEW_BEST_FOR", "Best For"),
+			best_text
+		]
+	p2_summary_body_label.text = desc_text
+	if route_preview_footer_label:
+		route_preview_footer_label.text = "%s: %s" % [
+			_resolve_menu_text("MENU_ROUTE_PREVIEW_NEXT", "Starts In"),
+			next_text
+		]
+
+func _resolve_route_preview_config(route_id: String) -> Dictionary:
 	for config_variant in MENU_ROUTE_CARD_CONFIG:
 		var config := config_variant as Dictionary
-		var route_id := str(config.get("id", ""))
-		var title_label := route_card_title_labels.get(route_id, null) as Label
-		var desc_label := route_card_desc_labels.get(route_id, null) as Label
-		if title_label:
-			title_label.text = _resolve_menu_text(str(config.get("title_key", "")), str(config.get("title_fallback", route_id.capitalize())))
-		if desc_label:
-			desc_label.text = _resolve_menu_text(str(config.get("desc_key", "")), str(config.get("desc_fallback", "")))
+		if str(config.get("id", "")) == route_id:
+			return config
+	return MENU_ROUTE_CARD_CONFIG[0] as Dictionary
+
+func _set_route_preview(route_id: String) -> void:
+	current_route_preview_id = str(_resolve_route_preview_config(route_id).get("id", "guided"))
+	_refresh_route_preview()
+
+func _bind_route_preview_button(button: BaseButton, route_id: String) -> void:
+	if button == null:
+		return
+	button.mouse_entered.connect(func(): _set_route_preview(route_id))
+	button.focus_entered.connect(func(): _set_route_preview(route_id))
 
 func _ensure_summary_slot_previews() -> void:
 	_ensure_summary_slot_preview_for_panel("p1", p1_summary_panel)
@@ -467,18 +550,26 @@ func _ensure_summary_slot_preview_for_panel(player_key: String, panel: Control) 
 func _refresh_summary_slot_previews() -> void:
 	_refresh_summary_slot_preview_for_player("p1")
 	_refresh_summary_slot_preview_for_player("p2")
-	_refresh_route_cards()
+	_refresh_route_preview()
 
 func _refresh_summary_slot_preview_for_player(player_key: String) -> void:
 	var grid := summary_slot_grids.get(player_key, null) as GridContainer
 	var body_label := p1_summary_body_label if player_key == "p1" else p2_summary_body_label
 	var should_show_grid := player_key == "p1" or advanced_setup_expanded
+	var show_route_preview := player_key == "p2" and not advanced_setup_expanded
 	if grid:
 		grid.visible = should_show_grid
 	if body_label:
-		body_label.visible = player_key == "p1" or advanced_setup_expanded
-		body_label.offset_top = 194.0 if should_show_grid else 52.0
-		body_label.offset_bottom = 376.0
+		body_label.visible = player_key == "p1" or advanced_setup_expanded or show_route_preview
+		if show_route_preview:
+			body_label.offset_top = 118.0
+			body_label.offset_bottom = 310.0
+		elif player_key == "p1" and not advanced_setup_expanded:
+			body_label.offset_top = 162.0
+			body_label.offset_bottom = 376.0
+		else:
+			body_label.offset_top = 194.0 if should_show_grid else 52.0
+			body_label.offset_bottom = 376.0
 	if not should_show_grid:
 		return
 	var profile := _resolve_profile_for_player(player_key)
@@ -495,6 +586,10 @@ func _refresh_summary_slot_preview_for_player(player_key: String) -> void:
 		var card := summary_slot_cards[player_key].get(slot_key, null) as Control
 		if label == null or card == null:
 			continue
+		var should_show_card := _should_show_summary_slot_card(player_key, slot_key)
+		card.visible = should_show_card
+		if not should_show_card:
+			continue
 		var display_value := "-"
 		var summary_key := str(slot_config.get("summary_key", ""))
 		var profile_key := str(slot_config.get("profile_key", ""))
@@ -507,6 +602,13 @@ func _refresh_summary_slot_preview_for_player(player_key: String) -> void:
 		label.text = _compact_slot_name(display_value)
 		var slot_label := _resolve_menu_text(str(slot_config.get("label_key", "")), str(slot_config.get("fallback", slot_key)))
 		card.tooltip_text = "%s: %s" % [slot_label, display_value]
+
+func _should_show_summary_slot_card(player_key: String, slot_key: String) -> bool:
+	if advanced_setup_expanded:
+		return true
+	if player_key != "p1":
+		return false
+	return slot_key in ["signature_a", "signature_b", "ultimate", "item"]
 
 func _compact_slot_name(raw_name: String) -> String:
 	var cleaned := raw_name.strip_edges()
@@ -609,12 +711,12 @@ func _refresh_text() -> void:
 	if advanced_setup_expanded:
 		subtitle_label.text = _resolve_menu_text(
 			"MENU_SUBTITLE_ADVANCED",
-			"Advanced setup open: rival, controls, video, and language are editable."
+			"Advanced setup is open. Rival, controls, video, and language can be tuned here."
 		)
 	else:
 		subtitle_label.text = _resolve_menu_text(
 			"MENU_SUBTITLE_SIMPLE",
-			"Start here: pick your fighter, then choose Guided Start, Story, VS, or Training."
+			"Pick your fighter, then jump straight into Guided Start, Story, VS, or Training."
 		)
 	quick_start_label.text = _resolve_menu_text(
 		"MENU_QUICK_START_LABEL",
@@ -651,7 +753,7 @@ func _refresh_text() -> void:
 	_refresh_guided_hint_label()
 	advanced_hint_label.text = _resolve_menu_text(
 		"MENU_ADVANCED_INLINE_HINT",
-		"Advanced Setup"
+		"Rival • Controls • Video • Language"
 	)
 	first_launch_title_label.text = tr("MENU_FIRST_LAUNCH_CONTROL_TITLE")
 	first_launch_hint_label.text = tr("MENU_FIRST_LAUNCH_CONTROL_HINT")
@@ -834,7 +936,7 @@ func _refresh_summary_panels() -> void:
 
 func _build_summary_panel_title(player_key: String) -> String:
 	if player_key == "p2" and not advanced_setup_expanded:
-		return _resolve_menu_text("MENU_SUMMARY_ROUTE_TITLE", "Start Paths")
+		return _resolve_menu_text("MENU_ROUTE_PREVIEW_TITLE", "Mode Preview")
 	var profile := _resolve_profile_for_player(player_key)
 	var display_name := str(profile.get("display_name", "Player")).strip_edges()
 	if player_key == "p1":
@@ -859,7 +961,7 @@ func _build_summary_panel_body(player_key: String) -> String:
 		]
 	)
 	var preset_name := _resolve_selected_preset_name(player_key)
-	if preset_name != "":
+	if preset_name != "" and (advanced_setup_expanded or player_key == "p2"):
 		lines.append("%s: %s" % [_resolve_menu_text("MENU_SUMMARY_PRESET", "Preset"), preset_name])
 	lines.append(
 		"%s: %s -> %s" % [
@@ -1116,6 +1218,8 @@ func _on_control_style_button_pressed() -> void:
 
 func _on_advanced_toggle_pressed() -> void:
 	advanced_setup_expanded = not advanced_setup_expanded
+	if not advanced_setup_expanded:
+		current_route_preview_id = "guided"
 	_refresh_text()
 
 func _on_first_launch_preset_selected(preset: String) -> void:
@@ -1342,40 +1446,40 @@ func _refresh_advanced_setup_visibility() -> void:
 func _apply_focus_layout() -> void:
 	_set_control_rect(title_label, 24.0, 18.0, 336.0, 50.0)
 	_set_control_rect(subtitle_label, 24.0, 54.0, 336.0, 100.0)
-	_set_root_control_rect(advanced_toggle_button, 214.0, -334.0, 382.0, -302.0)
-	_set_root_control_rect(advanced_hint_label, 214.0, -296.0, 382.0, -264.0)
+	_set_root_control_rect(advanced_toggle_button, -112.0, 294.0, 112.0, 326.0)
+	_set_root_control_rect(advanced_hint_label, -120.0, 330.0, 120.0, 348.0)
 	if advanced_setup_expanded:
-		_set_control_rect(guided_start_button, 38.0, 120.0, 322.0, 164.0)
-		_set_control_rect(p1_character_label, 50.0, 184.0, 310.0, 202.0)
-		_set_control_rect(p1_character_option, 50.0, 208.0, 310.0, 240.0)
-		_set_control_rect(p1_loadout_label, 50.0, 252.0, 310.0, 270.0)
-		_set_control_rect(p1_loadout_option, 50.0, 276.0, 310.0, 308.0)
-		_set_control_rect(p1_profile_label, 50.0, 320.0, 310.0, 364.0)
-		_set_control_rect(story_button, 50.0, 390.0, 310.0, 428.0)
-		_set_control_rect(versus_button, 50.0, 438.0, 310.0, 476.0)
-		_set_control_rect(training_button, 50.0, 486.0, 310.0, 524.0)
-		_set_control_rect(p2_character_label, 50.0, 548.0, 170.0, 566.0)
-		_set_control_rect(control_style_label, 190.0, 548.0, 310.0, 566.0)
-		_set_control_rect(p2_character_option, 50.0, 570.0, 170.0, 600.0)
-		_set_control_rect(control_style_button, 190.0, 570.0, 310.0, 600.0)
-		_set_control_rect(p2_loadout_option, 50.0, 608.0, 170.0, 638.0)
-		_set_control_rect(window_mode_option, 190.0, 608.0, 310.0, 638.0)
-		_set_control_rect(lang_en_button, 50.0, 646.0, 108.0, 674.0)
-		_set_control_rect(lang_zh_button, 112.0, 646.0, 170.0, 674.0)
-		_set_control_rect(resolution_option, 190.0, 646.0, 310.0, 674.0)
+		_set_control_rect(guided_start_button, 36.0, 112.0, 324.0, 152.0)
+		_set_control_rect(p1_character_label, 50.0, 168.0, 310.0, 186.0)
+		_set_control_rect(p1_character_option, 50.0, 192.0, 310.0, 224.0)
+		_set_control_rect(p1_loadout_label, 50.0, 236.0, 310.0, 254.0)
+		_set_control_rect(p1_loadout_option, 50.0, 260.0, 310.0, 292.0)
+		_set_control_rect(p1_profile_label, 50.0, 304.0, 310.0, 344.0)
+		_set_control_rect(story_button, 50.0, 364.0, 310.0, 398.0)
+		_set_control_rect(versus_button, 50.0, 410.0, 310.0, 444.0)
+		_set_control_rect(training_button, 50.0, 456.0, 310.0, 490.0)
+		_set_control_rect(p2_character_label, 50.0, 512.0, 170.0, 530.0)
+		_set_control_rect(control_style_label, 190.0, 512.0, 310.0, 530.0)
+		_set_control_rect(p2_character_option, 50.0, 536.0, 170.0, 566.0)
+		_set_control_rect(control_style_button, 190.0, 536.0, 310.0, 566.0)
+		_set_control_rect(p2_loadout_option, 50.0, 574.0, 170.0, 604.0)
+		_set_control_rect(window_mode_option, 190.0, 574.0, 310.0, 604.0)
+		_set_control_rect(lang_en_button, 50.0, 612.0, 108.0, 640.0)
+		_set_control_rect(lang_zh_button, 112.0, 612.0, 170.0, 640.0)
+		_set_control_rect(resolution_option, 190.0, 612.0, 310.0, 640.0)
 		return
-	_set_control_rect(quick_start_label, 50.0, 118.0, 310.0, 138.0)
-	_set_control_rect(guided_start_button, 36.0, 148.0, 324.0, 198.0)
-	_set_control_rect(guided_hint_label, 42.0, 206.0, 318.0, 236.0)
-	_set_control_rect(p1_character_label, 50.0, 258.0, 310.0, 278.0)
-	_set_control_rect(p1_character_option, 50.0, 286.0, 310.0, 320.0)
-	_set_control_rect(p1_loadout_label, 50.0, 334.0, 310.0, 354.0)
-	_set_control_rect(p1_loadout_option, 50.0, 362.0, 310.0, 396.0)
-	_set_control_rect(p1_profile_label, 50.0, 408.0, 310.0, 456.0)
-	_set_control_rect(mode_step_label, 50.0, 486.0, 310.0, 506.0)
-	_set_control_rect(story_button, 50.0, 520.0, 310.0, 560.0)
-	_set_control_rect(versus_button, 50.0, 574.0, 310.0, 614.0)
-	_set_control_rect(training_button, 50.0, 628.0, 310.0, 668.0)
+	_set_control_rect(quick_start_label, 50.0, 110.0, 310.0, 128.0)
+	_set_control_rect(guided_start_button, 32.0, 138.0, 328.0, 192.0)
+	_set_control_rect(guided_hint_label, 42.0, 200.0, 318.0, 228.0)
+	_set_control_rect(p1_character_label, 50.0, 244.0, 310.0, 262.0)
+	_set_control_rect(p1_character_option, 50.0, 270.0, 310.0, 302.0)
+	_set_control_rect(p1_loadout_label, 50.0, 316.0, 310.0, 334.0)
+	_set_control_rect(p1_loadout_option, 50.0, 342.0, 310.0, 374.0)
+	_set_control_rect(p1_profile_label, 50.0, 388.0, 310.0, 428.0)
+	_set_control_rect(mode_step_label, 50.0, 450.0, 310.0, 468.0)
+	_set_control_rect(story_button, 50.0, 480.0, 310.0, 516.0)
+	_set_control_rect(versus_button, 50.0, 528.0, 310.0, 564.0)
+	_set_control_rect(training_button, 50.0, 576.0, 310.0, 612.0)
 
 func _set_control_rect(control: Control, left: float, top: float, right: float, bottom: float) -> void:
 	if control == null:
