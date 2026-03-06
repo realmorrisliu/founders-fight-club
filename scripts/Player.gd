@@ -3541,7 +3541,7 @@ func _load_external_sprite_frames() -> SpriteFrames:
 		return null
 	# CI/headless runs do not have editor import cache, so external PNG-backed
 	# SpriteFrames can emit parse errors before we reach the placeholder fallback.
-	if OS.has_feature("headless"):
+	if _is_headless_sprite_runtime():
 		return null
 	if sprite_frames_resource:
 		return sprite_frames_resource
@@ -3555,6 +3555,9 @@ func _load_external_sprite_frames() -> SpriteFrames:
 		return loaded as SpriteFrames
 	push_warning("Sprite frames resource is not SpriteFrames: %s" % path)
 	return null
+
+func _is_headless_sprite_runtime() -> bool:
+	return OS.has_feature("headless") or DisplayServer.get_name() == "headless"
 
 func _merge_missing_animations(target: SpriteFrames, fallback: SpriteFrames) -> void:
 	for animation_name in REQUIRED_ANIMATION_NAMES:
