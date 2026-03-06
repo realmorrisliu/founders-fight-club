@@ -882,13 +882,15 @@ func _test_menu_focus_path_and_summary_cards() -> void:
 		var quick_start_label := menu_node.get_node_or_null("CenterPanel/QuickStartLabel")
 		var mode_step_label := menu_node.get_node_or_null("CenterPanel/ModeStepLabel")
 		var guided_button := menu_node.get_node_or_null("CenterPanel/GuidedStartButton")
+		var guided_hint_label := menu_node.get_node_or_null("CenterPanel/GuidedHintLabel")
 		var p1_summary := menu_node.get_node_or_null("P1SummaryPanel/BodyLabel")
 		var p2_summary := menu_node.get_node_or_null("P2SummaryPanel/BodyLabel")
+		var route_cards := menu_node.get_node_or_null("P2SummaryPanel/RouteCards")
 		var p2_option := menu_node.get_node_or_null("CenterPanel/P2CharacterOption")
 		var control_button := menu_node.get_node_or_null("CenterPanel/ControlStyleButton")
 		_assert_true(
-			advanced_button is Button and quick_start_label is Label and mode_step_label is Label and guided_button is Button and p1_summary is Label and p2_summary is Label,
-			"focused path summary test resolves helper labels, guided CTA, and both summary cards"
+			advanced_button is Button and quick_start_label is Label and mode_step_label is Label and guided_button is Button and guided_hint_label is Label and p1_summary is Label and p2_summary is Label and route_cards is VBoxContainer,
+			"focused path summary test resolves helper labels, guided CTA, summary cards, and route cards"
 		)
 		if quick_start_label is CanvasItem:
 			_assert_true((quick_start_label as CanvasItem).visible, "focused menu path surfaces recommended first-run helper copy")
@@ -896,15 +898,17 @@ func _test_menu_focus_path_and_summary_cards() -> void:
 			_assert_true((mode_step_label as CanvasItem).visible, "focused menu path surfaces explicit mode step copy")
 		if guided_button is Button:
 			_assert_true((guided_button as Button).text.find("Recommended") != -1, "focused menu path marks guided start as recommended before onboarding is completed")
+		if guided_hint_label is Label:
+			_assert_true((guided_hint_label as Label).text.find("Step 1") != -1, "focused menu path adds a fixed helper line under guided start")
 		if p1_summary is Label:
 			var p1_text := (p1_summary as Label).text
-			_assert_true(p1_text.find("Fixed DS") != -1, "p1 summary card surfaces fixed down special slot")
+			_assert_true(p1_text.find("Core Loop") != -1, "p1 summary card surfaces the compact gameplan line")
 			_assert_true(p1_text.find("Budget:") != -1, "p1 summary card surfaces budget state")
-		if p2_summary is Label:
-			_assert_true(
-				(p2_summary as Label).text.find("Guided:") != -1 and (p2_summary as Label).text.find("Story:") != -1,
-				"collapsed menu repurposes the right summary card into a route guide"
-			)
+		if p2_summary is CanvasItem:
+			_assert_true(not (p2_summary as CanvasItem).visible, "collapsed menu hides the verbose rival body copy on the right card")
+		if route_cards is VBoxContainer:
+			_assert_true((route_cards as VBoxContainer).visible, "collapsed menu repurposes the right summary card into route cards")
+			_assert_true((route_cards as VBoxContainer).get_child_count() == 4, "collapsed menu shows all four route cards")
 		if p2_option is CanvasItem:
 			_assert_true(not (p2_option as CanvasItem).visible, "focused menu path hides opponent picker until advanced setup is expanded")
 		if control_button is CanvasItem:
@@ -915,13 +919,17 @@ func _test_menu_focus_path_and_summary_cards() -> void:
 			_assert_true(not (quick_start_label as CanvasItem).visible, "advanced setup hides first-run helper copy")
 		if mode_step_label is CanvasItem:
 			_assert_true(not (mode_step_label as CanvasItem).visible, "advanced setup hides simplified mode step copy")
+		if guided_hint_label is CanvasItem:
+			_assert_true(not (guided_hint_label as CanvasItem).visible, "advanced setup hides the guided replay helper line")
+		if route_cards is CanvasItem:
+			_assert_true(not (route_cards as CanvasItem).visible, "advanced setup hides route cards so the rival preview can return")
 		if p2_option is CanvasItem:
 			_assert_true((p2_option as CanvasItem).visible, "advanced toggle reveals opponent setup controls")
 		if control_button is CanvasItem:
 			_assert_true((control_button as CanvasItem).visible, "advanced toggle reveals system settings controls")
 		if p2_summary is Label:
 			var p2_text := (p2_summary as Label).text
-			_assert_true(p2_text.find("Fixed DS") != -1, "advanced setup restores opponent summary details on the right card")
+			_assert_true(p2_text.find("Budget:") != -1, "advanced setup restores opponent summary details on the right card")
 			_assert_true(p2_text.find("Story auto-rivals") != -1, "advanced setup keeps the story override note visible in rival preview")
 		if is_instance_valid(menu_node):
 			menu_node.queue_free()

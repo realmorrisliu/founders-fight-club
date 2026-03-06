@@ -45,6 +45,12 @@ const MENU_SLOT_PREVIEW_CONFIG := [
 	{"key": "item", "summary_key": "item", "profile_key": "", "label_key": "MENU_SUMMARY_ITEM", "fallback": "Item"},
 	{"key": "passive", "summary_key": "passive", "profile_key": "", "label_key": "MENU_SUMMARY_PASSIVE", "fallback": "Passive"}
 ]
+const MENU_ROUTE_CARD_CONFIG := [
+	{"id": "guided", "title_key": "MENU_SUMMARY_ROUTE_GUIDED", "title_fallback": "Guided", "desc_key": "MENU_SUMMARY_ROUTE_GUIDED_HINT", "desc_fallback": "Best first run. Replays move, jump, guard, dodge, and special."},
+	{"id": "story", "title_key": "MENU_SUMMARY_ROUTE_STORY", "title_fallback": "Story", "desc_key": "MENU_SUMMARY_ROUTE_STORY_HINT", "desc_fallback": "Solo ladder with automatic rivals."},
+	{"id": "versus", "title_key": "MENU_SUMMARY_ROUTE_VS", "title_fallback": "VS", "desc_key": "MENU_SUMMARY_ROUTE_VS_HINT", "desc_fallback": "Two local fighters on one screen."},
+	{"id": "training", "title_key": "MENU_SUMMARY_ROUTE_TRAINING", "title_fallback": "Training", "desc_key": "MENU_SUMMARY_ROUTE_TRAINING_HINT", "desc_fallback": "Sandbox for drills, dummy logic, and timing."}
+]
 const MENU_BUTTON_PRIMARY_PALETTE := {
 	"normal_fill": Color(0.13, 0.26, 0.46, 0.97),
 	"hover_fill": Color(0.18, 0.34, 0.58, 0.99),
@@ -117,7 +123,12 @@ var advanced_setup_expanded := false
 var ui_texture_cache := {}
 var summary_slot_labels := {"p1": {}, "p2": {}}
 var summary_slot_cards := {"p1": {}, "p2": {}}
+var summary_slot_badge_labels := {"p1": {}, "p2": {}}
 var summary_slot_grids := {"p1": null, "p2": null}
+var route_cards_container: VBoxContainer
+var route_card_title_labels := {}
+var route_card_desc_labels := {}
+var guided_hint_label: Label
 
 @onready var background_rect := $Background
 @onready var center_panel := $CenterPanel
@@ -255,7 +266,107 @@ func _apply_runtime_skin() -> void:
 	]:
 		UiSkinStore.apply_button_skin(option_button, MENU_BUTTON_SECONDARY_PALETTE)
 	_assign_menu_button_icons()
+	_apply_menu_typography()
+	_ensure_guided_hint_label()
+	_ensure_route_cards()
 	_ensure_summary_slot_previews()
+
+func _apply_menu_typography() -> void:
+	title_label.add_theme_font_size_override("font_size", 24)
+	title_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	subtitle_label.add_theme_font_size_override("font_size", 13)
+	subtitle_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	subtitle_label.clip_text = false
+	quick_start_label.add_theme_font_size_override("font_size", 15)
+	mode_step_label.add_theme_font_size_override("font_size", 15)
+	p1_character_label.add_theme_font_size_override("font_size", 14)
+	p2_character_label.add_theme_font_size_override("font_size", 13)
+	p1_loadout_label.add_theme_font_size_override("font_size", 14)
+	p1_profile_label.add_theme_font_size_override("font_size", 12)
+	p2_profile_label.add_theme_font_size_override("font_size", 12)
+	p1_summary_title_label.add_theme_font_size_override("font_size", 17)
+	p2_summary_title_label.add_theme_font_size_override("font_size", 17)
+	p1_summary_body_label.add_theme_font_size_override("font_size", 12)
+	p2_summary_body_label.add_theme_font_size_override("font_size", 12)
+	p1_summary_body_label.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	p2_summary_body_label.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	guided_start_button.add_theme_font_size_override("font_size", 15)
+	for button in [story_button, versus_button, training_button, control_style_button, advanced_toggle_button]:
+		button.add_theme_font_size_override("font_size", 14)
+
+func _ensure_guided_hint_label() -> void:
+	if center_panel == null:
+		return
+	guided_hint_label = center_panel.get_node_or_null("GuidedHintLabel") as Label
+	if guided_hint_label != null:
+		return
+	guided_hint_label = Label.new()
+	guided_hint_label.name = "GuidedHintLabel"
+	guided_hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	guided_hint_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	guided_hint_label.clip_text = true
+	guided_hint_label.add_theme_color_override("font_color", Color(0.79, 0.89, 1.0, 1.0))
+	guided_hint_label.add_theme_font_size_override("font_size", 12)
+	center_panel.add_child(guided_hint_label)
+
+func _ensure_route_cards() -> void:
+	if p2_summary_panel == null:
+		return
+	route_cards_container = p2_summary_panel.get_node_or_null("RouteCards") as VBoxContainer
+	if route_cards_container == null:
+		route_cards_container = VBoxContainer.new()
+		route_cards_container.name = "RouteCards"
+		route_cards_container.position = Vector2(18, 58)
+		route_cards_container.custom_minimum_size = Vector2(244, 286)
+		route_cards_container.add_theme_constant_override("separation", 10)
+		p2_summary_panel.add_child(route_cards_container)
+	if route_cards_container.get_child_count() > 0:
+		return
+	for config_variant in MENU_ROUTE_CARD_CONFIG:
+		var config := config_variant as Dictionary
+		var card := Control.new()
+		card.name = "%sRouteCard" % str(config.get("id", "Route")).capitalize()
+		card.custom_minimum_size = Vector2(244, 58)
+		card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		route_cards_container.add_child(card)
+		UiSkinStore.ensure_backdrop(
+			card,
+			"BackdropTexture",
+			_load_ui_texture(MENU_SLOT_CARD_TEXTURE_PATH, Vector2i(244, 58), Color(0.12, 0.18, 0.30, 0.96)),
+			Color(0.92, 0.97, 1.0, 1.0)
+		)
+		var icon_rect := TextureRect.new()
+		icon_rect.name = "Icon"
+		icon_rect.position = Vector2(8, 16)
+		icon_rect.size = Vector2(24, 24)
+		icon_rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		icon_rect.stretch_mode = TextureRect.STRETCH_SCALE
+		icon_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		icon_rect.texture = _load_ui_texture(
+			str(MENU_ROUTE_ICON_PATHS.get(str(config.get("id", "")), MENU_ROUTE_ICON_PATHS["guided"])),
+			Vector2i(24, 24),
+			Color(0.96, 0.98, 1.0, 1.0)
+		)
+		card.add_child(icon_rect)
+		var title := Label.new()
+		title.name = "TitleLabel"
+		title.position = Vector2(40, 8)
+		title.size = Vector2(190, 18)
+		title.clip_text = true
+		title.add_theme_color_override("font_color", Color(0.98, 0.95, 0.84, 1.0))
+		title.add_theme_font_size_override("font_size", 13)
+		card.add_child(title)
+		route_card_title_labels[str(config.get("id", ""))] = title
+		var desc := Label.new()
+		desc.name = "DescriptionLabel"
+		desc.position = Vector2(40, 24)
+		desc.size = Vector2(190, 26)
+		desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		desc.clip_text = true
+		desc.add_theme_color_override("font_color", Color(0.84, 0.91, 0.99, 1.0))
+		desc.add_theme_font_size_override("font_size", 11)
+		card.add_child(desc)
+		route_card_desc_labels[str(config.get("id", ""))] = desc
 
 func _assign_menu_button_icons() -> void:
 	guided_start_button.icon = _load_ui_texture(MENU_ROUTE_ICON_PATHS["guided"], Vector2i(24, 24), Color(0.42, 0.84, 1.0, 1.0))
@@ -270,6 +381,29 @@ func _refresh_control_style_icon() -> void:
 	var path := str(MENU_CONTROL_ICON_PATHS.get(current_control_preset, MENU_CONTROL_ICON_PATHS[GameSettingsStore.CONTROL_PRESET_MODERN]))
 	var tint := Color(1.0, 0.83, 0.43, 1.0) if current_control_preset == GameSettingsStore.CONTROL_PRESET_CLASSIC else Color(0.42, 0.84, 1.0, 1.0)
 	control_style_button.icon = _load_ui_texture(path, Vector2i(24, 24), tint)
+
+func _refresh_guided_hint_label() -> void:
+	if guided_hint_label == null:
+		return
+	guided_hint_label.text = _resolve_menu_text(
+		"MENU_GUIDED_START_HINT",
+		"Training opens with the onboarding path replayed from Step 1."
+	)
+
+func _refresh_route_cards() -> void:
+	if route_cards_container == null:
+		return
+	var show_routes := not advanced_setup_expanded
+	route_cards_container.visible = show_routes
+	for config_variant in MENU_ROUTE_CARD_CONFIG:
+		var config := config_variant as Dictionary
+		var route_id := str(config.get("id", ""))
+		var title_label := route_card_title_labels.get(route_id, null) as Label
+		var desc_label := route_card_desc_labels.get(route_id, null) as Label
+		if title_label:
+			title_label.text = _resolve_menu_text(str(config.get("title_key", "")), str(config.get("title_fallback", route_id.capitalize())))
+		if desc_label:
+			desc_label.text = _resolve_menu_text(str(config.get("desc_key", "")), str(config.get("desc_fallback", "")))
 
 func _ensure_summary_slot_previews() -> void:
 	_ensure_summary_slot_preview_for_panel("p1", p1_summary_panel)
@@ -307,26 +441,25 @@ func _ensure_summary_slot_preview_for_panel(player_key: String, panel: Control) 
 			_load_ui_texture(MENU_SLOT_CARD_TEXTURE_PATH, Vector2i(116, 38), Color(0.10, 0.16, 0.28, 0.98)),
 			accent
 		)
-		var icon_rect := TextureRect.new()
-		icon_rect.name = "Icon"
-		icon_rect.position = Vector2(6, 7)
-		icon_rect.custom_minimum_size = Vector2(24, 24)
-		icon_rect.size = Vector2(24, 24)
-		icon_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		icon_rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-		icon_rect.stretch_mode = TextureRect.STRETCH_SCALE
-		icon_rect.texture = _load_ui_texture(
-			str(MENU_SLOT_ICON_PATHS.get(slot_key, "")),
-			Vector2i(24, 24),
-			Color(0.96, 0.98, 1.0, 1.0)
-		)
-		slot_card.add_child(icon_rect)
+		var badge_label := Label.new()
+		badge_label.name = "BadgeLabel"
+		badge_label.position = Vector2(6, 7)
+		badge_label.size = Vector2(24, 22)
+		badge_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		badge_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		badge_label.clip_text = true
+		badge_label.add_theme_color_override("font_color", accent)
+		badge_label.add_theme_font_size_override("font_size", 11)
+		badge_label.text = _resolve_slot_badge(slot_key)
+		slot_card.add_child(badge_label)
+		summary_slot_badge_labels[player_key][slot_key] = badge_label
 		var value_label := Label.new()
 		value_label.name = "ValueLabel"
-		value_label.position = Vector2(36, 8)
-		value_label.size = Vector2(72, 20)
+		value_label.position = Vector2(34, 6)
+		value_label.size = Vector2(76, 24)
 		value_label.clip_text = true
 		value_label.add_theme_color_override("font_color", Color(0.94, 0.97, 1.0, 1.0))
+		value_label.add_theme_font_size_override("font_size", 10)
 		value_label.text = "-"
 		slot_card.add_child(value_label)
 		summary_slot_labels[player_key][slot_key] = value_label
@@ -334,6 +467,7 @@ func _ensure_summary_slot_preview_for_panel(player_key: String, panel: Control) 
 func _refresh_summary_slot_previews() -> void:
 	_refresh_summary_slot_preview_for_player("p1")
 	_refresh_summary_slot_preview_for_player("p2")
+	_refresh_route_cards()
 
 func _refresh_summary_slot_preview_for_player(player_key: String) -> void:
 	var grid := summary_slot_grids.get(player_key, null) as GridContainer
@@ -342,6 +476,7 @@ func _refresh_summary_slot_preview_for_player(player_key: String) -> void:
 	if grid:
 		grid.visible = should_show_grid
 	if body_label:
+		body_label.visible = player_key == "p1" or advanced_setup_expanded
 		body_label.offset_top = 194.0 if should_show_grid else 52.0
 		body_label.offset_bottom = 376.0
 	if not should_show_grid:
@@ -369,9 +504,42 @@ func _refresh_summary_slot_preview_for_player(player_key: String) -> void:
 			display_value = str(profile.get(profile_key, "")).strip_edges()
 		if display_value == "":
 			display_value = str(slot_config.get("fallback", "-"))
-		label.text = display_value
+		label.text = _compact_slot_name(display_value)
 		var slot_label := _resolve_menu_text(str(slot_config.get("label_key", "")), str(slot_config.get("fallback", slot_key)))
 		card.tooltip_text = "%s: %s" % [slot_label, display_value]
+
+func _compact_slot_name(raw_name: String) -> String:
+	var cleaned := raw_name.strip_edges()
+	if cleaned == "":
+		return "-"
+	var paren_index := cleaned.find(" (")
+	if paren_index != -1:
+		cleaned = cleaned.substr(0, paren_index).strip_edges()
+	var words := cleaned.split(" ", false)
+	if words.size() >= 3:
+		var tail := "%s %s" % [words[words.size() - 2], words[words.size() - 1]]
+		if tail.length() <= 16:
+			cleaned = tail
+	if cleaned.length() > 16:
+		cleaned = "%s..." % cleaned.substr(0, 13)
+	return cleaned
+
+func _resolve_slot_badge(slot_key: String) -> String:
+	match slot_key:
+		"signature_a":
+			return "A"
+		"signature_b":
+			return "B"
+		"signature_c":
+			return "DS"
+		"ultimate":
+			return "U"
+		"item":
+			return "I"
+		"passive":
+			return "P"
+		_:
+			return "?"
 
 func _resolve_slot_modulate(slot_key: String, player_key: String) -> Color:
 	var base := Color(0.88, 0.96, 1.0, 1.0) if player_key == "p1" else Color(1.0, 0.91, 0.88, 1.0)
@@ -453,7 +621,7 @@ func _refresh_text() -> void:
 		"Recommended First Run"
 	)
 	p1_character_label.text = _resolve_menu_text("MENU_P1_CHARACTER", "P1 Character")
-	p2_character_label.text = _resolve_menu_text("MENU_P2_CHARACTER_VS_ONLY", "Opponent Character (VS/Training)")
+	p2_character_label.text = _resolve_menu_text("MENU_P2_CHARACTER_VS_ONLY", "Opponent Setup")
 	p1_loadout_label.text = _resolve_menu_text("MENU_LOADOUT_LABEL", "Build Preset")
 	p1_profile_label.text = _resolve_menu_text("MENU_PROFILE_LOADING", "Loading profile...")
 	p2_profile_label.text = _resolve_menu_text("MENU_PROFILE_LOADING", "Loading profile...")
@@ -466,7 +634,10 @@ func _refresh_text() -> void:
 	story_button.text = _resolve_menu_text("MENU_STORY_AUTO_RIVAL_BUTTON", "Story (Auto Rival)")
 	training_button.text = tr("MENU_TRAINING")
 	control_style_label.text = tr("MENU_CONTROL_STYLE")
-	control_style_button.text = _resolve_control_preset_label(current_control_preset)
+	control_style_button.text = "%s: %s" % [
+		_resolve_menu_text("MENU_CONTROL_STYLE", "Control"),
+		_resolve_control_preset_label(current_control_preset)
+	]
 	_refresh_control_style_icon()
 	video_settings_label.text = _resolve_menu_text("MENU_VIDEO_SETTINGS", "Video")
 	window_mode_label.text = _resolve_menu_text("MENU_WINDOW_MODE", "Window Mode")
@@ -477,9 +648,10 @@ func _refresh_text() -> void:
 	lang_label.text = tr("PAUSE_LANGUAGE")
 	lang_en_button.text = tr("PAUSE_LANG_EN")
 	lang_zh_button.text = tr("PAUSE_LANG_ZH")
+	_refresh_guided_hint_label()
 	advanced_hint_label.text = _resolve_menu_text(
 		"MENU_ADVANCED_INLINE_HINT",
-		"Rival / controls / video / language"
+		"Advanced Setup"
 	)
 	first_launch_title_label.text = tr("MENU_FIRST_LAUNCH_CONTROL_TITLE")
 	first_launch_hint_label.text = tr("MENU_FIRST_LAUNCH_CONTROL_HINT")
@@ -620,16 +792,13 @@ func _build_profile_preview_text(index: int, player_key: String) -> String:
 	var profile := character_profile_cache[index]
 	var archetype_key := str(profile.get("archetype_key", "all_rounder"))
 	var archetype_label := _resolve_archetype_label(archetype_key)
-	var signature_primary := str(profile.get("signature_primary", "Signature A"))
-	var signature_alt := str(profile.get("signature_alt", "Signature B"))
-	var row_template := tr("MENU_PROFILE_ROW")
-	if row_template.find("%") == -1:
-		row_template = "%s | %s / %s"
-	var base_text := row_template % [archetype_label, signature_primary, signature_alt]
+	var signature_primary := _compact_slot_name(str(profile.get("signature_primary", "Signature A")))
+	var signature_alt := _compact_slot_name(str(profile.get("signature_alt", "Signature B")))
+	var base_text := "%s | %s / %s" % [archetype_label, signature_primary, signature_alt]
 	var loadout_brief := _build_profile_loadout_brief(player_key, str(profile.get("character_id", "")))
 	if loadout_brief == "":
 		return base_text
-	return "%s | %s" % [base_text, loadout_brief]
+	return "%s\n%s" % [base_text, loadout_brief]
 
 func _build_profile_hint_text(index: int) -> String:
 	if index < 0 or index >= character_profile_cache.size():
@@ -649,7 +818,7 @@ func _build_profile_loadout_brief(player_key: String, character_id: String) -> S
 	var text := "%s %d/%d" % [cost_label, total_cost, budget_cap]
 	if bool(resolved.get("used_fallback", false)):
 		var fallback_inline := _resolve_menu_text("MENU_LOADOUT_FALLBACK_INLINE", "Default Applied")
-		return "%s (%s)" % [text, fallback_inline]
+		return "%s • %s" % [text, fallback_inline]
 	return text
 
 func _refresh_summary_panels() -> void:
@@ -667,11 +836,14 @@ func _build_summary_panel_title(player_key: String) -> String:
 	if player_key == "p2" and not advanced_setup_expanded:
 		return _resolve_menu_text("MENU_SUMMARY_ROUTE_TITLE", "Start Paths")
 	var profile := _resolve_profile_for_player(player_key)
-	return str(profile.get("display_name", "Player")).strip_edges()
+	var display_name := str(profile.get("display_name", "Player")).strip_edges()
+	if player_key == "p1":
+		return "%s • P1" % display_name
+	return "%s • Rival" % display_name
 
 func _build_summary_panel_body(player_key: String) -> String:
 	if player_key == "p2" and not advanced_setup_expanded:
-		return _build_route_summary_body()
+		return ""
 	var profile := _resolve_profile_for_player(player_key)
 	var character_id := str(profile.get("character_id", "")).strip_edges()
 	if character_id == "":
@@ -689,17 +861,20 @@ func _build_summary_panel_body(player_key: String) -> String:
 	var preset_name := _resolve_selected_preset_name(player_key)
 	if preset_name != "":
 		lines.append("%s: %s" % [_resolve_menu_text("MENU_SUMMARY_PRESET", "Preset"), preset_name])
-	lines.append("%s: %s" % [_resolve_menu_text("MENU_SUMMARY_SLOT_A", "A"), str(summary.get("signature_a", profile.get("signature_primary", "Signature A")))])
-	lines.append("%s: %s" % [_resolve_menu_text("MENU_SUMMARY_SLOT_B", "B"), str(summary.get("signature_b", profile.get("signature_alt", "Signature B")))])
 	lines.append(
-		"%s: %s" % [
-			_resolve_menu_text("MENU_SUMMARY_FIXED_DOWN_SPECIAL", "Fixed DS"),
-			str(profile.get("signature_c", "Down Special"))
+		"%s: %s -> %s" % [
+			_resolve_menu_text("MENU_SUMMARY_CORE_LOOP", "Core Loop"),
+			_compact_slot_name(str(summary.get("signature_a", profile.get("signature_primary", "Signature A")))),
+			_compact_slot_name(str(summary.get("signature_b", profile.get("signature_alt", "Signature B"))))
 		]
 	)
-	lines.append("%s: %s" % [_resolve_menu_text("MENU_SUMMARY_SLOT_U", "U"), str(summary.get("ultimate", profile.get("ultimate", "Ultimate")))])
-	lines.append("%s: %s" % [_resolve_menu_text("MENU_SUMMARY_ITEM", "Item"), str(summary.get("item", "Item"))])
-	lines.append("%s: %s" % [_resolve_menu_text("MENU_SUMMARY_PASSIVE", "Passive"), str(summary.get("passive", "Passive"))])
+	lines.append(
+		"%s: %s / %s" % [
+			_resolve_menu_text("MENU_SUMMARY_SUPPORT", "Support"),
+			_compact_slot_name(str(summary.get("item", "Item"))),
+			_compact_slot_name(str(summary.get("passive", "Passive")))
+		]
+	)
 	var status_text := _resolve_menu_text("MENU_SUMMARY_STATUS_READY", "Ready")
 	if bool(summary.get("used_fallback", false)):
 		status_text = _resolve_menu_text("MENU_SUMMARY_STATUS_FALLBACK", "Fallback Applied")
@@ -713,46 +888,6 @@ func _build_summary_panel_body(player_key: String) -> String:
 	)
 	if player_key == "p2":
 		lines.append(_resolve_menu_text("MENU_SUMMARY_STORY_NOTE", "Story auto-rivals override manual opponent setup. This preview applies to VS and Training."))
-	return "\n".join(lines)
-
-func _build_route_summary_body() -> String:
-	var lines: Array[String] = []
-	lines.append(
-		"%s: %s" % [
-			_resolve_menu_text("MENU_SUMMARY_ROUTE_GUIDED", "Guided"),
-			_resolve_menu_text(
-				"MENU_SUMMARY_ROUTE_GUIDED_HINT",
-				"Best first run. Replays move, jump, guard, dodge, and special."
-			)
-		]
-	)
-	lines.append(
-		"%s: %s" % [
-			_resolve_menu_text("MENU_SUMMARY_ROUTE_STORY", "Story"),
-			_resolve_menu_text(
-				"MENU_SUMMARY_ROUTE_STORY_HINT",
-				"Solo ladder with automatic rivals."
-			)
-		]
-	)
-	lines.append(
-		"%s: %s" % [
-			_resolve_menu_text("MENU_SUMMARY_ROUTE_VS", "VS"),
-			_resolve_menu_text(
-				"MENU_SUMMARY_ROUTE_VS_HINT",
-				"Two local fighters on one screen."
-			)
-		]
-	)
-	lines.append(
-		"%s: %s" % [
-			_resolve_menu_text("MENU_SUMMARY_ROUTE_TRAINING", "Training"),
-			_resolve_menu_text(
-				"MENU_SUMMARY_ROUTE_TRAINING_HINT",
-				"Sandbox for drills, dummy logic, and timing."
-			)
-		]
-	)
 	return "\n".join(lines)
 
 func _resolve_profile_for_player(player_key: String) -> Dictionary:
@@ -1140,44 +1275,27 @@ func _on_p2_loadout_option_selected(index: int) -> void:
 	_refresh_character_profile_preview()
 
 func _refresh_mode_hint_tooltips() -> void:
-	var story_hint := _resolve_menu_text(
-		"MENU_STORY_AUTO_RIVAL_HINT",
-		"Story uses an automatic rival ladder. Opponent selection applies to Local VS and Training."
-	)
-	var versus_hint := _resolve_menu_text(
-		"MENU_VERSUS_HINT",
-		"Two local players share one screen. Best for immediate sparring."
-	)
-	var training_hint := _resolve_menu_text(
-		"MENU_TRAINING_HINT",
-		"Practice dummy behavior, frame advantage, and move timing."
-	)
-	var guided_hint := _resolve_menu_text(
-		"MENU_GUIDED_START_HINT",
-		"Starts Training with the onboarding sequence replayed from Step 1."
-	)
-	versus_button.tooltip_text = versus_hint
-	story_button.tooltip_text = story_hint
-	training_button.tooltip_text = training_hint
-	guided_start_button.tooltip_text = guided_hint
-	p2_character_option.tooltip_text = story_hint
-	p2_loadout_option.tooltip_text = story_hint
-	advanced_toggle_button.tooltip_text = _resolve_menu_text(
-		"MENU_ADVANCED_HINT",
-		"Advanced setup reveals rival, controls, video, and language configuration."
-	)
-	advanced_hint_label.tooltip_text = advanced_toggle_button.tooltip_text
+	versus_button.tooltip_text = ""
+	story_button.tooltip_text = ""
+	training_button.tooltip_text = ""
+	guided_start_button.tooltip_text = ""
+	p2_character_option.tooltip_text = ""
+	p2_loadout_option.tooltip_text = ""
+	advanced_toggle_button.tooltip_text = ""
+	advanced_hint_label.tooltip_text = ""
 
 func _refresh_advanced_setup_visibility() -> void:
 	var show_advanced := advanced_setup_expanded
-	for helper in [quick_start_label, p1_loadout_label, mode_step_label]:
-		if helper is CanvasItem:
-			(helper as CanvasItem).visible = not show_advanced
+	if quick_start_label is CanvasItem:
+		(quick_start_label as CanvasItem).visible = not show_advanced
+	if mode_step_label is CanvasItem:
+		(mode_step_label as CanvasItem).visible = not show_advanced
+	if p1_loadout_label is CanvasItem:
+		(p1_loadout_label as CanvasItem).visible = true
 	for node in [
 		p2_character_label,
 		p2_character_option,
 		p2_loadout_option,
-		p2_profile_label,
 		control_style_label,
 		control_style_button,
 		video_settings_label,
@@ -1191,6 +1309,20 @@ func _refresh_advanced_setup_visibility() -> void:
 	]:
 		if node is CanvasItem:
 			(node as CanvasItem).visible = show_advanced
+	if p2_profile_label is CanvasItem:
+		(p2_profile_label as CanvasItem).visible = false
+	if guided_hint_label is CanvasItem:
+		(guided_hint_label as CanvasItem).visible = not show_advanced
+	if advanced_hint_label is CanvasItem:
+		(advanced_hint_label as CanvasItem).visible = show_advanced
+	if video_settings_label is CanvasItem:
+		(video_settings_label as CanvasItem).visible = false
+	if window_mode_label is CanvasItem:
+		(window_mode_label as CanvasItem).visible = false
+	if resolution_label is CanvasItem:
+		(resolution_label as CanvasItem).visible = false
+	if lang_label is CanvasItem:
+		(lang_label as CanvasItem).visible = false
 	if p2_character_option:
 		p2_character_option.disabled = not main_menu_interactive or not show_advanced
 	if p2_loadout_option:
@@ -1208,29 +1340,57 @@ func _refresh_advanced_setup_visibility() -> void:
 	_apply_focus_layout()
 
 func _apply_focus_layout() -> void:
+	_set_control_rect(title_label, 24.0, 18.0, 336.0, 50.0)
+	_set_control_rect(subtitle_label, 24.0, 54.0, 336.0, 100.0)
+	_set_root_control_rect(advanced_toggle_button, 214.0, -334.0, 382.0, -302.0)
+	_set_root_control_rect(advanced_hint_label, 214.0, -296.0, 382.0, -264.0)
 	if advanced_setup_expanded:
-		_set_control_vertical_bounds(guided_start_button, 70.0, 94.0)
-		_set_control_vertical_bounds(p1_character_label, 98.0, 118.0)
-		_set_control_vertical_bounds(p1_character_option, 120.0, 152.0)
-		_set_control_vertical_bounds(p1_loadout_option, 154.0, 184.0)
-		_set_control_vertical_bounds(p1_profile_label, 186.0, 212.0)
-		_set_control_vertical_bounds(story_button, 332.0, 364.0)
-		_set_control_vertical_bounds(versus_button, 368.0, 400.0)
-		_set_control_vertical_bounds(training_button, 404.0, 436.0)
+		_set_control_rect(guided_start_button, 38.0, 120.0, 322.0, 164.0)
+		_set_control_rect(p1_character_label, 50.0, 184.0, 310.0, 202.0)
+		_set_control_rect(p1_character_option, 50.0, 208.0, 310.0, 240.0)
+		_set_control_rect(p1_loadout_label, 50.0, 252.0, 310.0, 270.0)
+		_set_control_rect(p1_loadout_option, 50.0, 276.0, 310.0, 308.0)
+		_set_control_rect(p1_profile_label, 50.0, 320.0, 310.0, 364.0)
+		_set_control_rect(story_button, 50.0, 390.0, 310.0, 428.0)
+		_set_control_rect(versus_button, 50.0, 438.0, 310.0, 476.0)
+		_set_control_rect(training_button, 50.0, 486.0, 310.0, 524.0)
+		_set_control_rect(p2_character_label, 50.0, 548.0, 170.0, 566.0)
+		_set_control_rect(control_style_label, 190.0, 548.0, 310.0, 566.0)
+		_set_control_rect(p2_character_option, 50.0, 570.0, 170.0, 600.0)
+		_set_control_rect(control_style_button, 190.0, 570.0, 310.0, 600.0)
+		_set_control_rect(p2_loadout_option, 50.0, 608.0, 170.0, 638.0)
+		_set_control_rect(window_mode_option, 190.0, 608.0, 310.0, 638.0)
+		_set_control_rect(lang_en_button, 50.0, 646.0, 108.0, 674.0)
+		_set_control_rect(lang_zh_button, 112.0, 646.0, 170.0, 674.0)
+		_set_control_rect(resolution_option, 190.0, 646.0, 310.0, 674.0)
 		return
-	_set_control_vertical_bounds(guided_start_button, 90.0, 122.0)
-	_set_control_vertical_bounds(p1_character_label, 132.0, 152.0)
-	_set_control_vertical_bounds(p1_character_option, 154.0, 186.0)
-	_set_control_vertical_bounds(p1_loadout_option, 212.0, 244.0)
-	_set_control_vertical_bounds(p1_profile_label, 248.0, 308.0)
-	_set_control_vertical_bounds(story_button, 344.0, 376.0)
-	_set_control_vertical_bounds(versus_button, 380.0, 412.0)
-	_set_control_vertical_bounds(training_button, 416.0, 448.0)
+	_set_control_rect(quick_start_label, 50.0, 118.0, 310.0, 138.0)
+	_set_control_rect(guided_start_button, 36.0, 148.0, 324.0, 198.0)
+	_set_control_rect(guided_hint_label, 42.0, 206.0, 318.0, 236.0)
+	_set_control_rect(p1_character_label, 50.0, 258.0, 310.0, 278.0)
+	_set_control_rect(p1_character_option, 50.0, 286.0, 310.0, 320.0)
+	_set_control_rect(p1_loadout_label, 50.0, 334.0, 310.0, 354.0)
+	_set_control_rect(p1_loadout_option, 50.0, 362.0, 310.0, 396.0)
+	_set_control_rect(p1_profile_label, 50.0, 408.0, 310.0, 456.0)
+	_set_control_rect(mode_step_label, 50.0, 486.0, 310.0, 506.0)
+	_set_control_rect(story_button, 50.0, 520.0, 310.0, 560.0)
+	_set_control_rect(versus_button, 50.0, 574.0, 310.0, 614.0)
+	_set_control_rect(training_button, 50.0, 628.0, 310.0, 668.0)
 
-func _set_control_vertical_bounds(control: Control, top: float, bottom: float) -> void:
+func _set_control_rect(control: Control, left: float, top: float, right: float, bottom: float) -> void:
 	if control == null:
 		return
+	control.offset_left = left
+	control.offset_right = right
 	control.offset_top = top
+	control.offset_bottom = bottom
+
+func _set_root_control_rect(control: Control, left: float, top: float, right: float, bottom: float) -> void:
+	if control == null:
+		return
+	control.offset_left = left
+	control.offset_top = top
+	control.offset_right = right
 	control.offset_bottom = bottom
 
 func _refresh_loadout_tooltip_for_player(player_key: String) -> void:
