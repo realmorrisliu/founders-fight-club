@@ -26,6 +26,7 @@ Note: The second fighter is AI-controlled in the current prototype.
 
 ## CLI
 - Run game: `just run`
+- Keep Godot attached to terminal output: `GODOT_ATTACH=1 just run`
 - Open editor: `just editor`
 - Run scene: `just run-scene "res://scenes/Main.tscn"`
 - Run automated tests: `just test`
