@@ -3539,6 +3539,10 @@ func _resolve_runtime_sprite_frames() -> SpriteFrames:
 func _load_external_sprite_frames() -> SpriteFrames:
 	if not use_external_sprite_frames:
 		return null
+	# CI/headless runs do not have editor import cache, so external PNG-backed
+	# SpriteFrames can emit parse errors before we reach the placeholder fallback.
+	if OS.has_feature("headless"):
+		return null
 	if sprite_frames_resource:
 		return sprite_frames_resource
 	var path := sprite_frames_path.strip_edges()
