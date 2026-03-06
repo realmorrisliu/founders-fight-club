@@ -1,6 +1,7 @@
 extends Control
 
 const GameSettingsStore := preload("res://scripts/GameSettings.gd")
+const UiSkinStore := preload("res://scripts/ui/UiSkin.gd")
 const LocalizationRegistryStore := preload("res://scripts/config/LocalizationRegistry.gd")
 const CharacterCatalogStore := preload("res://scripts/config/CharacterCatalog.gd")
 const LoadoutCatalogStore := preload("res://scripts/config/LoadoutCatalog.gd")
@@ -13,6 +14,62 @@ const STORY_SCENE_PATH := "res://scenes/Story.tscn"
 const TRAINING_SCENE_PATH := "res://scenes/Training.tscn"
 const MENU_METRICS_LOG_PATH := "user://menu_metrics.jsonl"
 const MENU_METRICS_SCHEMA_VERSION := 1
+const MENU_BG_TEXTURE_PATH := "res://assets/sprites/ui/menu_bg.png"
+const MENU_CENTER_PANEL_TEXTURE_PATH := "res://assets/sprites/ui/menu_center_panel.png"
+const MENU_SUMMARY_PANEL_TEXTURE_PATH := "res://assets/sprites/ui/menu_summary_panel.png"
+const MENU_OVERLAY_PANEL_TEXTURE_PATH := "res://assets/sprites/ui/menu_overlay_panel.png"
+const MENU_SLOT_CARD_TEXTURE_PATH := "res://assets/sprites/ui/menu_slot_card.png"
+const MENU_ROUTE_ICON_PATHS := {
+	"guided": "res://assets/sprites/ui/icon_guided.png",
+	"story": "res://assets/sprites/ui/icon_story.png",
+	"versus": "res://assets/sprites/ui/icon_versus.png",
+	"training": "res://assets/sprites/ui/icon_training.png"
+}
+const MENU_CONTROL_ICON_PATHS := {
+	GameSettingsStore.CONTROL_PRESET_CLASSIC: "res://assets/sprites/ui/icon_classic.png",
+	GameSettingsStore.CONTROL_PRESET_MODERN: "res://assets/sprites/ui/icon_modern.png"
+}
+const MENU_SLOT_ICON_PATHS := {
+	"signature_a": "res://assets/sprites/ui/icon_signature_a.png",
+	"signature_b": "res://assets/sprites/ui/icon_signature_b.png",
+	"signature_c": "res://assets/sprites/ui/icon_signature_c.png",
+	"ultimate": "res://assets/sprites/ui/icon_ultimate.png",
+	"item": "res://assets/sprites/ui/icon_item.png",
+	"passive": "res://assets/sprites/ui/icon_passive.png"
+}
+const MENU_SLOT_PREVIEW_CONFIG := [
+	{"key": "signature_a", "summary_key": "signature_a", "profile_key": "signature_primary", "label_key": "MENU_SUMMARY_SLOT_A", "fallback": "A"},
+	{"key": "signature_b", "summary_key": "signature_b", "profile_key": "signature_alt", "label_key": "MENU_SUMMARY_SLOT_B", "fallback": "B"},
+	{"key": "signature_c", "summary_key": "", "profile_key": "signature_c", "label_key": "MENU_SUMMARY_FIXED_DOWN_SPECIAL", "fallback": "DS"},
+	{"key": "ultimate", "summary_key": "ultimate", "profile_key": "ultimate", "label_key": "MENU_SUMMARY_SLOT_U", "fallback": "U"},
+	{"key": "item", "summary_key": "item", "profile_key": "", "label_key": "MENU_SUMMARY_ITEM", "fallback": "Item"},
+	{"key": "passive", "summary_key": "passive", "profile_key": "", "label_key": "MENU_SUMMARY_PASSIVE", "fallback": "Passive"}
+]
+const MENU_BUTTON_PRIMARY_PALETTE := {
+	"normal_fill": Color(0.13, 0.26, 0.46, 0.97),
+	"hover_fill": Color(0.18, 0.34, 0.58, 0.99),
+	"pressed_fill": Color(0.10, 0.20, 0.36, 0.99),
+	"disabled_fill": Color(0.12, 0.15, 0.20, 0.86),
+	"border": Color(0.42, 0.84, 1.0, 1.0),
+	"border_hover": Color(0.64, 0.92, 1.0, 1.0),
+	"font_color": Color(0.96, 0.98, 1.0, 1.0)
+}
+const MENU_BUTTON_SECONDARY_PALETTE := {
+	"normal_fill": Color(0.12, 0.18, 0.30, 0.94),
+	"hover_fill": Color(0.16, 0.24, 0.40, 0.98),
+	"pressed_fill": Color(0.10, 0.15, 0.26, 0.99),
+	"disabled_fill": Color(0.12, 0.15, 0.20, 0.86),
+	"border": Color(0.31, 0.52, 0.84, 1.0),
+	"font_color": Color(0.94, 0.97, 1.0, 1.0)
+}
+const MENU_BUTTON_WARM_PALETTE := {
+	"normal_fill": Color(0.28, 0.19, 0.10, 0.96),
+	"hover_fill": Color(0.37, 0.24, 0.11, 0.99),
+	"pressed_fill": Color(0.22, 0.15, 0.08, 0.99),
+	"disabled_fill": Color(0.14, 0.12, 0.10, 0.84),
+	"border": Color(1.0, 0.83, 0.43, 1.0),
+	"font_color": Color(1.0, 0.96, 0.88, 1.0)
+}
 const WINDOW_MODE_OPTIONS := [
 	GameSettingsStore.WINDOW_MODE_WINDOWED,
 	GameSettingsStore.WINDOW_MODE_MAXIMIZED,
@@ -57,7 +114,13 @@ var current_p2_loadout: Dictionary = {}
 var current_p1_preset_id := ""
 var current_p2_preset_id := ""
 var advanced_setup_expanded := false
+var ui_texture_cache := {}
+var summary_slot_labels := {"p1": {}, "p2": {}}
+var summary_slot_cards := {"p1": {}, "p2": {}}
+var summary_slot_grids := {"p1": null, "p2": null}
 
+@onready var background_rect := $Background
+@onready var center_panel := $CenterPanel
 @onready var title_label := $CenterPanel/TitleLabel
 @onready var subtitle_label := $CenterPanel/SubtitleLabel
 @onready var quick_start_label := $CenterPanel/QuickStartLabel
@@ -87,11 +150,14 @@ var advanced_setup_expanded := false
 @onready var lang_zh_button := $CenterPanel/LangZhButton
 @onready var advanced_toggle_button := $AdvancedToggleButton
 @onready var advanced_hint_label := $AdvancedHintLabel
+@onready var p1_summary_panel := $P1SummaryPanel
 @onready var p1_summary_title_label := $P1SummaryPanel/TitleLabel
 @onready var p1_summary_body_label := $P1SummaryPanel/BodyLabel
+@onready var p2_summary_panel := $P2SummaryPanel
 @onready var p2_summary_title_label := $P2SummaryPanel/TitleLabel
 @onready var p2_summary_body_label := $P2SummaryPanel/BodyLabel
 @onready var first_launch_overlay := $FirstLaunchControlOverlay
+@onready var first_launch_panel := $FirstLaunchControlOverlay/Panel
 @onready var first_launch_title_label := $FirstLaunchControlOverlay/Panel/TitleLabel
 @onready var first_launch_hint_label := $FirstLaunchControlOverlay/Panel/HintLabel
 @onready var first_launch_classic_button := $FirstLaunchControlOverlay/Panel/ClassicButton
@@ -102,6 +168,7 @@ func _ready() -> void:
 	var locale := TranslationServer.get_locale()
 	if not locale.begins_with("en") and not locale.begins_with("zh"):
 		TranslationServer.set_locale("en")
+	_apply_runtime_skin()
 	versus_button.pressed.connect(_on_versus_pressed)
 	story_button.pressed.connect(_on_story_pressed)
 	training_button.pressed.connect(_on_training_pressed)
@@ -124,6 +191,211 @@ func _ready() -> void:
 	_initialize_advanced_setup_state()
 	_initialize_video_settings()
 	_refresh_text()
+
+func _apply_runtime_skin() -> void:
+	if background_rect:
+		UiSkinStore.ensure_backdrop(
+			background_rect,
+			"BackdropTexture",
+			_load_ui_texture(MENU_BG_TEXTURE_PATH, Vector2i(1280, 720), Color(0.08, 0.11, 0.16, 1.0)),
+			Color(1, 1, 1, 0.96)
+		)
+	for panel in [center_panel, p1_summary_panel, p2_summary_panel, first_launch_panel]:
+		if panel is Panel:
+			UiSkinStore.clear_panel_skin(panel as Panel)
+	if center_panel:
+		UiSkinStore.ensure_backdrop(
+			center_panel,
+			"BackdropTexture",
+			_load_ui_texture(MENU_CENTER_PANEL_TEXTURE_PATH, Vector2i(360, 680), Color(0.10, 0.16, 0.28, 0.98))
+		)
+	if p1_summary_panel:
+		UiSkinStore.ensure_backdrop(
+			p1_summary_panel,
+			"BackdropTexture",
+			_load_ui_texture(MENU_SUMMARY_PANEL_TEXTURE_PATH, Vector2i(280, 396), Color(0.10, 0.16, 0.28, 0.98)),
+			Color(0.88, 0.96, 1.0, 1.0)
+		)
+	if p2_summary_panel:
+		UiSkinStore.ensure_backdrop(
+			p2_summary_panel,
+			"BackdropTexture",
+			_load_ui_texture(MENU_SUMMARY_PANEL_TEXTURE_PATH, Vector2i(280, 396), Color(0.10, 0.16, 0.28, 0.98)),
+			Color(1.0, 0.91, 0.88, 1.0)
+		)
+	if first_launch_panel:
+		UiSkinStore.ensure_backdrop(
+			first_launch_panel,
+			"BackdropTexture",
+			_load_ui_texture(MENU_OVERLAY_PANEL_TEXTURE_PATH, Vector2i(430, 220), Color(0.18, 0.16, 0.12, 0.98))
+		)
+	for button in [
+		guided_start_button,
+		first_launch_modern_button
+	]:
+		UiSkinStore.apply_button_skin(button, MENU_BUTTON_PRIMARY_PALETTE)
+	for button in [
+		story_button,
+		versus_button,
+		training_button,
+		control_style_button,
+		advanced_toggle_button,
+		lang_en_button,
+		lang_zh_button,
+		first_launch_classic_button
+	]:
+		UiSkinStore.apply_button_skin(button, MENU_BUTTON_SECONDARY_PALETTE)
+	for option_button in [
+		p1_character_option,
+		p2_character_option,
+		p1_loadout_option,
+		p2_loadout_option,
+		window_mode_option,
+		resolution_option
+	]:
+		UiSkinStore.apply_button_skin(option_button, MENU_BUTTON_SECONDARY_PALETTE)
+	_assign_menu_button_icons()
+	_ensure_summary_slot_previews()
+
+func _assign_menu_button_icons() -> void:
+	guided_start_button.icon = _load_ui_texture(MENU_ROUTE_ICON_PATHS["guided"], Vector2i(24, 24), Color(0.42, 0.84, 1.0, 1.0))
+	story_button.icon = _load_ui_texture(MENU_ROUTE_ICON_PATHS["story"], Vector2i(24, 24), Color(1.0, 0.83, 0.43, 1.0))
+	versus_button.icon = _load_ui_texture(MENU_ROUTE_ICON_PATHS["versus"], Vector2i(24, 24), Color(1.0, 0.60, 0.48, 1.0))
+	training_button.icon = _load_ui_texture(MENU_ROUTE_ICON_PATHS["training"], Vector2i(24, 24), Color(0.42, 0.84, 1.0, 1.0))
+	first_launch_classic_button.icon = _load_ui_texture(MENU_CONTROL_ICON_PATHS[GameSettingsStore.CONTROL_PRESET_CLASSIC], Vector2i(24, 24), Color(1.0, 0.83, 0.43, 1.0))
+	first_launch_modern_button.icon = _load_ui_texture(MENU_CONTROL_ICON_PATHS[GameSettingsStore.CONTROL_PRESET_MODERN], Vector2i(24, 24), Color(0.42, 0.84, 1.0, 1.0))
+	_refresh_control_style_icon()
+
+func _refresh_control_style_icon() -> void:
+	var path := str(MENU_CONTROL_ICON_PATHS.get(current_control_preset, MENU_CONTROL_ICON_PATHS[GameSettingsStore.CONTROL_PRESET_MODERN]))
+	var tint := Color(1.0, 0.83, 0.43, 1.0) if current_control_preset == GameSettingsStore.CONTROL_PRESET_CLASSIC else Color(0.42, 0.84, 1.0, 1.0)
+	control_style_button.icon = _load_ui_texture(path, Vector2i(24, 24), tint)
+
+func _ensure_summary_slot_previews() -> void:
+	_ensure_summary_slot_preview_for_panel("p1", p1_summary_panel)
+	_ensure_summary_slot_preview_for_panel("p2", p2_summary_panel)
+	_refresh_summary_slot_previews()
+
+func _ensure_summary_slot_preview_for_panel(player_key: String, panel: Control) -> void:
+	if panel == null:
+		return
+	var grid := panel.get_node_or_null("SlotPreviewGrid") as GridContainer
+	if grid == null:
+		grid = GridContainer.new()
+		grid.name = "SlotPreviewGrid"
+		grid.columns = 2
+		grid.position = Vector2(18, 52)
+		grid.custom_minimum_size = Vector2(244, 126)
+		grid.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		panel.add_child(grid)
+	summary_slot_grids[player_key] = grid
+	if grid.get_child_count() > 0:
+		return
+	for slot_config_variant in MENU_SLOT_PREVIEW_CONFIG:
+		var slot_config := slot_config_variant as Dictionary
+		var slot_key := str(slot_config.get("key", ""))
+		var slot_card := Control.new()
+		slot_card.name = "%sCard" % slot_key.capitalize()
+		slot_card.custom_minimum_size = Vector2(116, 38)
+		slot_card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		grid.add_child(slot_card)
+		summary_slot_cards[player_key][slot_key] = slot_card
+		var accent := _resolve_slot_modulate(slot_key, player_key)
+		UiSkinStore.ensure_backdrop(
+			slot_card,
+			"BackdropTexture",
+			_load_ui_texture(MENU_SLOT_CARD_TEXTURE_PATH, Vector2i(116, 38), Color(0.10, 0.16, 0.28, 0.98)),
+			accent
+		)
+		var icon_rect := TextureRect.new()
+		icon_rect.name = "Icon"
+		icon_rect.position = Vector2(6, 7)
+		icon_rect.custom_minimum_size = Vector2(24, 24)
+		icon_rect.size = Vector2(24, 24)
+		icon_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		icon_rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		icon_rect.stretch_mode = TextureRect.STRETCH_SCALE
+		icon_rect.texture = _load_ui_texture(
+			str(MENU_SLOT_ICON_PATHS.get(slot_key, "")),
+			Vector2i(24, 24),
+			Color(0.96, 0.98, 1.0, 1.0)
+		)
+		slot_card.add_child(icon_rect)
+		var value_label := Label.new()
+		value_label.name = "ValueLabel"
+		value_label.position = Vector2(36, 8)
+		value_label.size = Vector2(72, 20)
+		value_label.clip_text = true
+		value_label.add_theme_color_override("font_color", Color(0.94, 0.97, 1.0, 1.0))
+		value_label.text = "-"
+		slot_card.add_child(value_label)
+		summary_slot_labels[player_key][slot_key] = value_label
+
+func _refresh_summary_slot_previews() -> void:
+	_refresh_summary_slot_preview_for_player("p1")
+	_refresh_summary_slot_preview_for_player("p2")
+
+func _refresh_summary_slot_preview_for_player(player_key: String) -> void:
+	var grid := summary_slot_grids.get(player_key, null) as GridContainer
+	var body_label := p1_summary_body_label if player_key == "p1" else p2_summary_body_label
+	var should_show_grid := player_key == "p1" or advanced_setup_expanded
+	if grid:
+		grid.visible = should_show_grid
+	if body_label:
+		body_label.offset_top = 194.0 if should_show_grid else 52.0
+		body_label.offset_bottom = 376.0
+	if not should_show_grid:
+		return
+	var profile := _resolve_profile_for_player(player_key)
+	var character_id := str(profile.get("character_id", "")).strip_edges()
+	var summary := {}
+	if character_id != "":
+		var loadout := _resolve_current_loadout_for_player(player_key, character_id)
+		var resolved := LoadoutResolverStore.resolve_character_loadout(character_id, loadout)
+		summary = resolved.get("summary", {}) as Dictionary
+	for slot_config_variant in MENU_SLOT_PREVIEW_CONFIG:
+		var slot_config := slot_config_variant as Dictionary
+		var slot_key := str(slot_config.get("key", ""))
+		var label := summary_slot_labels[player_key].get(slot_key, null) as Label
+		var card := summary_slot_cards[player_key].get(slot_key, null) as Control
+		if label == null or card == null:
+			continue
+		var display_value := "-"
+		var summary_key := str(slot_config.get("summary_key", ""))
+		var profile_key := str(slot_config.get("profile_key", ""))
+		if summary_key != "":
+			display_value = str(summary.get(summary_key, "")).strip_edges()
+		if display_value == "" and profile_key != "":
+			display_value = str(profile.get(profile_key, "")).strip_edges()
+		if display_value == "":
+			display_value = str(slot_config.get("fallback", "-"))
+		label.text = display_value
+		var slot_label := _resolve_menu_text(str(slot_config.get("label_key", "")), str(slot_config.get("fallback", slot_key)))
+		card.tooltip_text = "%s: %s" % [slot_label, display_value]
+
+func _resolve_slot_modulate(slot_key: String, player_key: String) -> Color:
+	var base := Color(0.88, 0.96, 1.0, 1.0) if player_key == "p1" else Color(1.0, 0.91, 0.88, 1.0)
+	match slot_key:
+		"ultimate":
+			return Color(1.0, 0.92, 0.68, 1.0)
+		"item":
+			return Color(0.84, 1.0, 0.90, 1.0)
+		"passive":
+			return Color(0.94, 0.86, 1.0, 1.0)
+		"signature_b":
+			return Color(0.86, 0.97, 1.0, 1.0)
+		"signature_c":
+			return Color(0.90, 0.90, 1.0, 1.0)
+		_:
+			return base
+
+func _load_ui_texture(path: String, size: Vector2i, fill: Color) -> Texture2D:
+	var cache_key := "%s|%d|%d|%s" % [path, size.x, size.y, fill.to_html()]
+	if ui_texture_cache.has(cache_key):
+		return ui_texture_cache[cache_key] as Texture2D
+	var texture := UiSkinStore.load_texture_or_placeholder(path, size, fill)
+	ui_texture_cache[cache_key] = texture
+	return texture
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_TRANSLATION_CHANGED and is_node_ready():
@@ -195,6 +467,7 @@ func _refresh_text() -> void:
 	training_button.text = tr("MENU_TRAINING")
 	control_style_label.text = tr("MENU_CONTROL_STYLE")
 	control_style_button.text = _resolve_control_preset_label(current_control_preset)
+	_refresh_control_style_icon()
 	video_settings_label.text = _resolve_menu_text("MENU_VIDEO_SETTINGS", "Video")
 	window_mode_label.text = _resolve_menu_text("MENU_WINDOW_MODE", "Window Mode")
 	resolution_label.text = _resolve_menu_text("MENU_RESOLUTION", "Resolution")
@@ -388,6 +661,7 @@ func _refresh_summary_panels() -> void:
 	p1_summary_body_label.text = _build_summary_panel_body("p1")
 	p2_summary_title_label.text = _build_summary_panel_title("p2")
 	p2_summary_body_label.text = _build_summary_panel_body("p2")
+	_refresh_summary_slot_previews()
 
 func _build_summary_panel_title(player_key: String) -> String:
 	if player_key == "p2" and not advanced_setup_expanded:

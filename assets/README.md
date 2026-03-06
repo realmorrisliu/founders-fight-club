@@ -27,6 +27,35 @@ Impact effect runtime animation resource:
 
 - `sprites/effects/ImpactSpriteFrames.tres`
 
+Combat UI / arena / impact art generator:
+
+- `scripts/tools/generate_combat_ui_assets.py`
+- `scripts/ui/UiSkin.gd`
+
+Menu/HUD panel textures and icons:
+
+- `sprites/ui/menu_bg.png`
+- `sprites/ui/menu_center_panel.png`
+- `sprites/ui/menu_summary_panel.png`
+- `sprites/ui/menu_overlay_panel.png`
+- `sprites/ui/menu_slot_card.png`
+- `sprites/ui/hud_training_panel.png`
+- `sprites/ui/hud_onboarding_panel.png`
+- `sprites/ui/hud_round_tuning_panel.png`
+- `sprites/ui/hud_choice_card.png`
+- `sprites/ui/icon_guided.png`
+- `sprites/ui/icon_story.png`
+- `sprites/ui/icon_versus.png`
+- `sprites/ui/icon_training.png`
+- `sprites/ui/icon_classic.png`
+- `sprites/ui/icon_modern.png`
+- `sprites/ui/icon_signature_a.png`
+- `sprites/ui/icon_signature_b.png`
+- `sprites/ui/icon_signature_c.png`
+- `sprites/ui/icon_ultimate.png`
+- `sprites/ui/icon_item.png`
+- `sprites/ui/icon_passive.png`
+
 Stage/HUD textures now in use:
 
 - `sprites/arena/arena_bg.png`

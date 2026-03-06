@@ -2,6 +2,7 @@ extends CanvasLayer
 
 const LocalizationRegistryStore := preload("res://scripts/config/LocalizationRegistry.gd")
 const GameSettingsStore := preload("res://scripts/GameSettings.gd")
+const UiSkinStore := preload("res://scripts/ui/UiSkin.gd")
 const ROUND_TUNING_PATCH_SUMMARY_MAX_PARTS := 2
 const ROUND_TUNING_CARD_MAX_LINES := 3
 const TIMER_CHIP_TEXTURE_PATH := "res://assets/sprites/ui/hud_timer_chip.png"
@@ -10,6 +11,26 @@ const HP_UNDER_TEXTURE_PATH := "res://assets/sprites/ui/hp_under.png"
 const HP_FILL_P1_TEXTURE_PATH := "res://assets/sprites/ui/hp_fill_p1.png"
 const HP_FILL_P2_TEXTURE_PATH := "res://assets/sprites/ui/hp_fill_p2.png"
 const PAUSE_PANEL_TEXTURE_PATH := "res://assets/sprites/ui/hud_pause_panel.png"
+const TRAINING_PANEL_TEXTURE_PATH := "res://assets/sprites/ui/hud_training_panel.png"
+const ONBOARDING_PANEL_TEXTURE_PATH := "res://assets/sprites/ui/hud_onboarding_panel.png"
+const ROUND_TUNING_PANEL_TEXTURE_PATH := "res://assets/sprites/ui/hud_round_tuning_panel.png"
+const ROUND_TUNING_CARD_TEXTURE_PATH := "res://assets/sprites/ui/hud_choice_card.png"
+const HUD_BUTTON_PRIMARY_PALETTE := {
+	"normal_fill": Color(0.13, 0.26, 0.46, 0.97),
+	"hover_fill": Color(0.18, 0.34, 0.58, 0.99),
+	"pressed_fill": Color(0.10, 0.20, 0.36, 0.99),
+	"disabled_fill": Color(0.12, 0.15, 0.20, 0.86),
+	"border": Color(0.42, 0.84, 1.0, 1.0),
+	"font_color": Color(0.96, 0.98, 1.0, 1.0)
+}
+const HUD_BUTTON_WARM_PALETTE := {
+	"normal_fill": Color(0.28, 0.19, 0.10, 0.96),
+	"hover_fill": Color(0.37, 0.24, 0.11, 0.99),
+	"pressed_fill": Color(0.22, 0.15, 0.08, 0.99),
+	"disabled_fill": Color(0.14, 0.12, 0.10, 0.84),
+	"border": Color(1.0, 0.83, 0.43, 1.0),
+	"font_color": Color(1.0, 0.96, 0.88, 1.0)
+}
 
 signal resume_requested
 signal restart_requested
@@ -67,11 +88,13 @@ const MATCH_UI_MODE_STOCK := "stock"
 @onready var round_tuning_panel := $RoundTuningPanel
 @onready var round_tuning_title_label := $RoundTuningPanel/TitleLabel
 @onready var round_tuning_hint_label := $RoundTuningPanel/HintLabel
+@onready var round_tuning_option_a_card := $RoundTuningPanel/OptionACard
 @onready var round_tuning_option_a_title_label := $RoundTuningPanel/OptionACard/TitleLabel
 @onready var round_tuning_option_a_benefits_header_label := $RoundTuningPanel/OptionACard/BenefitsHeaderLabel
 @onready var round_tuning_option_a_benefits_label := $RoundTuningPanel/OptionACard/BenefitsLabel
 @onready var round_tuning_option_a_tradeoffs_header_label := $RoundTuningPanel/OptionACard/TradeoffsHeaderLabel
 @onready var round_tuning_option_a_tradeoffs_label := $RoundTuningPanel/OptionACard/TradeoffsLabel
+@onready var round_tuning_option_b_card := $RoundTuningPanel/OptionBCard
 @onready var round_tuning_option_b_title_label := $RoundTuningPanel/OptionBCard/TitleLabel
 @onready var round_tuning_option_b_benefits_header_label := $RoundTuningPanel/OptionBCard/BenefitsHeaderLabel
 @onready var round_tuning_option_b_benefits_label := $RoundTuningPanel/OptionBCard/BenefitsLabel
@@ -116,6 +139,7 @@ var training_controls_visible := true
 var training_log_entries: Array[Dictionary] = []
 const TRAINING_LOG_MAX_ENTRIES := 8
 var round_tuning_options: Array[Dictionary] = []
+var ui_texture_cache := {}
 var onboarding_state := {
 	"visible": false,
 	"title_text": "",
@@ -130,6 +154,7 @@ func _ready() -> void:
 	var locale := TranslationServer.get_locale()
 	if not locale.begins_with("en") and not locale.begins_with("zh"):
 		TranslationServer.set_locale("en")
+	_apply_runtime_skin()
 	_apply_runtime_textures()
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	pause_panel.visible = false
@@ -159,6 +184,61 @@ func _ready() -> void:
 	if onboarding_replay_button:
 		onboarding_replay_button.pressed.connect(_on_onboarding_replay_pressed)
 	_refresh_ui_text()
+
+func _apply_runtime_skin() -> void:
+	for panel in [training_panel, onboarding_panel, round_tuning_panel, round_tuning_option_a_card, round_tuning_option_b_card, pause_panel]:
+		if panel is Panel:
+			UiSkinStore.clear_panel_skin(panel as Panel)
+	if training_panel:
+		UiSkinStore.ensure_backdrop(
+			training_panel,
+			"BackdropTexture",
+			_load_ui_texture(TRAINING_PANEL_TEXTURE_PATH, Vector2i(336, 196), Color(0.10, 0.16, 0.28, 0.98))
+		)
+	if onboarding_panel:
+		UiSkinStore.ensure_backdrop(
+			onboarding_panel,
+			"BackdropTexture",
+			_load_ui_texture(ONBOARDING_PANEL_TEXTURE_PATH, Vector2i(392, 110), Color(0.22, 0.18, 0.12, 0.98))
+		)
+	if round_tuning_panel:
+		UiSkinStore.ensure_backdrop(
+			round_tuning_panel,
+			"BackdropTexture",
+			_load_ui_texture(ROUND_TUNING_PANEL_TEXTURE_PATH, Vector2i(556, 298), Color(0.10, 0.16, 0.28, 0.98))
+		)
+	if round_tuning_option_a_card:
+		UiSkinStore.ensure_backdrop(
+			round_tuning_option_a_card,
+			"BackdropTexture",
+			_load_ui_texture(ROUND_TUNING_CARD_TEXTURE_PATH, Vector2i(248, 170), Color(0.12, 0.18, 0.30, 0.96)),
+			Color(0.90, 1.0, 0.92, 1.0)
+		)
+	if round_tuning_option_b_card:
+		UiSkinStore.ensure_backdrop(
+			round_tuning_option_b_card,
+			"BackdropTexture",
+			_load_ui_texture(ROUND_TUNING_CARD_TEXTURE_PATH, Vector2i(248, 170), Color(0.12, 0.18, 0.30, 0.96)),
+			Color(1.0, 0.93, 0.88, 1.0)
+		)
+	for button in [
+		training_mode_button,
+		training_dummy_button,
+		training_detail_button,
+		resume_button,
+		restart_button,
+		back_menu_button,
+		lang_en_button,
+		lang_zh_button
+	]:
+		UiSkinStore.apply_button_skin(button, HUD_BUTTON_PRIMARY_PALETTE)
+	for button in [
+		onboarding_skip_button,
+		onboarding_replay_button,
+		round_tuning_option_a_button,
+		round_tuning_option_b_button
+	]:
+		UiSkinStore.apply_button_skin(button, HUD_BUTTON_WARM_PALETTE)
 
 func _apply_runtime_textures() -> void:
 	if timer_chip:
@@ -202,20 +282,21 @@ func _apply_runtime_textures() -> void:
 		)
 
 func _load_texture_or_placeholder(path: String, size: Vector2i, fill: Color) -> Texture2D:
-	if not _is_headless_runtime():
-		var loaded = load(path)
-		if loaded is Texture2D:
-			return loaded as Texture2D
-	return _make_solid_texture(size, fill)
+	return _load_ui_texture(path, size, fill)
 
 func _is_headless_runtime() -> bool:
-	return OS.has_feature("headless") or DisplayServer.get_name() == "headless"
+	return UiSkinStore.is_headless_runtime()
 
 func _make_solid_texture(size: Vector2i, fill: Color) -> Texture2D:
-	var safe_size := Vector2i(maxi(1, size.x), maxi(1, size.y))
-	var image := Image.create(safe_size.x, safe_size.y, false, Image.FORMAT_RGBA8)
-	image.fill(fill)
-	return ImageTexture.create_from_image(image)
+	return UiSkinStore.make_solid_texture(size, fill)
+
+func _load_ui_texture(path: String, size: Vector2i, fill: Color) -> Texture2D:
+	var cache_key := "%s|%d|%d|%s" % [path, size.x, size.y, fill.to_html()]
+	if ui_texture_cache.has(cache_key):
+		return ui_texture_cache[cache_key] as Texture2D
+	var texture := UiSkinStore.load_texture_or_placeholder(path, size, fill)
+	ui_texture_cache[cache_key] = texture
+	return texture
 
 func show_round_tuning_options(options: Array[Dictionary], title_text: String = "") -> void:
 	round_tuning_options.clear()
