@@ -1,12 +1,6 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=2 format=3]
 
 [ext_resource type="Script" path="res://scripts/Hud.gd" id="1"]
-[ext_resource type="Texture2D" path="res://assets/sprites/ui/hud_timer_chip.png" id="2"]
-[ext_resource type="Texture2D" path="res://assets/sprites/ui/hud_result_chip.png" id="3"]
-[ext_resource type="Texture2D" path="res://assets/sprites/ui/hp_under.png" id="4"]
-[ext_resource type="Texture2D" path="res://assets/sprites/ui/hp_fill_p1.png" id="5"]
-[ext_resource type="Texture2D" path="res://assets/sprites/ui/hp_fill_p2.png" id="6"]
-[ext_resource type="Texture2D" path="res://assets/sprites/ui/hud_pause_panel.png" id="7"]
 
 [node name="Hud" type="CanvasLayer"]
 script = ExtResource("1")
@@ -16,7 +10,6 @@ offset_left = 260.0
 offset_top = 14.0
 offset_right = 380.0
 offset_bottom = 42.0
-texture = ExtResource("2")
 
 [node name="TimerLabel" type="Label" parent="."]
 offset_left = 278.0
@@ -36,8 +29,6 @@ min_value = 0.0
 max_value = 100.0
 value = 100.0
 show_percentage = false
-texture_under = ExtResource("4")
-texture_progress = ExtResource("5")
 
 [node name="P1HpLabel" type="Label" parent="."]
 offset_left = 20.0
@@ -57,8 +48,6 @@ max_value = 100.0
 value = 100.0
 show_percentage = false
 fill_mode = 1
-texture_under = ExtResource("4")
-texture_progress = ExtResource("6")
 
 [node name="P2HpLabel" type="Label" parent="."]
 offset_left = 392.0
@@ -148,7 +137,6 @@ offset_left = 130.0
 offset_top = 60.0
 offset_right = 510.0
 offset_bottom = 98.0
-texture = ExtResource("3")
 
 [node name="ResultLabel" type="Label" parent="."]
 offset_left = 138.0
@@ -533,7 +521,6 @@ offset_bottom = 330.0
 offset_right = 320.0
 offset_bottom = 260.0
 mouse_filter = 2
-texture = ExtResource("7")
 
 [node name="PauseTitleLabel" type="Label" parent="PausePanel"]
 offset_left = 96.0

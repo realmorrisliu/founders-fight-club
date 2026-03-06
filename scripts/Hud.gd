@@ -4,6 +4,12 @@ const LocalizationRegistryStore := preload("res://scripts/config/LocalizationReg
 const GameSettingsStore := preload("res://scripts/GameSettings.gd")
 const ROUND_TUNING_PATCH_SUMMARY_MAX_PARTS := 2
 const ROUND_TUNING_CARD_MAX_LINES := 3
+const TIMER_CHIP_TEXTURE_PATH := "res://assets/sprites/ui/hud_timer_chip.png"
+const RESULT_CHIP_TEXTURE_PATH := "res://assets/sprites/ui/hud_result_chip.png"
+const HP_UNDER_TEXTURE_PATH := "res://assets/sprites/ui/hp_under.png"
+const HP_FILL_P1_TEXTURE_PATH := "res://assets/sprites/ui/hp_fill_p1.png"
+const HP_FILL_P2_TEXTURE_PATH := "res://assets/sprites/ui/hp_fill_p2.png"
+const PAUSE_PANEL_TEXTURE_PATH := "res://assets/sprites/ui/hud_pause_panel.png"
 
 signal resume_requested
 signal restart_requested
@@ -50,6 +56,7 @@ const MATCH_UI_MODE_STOCK := "stock"
 @onready var training_log_title_label := $TrainingPanel/TrainingLogTitleLabel
 @onready var training_log_label := $TrainingPanel/TrainingLogLabel
 @onready var pause_panel := $PausePanel
+@onready var pause_background := $PausePanel/PauseBackground
 @onready var pause_title_label := $PausePanel/PauseTitleLabel
 @onready var resume_button := $PausePanel/ResumeButton
 @onready var restart_button := $PausePanel/RestartButton
@@ -123,6 +130,7 @@ func _ready() -> void:
 	var locale := TranslationServer.get_locale()
 	if not locale.begins_with("en") and not locale.begins_with("zh"):
 		TranslationServer.set_locale("en")
+	_apply_runtime_textures()
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	pause_panel.visible = false
 	combat_callout_label.visible = false
@@ -151,6 +159,63 @@ func _ready() -> void:
 	if onboarding_replay_button:
 		onboarding_replay_button.pressed.connect(_on_onboarding_replay_pressed)
 	_refresh_ui_text()
+
+func _apply_runtime_textures() -> void:
+	if timer_chip:
+		timer_chip.texture = _load_texture_or_placeholder(
+			TIMER_CHIP_TEXTURE_PATH,
+			Vector2i(120, 28),
+			Color(0.13, 0.18, 0.32, 0.92)
+		)
+	if result_chip:
+		result_chip.texture = _load_texture_or_placeholder(
+			RESULT_CHIP_TEXTURE_PATH,
+			Vector2i(380, 38),
+			Color(0.28, 0.20, 0.09, 0.92)
+		)
+	var hp_under := _load_texture_or_placeholder(
+		HP_UNDER_TEXTURE_PATH,
+		Vector2i(228, 18),
+		Color(0.12, 0.13, 0.18, 0.92)
+	)
+	var hp_fill_p1 := _load_texture_or_placeholder(
+		HP_FILL_P1_TEXTURE_PATH,
+		Vector2i(228, 18),
+		Color(0.30, 0.70, 0.88, 0.96)
+	)
+	var hp_fill_p2 := _load_texture_or_placeholder(
+		HP_FILL_P2_TEXTURE_PATH,
+		Vector2i(228, 18),
+		Color(0.88, 0.42, 0.44, 0.96)
+	)
+	if p1_hp_bar:
+		p1_hp_bar.texture_under = hp_under
+		p1_hp_bar.texture_progress = hp_fill_p1
+	if p2_hp_bar:
+		p2_hp_bar.texture_under = hp_under
+		p2_hp_bar.texture_progress = hp_fill_p2
+	if pause_background:
+		pause_background.texture = _load_texture_or_placeholder(
+			PAUSE_PANEL_TEXTURE_PATH,
+			Vector2i(320, 260),
+			Color(0.07, 0.09, 0.16, 0.94)
+		)
+
+func _load_texture_or_placeholder(path: String, size: Vector2i, fill: Color) -> Texture2D:
+	if not _is_headless_runtime():
+		var loaded = load(path)
+		if loaded is Texture2D:
+			return loaded as Texture2D
+	return _make_solid_texture(size, fill)
+
+func _is_headless_runtime() -> bool:
+	return OS.has_feature("headless") or DisplayServer.get_name() == "headless"
+
+func _make_solid_texture(size: Vector2i, fill: Color) -> Texture2D:
+	var safe_size := Vector2i(maxi(1, size.x), maxi(1, size.y))
+	var image := Image.create(safe_size.x, safe_size.y, false, Image.FORMAT_RGBA8)
+	image.fill(fill)
+	return ImageTexture.create_from_image(image)
 
 func show_round_tuning_options(options: Array[Dictionary], title_text: String = "") -> void:
 	round_tuning_options.clear()

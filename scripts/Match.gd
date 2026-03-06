@@ -79,7 +79,39 @@ const TRAINING_DEFAULT_OPTIONS := {
 	"dummy_mode": "stand",
 	"show_detail": false
 }
-const IMPACT_SPRITE_FRAMES_PATH := "res://assets/sprites/effects/ImpactSpriteFrames.tres"
+const IMPACT_ANIMATION_TEXTURE_PATHS := {
+	"counter": [
+		"res://assets/sprites/effects/counter_spark_0.png",
+		"res://assets/sprites/effects/counter_spark_1.png",
+		"res://assets/sprites/effects/counter_spark_2.png",
+		"res://assets/sprites/effects/counter_spark_3.png"
+	],
+	"guard": [
+		"res://assets/sprites/effects/guard_spark_0.png",
+		"res://assets/sprites/effects/guard_spark_1.png",
+		"res://assets/sprites/effects/guard_spark_2.png",
+		"res://assets/sprites/effects/guard_spark_3.png"
+	]
+}
+const IMPACT_ANIMATION_SPEEDS := {
+	"counter": 22.0,
+	"guard": 20.0
+}
+const IMPACT_PLACEHOLDER_COLORS := {
+	"counter": [
+		Color(1.0, 0.95, 0.72, 0.96),
+		Color(1.0, 0.88, 0.45, 0.90),
+		Color(1.0, 0.78, 0.28, 0.82),
+		Color(1.0, 0.70, 0.18, 0.68)
+	],
+	"guard": [
+		Color(0.86, 0.98, 1.0, 0.96),
+		Color(0.64, 0.90, 1.0, 0.90),
+		Color(0.42, 0.78, 0.96, 0.82),
+		Color(0.28, 0.62, 0.88, 0.68)
+	]
+}
+const IMPACT_PLACEHOLDER_SIZE := Vector2i(32, 32)
 const SFX_PATHS := {
 	"hit_light": "res://assets/audio/sfx/hit_light.wav",
 	"hit_heavy": "res://assets/audio/sfx/hit_heavy.wav",
@@ -377,12 +409,65 @@ func _setup_effects_layer() -> void:
 	add_child(effects_layer)
 
 func _load_impact_sprite_frames() -> void:
-	var loaded := load(IMPACT_SPRITE_FRAMES_PATH)
-	if loaded is SpriteFrames:
-		impact_sprite_frames = loaded as SpriteFrames
-	else:
-		impact_sprite_frames = null
-		push_warning("Impact sprite frames missing or invalid: %s" % IMPACT_SPRITE_FRAMES_PATH)
+	impact_sprite_frames = SpriteFrames.new()
+	_add_impact_animation(&"counter")
+	_add_impact_animation(&"guard")
+
+func _add_impact_animation(animation_name: StringName) -> void:
+	if impact_sprite_frames == null:
+		return
+	var animation_key := String(animation_name)
+	var texture_paths: Array = IMPACT_ANIMATION_TEXTURE_PATHS.get(animation_key, [])
+	var placeholder_colors: Array = IMPACT_PLACEHOLDER_COLORS.get(animation_key, [])
+	if impact_sprite_frames.has_animation(animation_name):
+		impact_sprite_frames.remove_animation(animation_name)
+	impact_sprite_frames.add_animation(animation_name)
+	impact_sprite_frames.set_animation_speed(
+		animation_name,
+		float(IMPACT_ANIMATION_SPEEDS.get(animation_key, 18.0))
+	)
+	impact_sprite_frames.set_animation_loop(animation_name, false)
+	for frame_index in range(texture_paths.size()):
+		var fill := Color(1.0, 1.0, 1.0, 0.9)
+		if frame_index < placeholder_colors.size():
+			fill = placeholder_colors[frame_index] as Color
+		impact_sprite_frames.add_frame(
+			animation_name,
+			_load_impact_texture_or_placeholder(String(texture_paths[frame_index]), fill)
+		)
+
+func _load_impact_texture_or_placeholder(path: String, fill: Color) -> Texture2D:
+	if not _is_headless_visual_runtime():
+		var loaded = load(path)
+		if loaded is Texture2D:
+			return loaded as Texture2D
+	return _make_impact_placeholder_texture(fill)
+
+func _is_headless_visual_runtime() -> bool:
+	return OS.has_feature("headless") or DisplayServer.get_name() == "headless"
+
+func _make_impact_placeholder_texture(fill: Color) -> Texture2D:
+	var image := Image.create(
+		IMPACT_PLACEHOLDER_SIZE.x,
+		IMPACT_PLACEHOLDER_SIZE.y,
+		false,
+		Image.FORMAT_RGBA8
+	)
+	image.fill(Color(0.0, 0.0, 0.0, 0.0))
+	for y in range(IMPACT_PLACEHOLDER_SIZE.y):
+		for x in range(IMPACT_PLACEHOLDER_SIZE.x):
+			var uv := Vector2(
+				(float(x) + 0.5) / float(IMPACT_PLACEHOLDER_SIZE.x),
+				(float(y) + 0.5) / float(IMPACT_PLACEHOLDER_SIZE.y)
+			)
+			var distance := uv.distance_to(Vector2(0.5, 0.5))
+			if distance > 0.48:
+				continue
+			var strength := clampf((0.48 - distance) / 0.48, 0.0, 1.0)
+			var pixel := fill
+			pixel.a *= strength
+			image.set_pixel(x, y, pixel)
+	return ImageTexture.create_from_image(image)
 
 func _load_sfx_streams() -> void:
 	sfx_streams.clear()
