@@ -56,17 +56,21 @@ var current_p1_loadout: Dictionary = {}
 var current_p2_loadout: Dictionary = {}
 var current_p1_preset_id := ""
 var current_p2_preset_id := ""
+var advanced_setup_expanded := false
 
 @onready var title_label := $CenterPanel/TitleLabel
 @onready var subtitle_label := $CenterPanel/SubtitleLabel
+@onready var quick_start_label := $CenterPanel/QuickStartLabel
 @onready var p1_character_label := $CenterPanel/P1CharacterLabel
 @onready var p2_character_label := $CenterPanel/P2CharacterLabel
 @onready var p1_character_option := $CenterPanel/P1CharacterOption
 @onready var p2_character_option := $CenterPanel/P2CharacterOption
+@onready var p1_loadout_label := $CenterPanel/P1LoadoutLabel
 @onready var p1_loadout_option := $CenterPanel/P1LoadoutOption
 @onready var p2_loadout_option := $CenterPanel/P2LoadoutOption
 @onready var p1_profile_label := $CenterPanel/P1ProfileLabel
 @onready var p2_profile_label := $CenterPanel/P2ProfileLabel
+@onready var mode_step_label := $CenterPanel/ModeStepLabel
 @onready var versus_button := $CenterPanel/VersusButton
 @onready var story_button := $CenterPanel/StoryButton
 @onready var training_button := $CenterPanel/TrainingButton
@@ -81,6 +85,12 @@ var current_p2_preset_id := ""
 @onready var lang_label := $CenterPanel/LanguageLabel
 @onready var lang_en_button := $CenterPanel/LangEnButton
 @onready var lang_zh_button := $CenterPanel/LangZhButton
+@onready var advanced_toggle_button := $AdvancedToggleButton
+@onready var advanced_hint_label := $AdvancedHintLabel
+@onready var p1_summary_title_label := $P1SummaryPanel/TitleLabel
+@onready var p1_summary_body_label := $P1SummaryPanel/BodyLabel
+@onready var p2_summary_title_label := $P2SummaryPanel/TitleLabel
+@onready var p2_summary_body_label := $P2SummaryPanel/BodyLabel
 @onready var first_launch_overlay := $FirstLaunchControlOverlay
 @onready var first_launch_title_label := $FirstLaunchControlOverlay/Panel/TitleLabel
 @onready var first_launch_hint_label := $FirstLaunchControlOverlay/Panel/HintLabel
@@ -97,6 +107,7 @@ func _ready() -> void:
 	training_button.pressed.connect(_on_training_pressed)
 	guided_start_button.pressed.connect(_on_guided_start_pressed)
 	control_style_button.pressed.connect(_on_control_style_button_pressed)
+	advanced_toggle_button.pressed.connect(_on_advanced_toggle_pressed)
 	lang_en_button.pressed.connect(func(): _set_locale("en"))
 	lang_zh_button.pressed.connect(func(): _set_locale("zh"))
 	window_mode_option.item_selected.connect(_on_window_mode_option_selected)
@@ -110,6 +121,7 @@ func _ready() -> void:
 	_populate_character_options()
 	_initialize_loadout_presets()
 	_initialize_control_preset()
+	_initialize_advanced_setup_state()
 	_initialize_video_settings()
 	_refresh_text()
 
@@ -152,16 +164,32 @@ func _set_locale(locale: String) -> void:
 	_refresh_text()
 
 func _refresh_text() -> void:
+	var onboarding_completed := _has_completed_onboarding()
 	title_label.text = tr("MENU_TITLE")
-	subtitle_label.text = _resolve_menu_text(
-		"MENU_SUBTITLE",
-		"Flow: Pick character + loadout -> choose mode -> start match."
+	if advanced_setup_expanded:
+		subtitle_label.text = _resolve_menu_text(
+			"MENU_SUBTITLE_ADVANCED",
+			"Advanced setup open: rival, controls, video, and language are editable."
+		)
+	else:
+		subtitle_label.text = _resolve_menu_text(
+			"MENU_SUBTITLE_SIMPLE",
+			"Start here: pick your fighter, then choose Guided Start, Story, VS, or Training."
+		)
+	quick_start_label.text = _resolve_menu_text(
+		"MENU_QUICK_START_LABEL",
+		"Recommended First Run"
 	)
 	p1_character_label.text = _resolve_menu_text("MENU_P1_CHARACTER", "P1 Character")
 	p2_character_label.text = _resolve_menu_text("MENU_P2_CHARACTER_VS_ONLY", "Opponent Character (VS/Training)")
+	p1_loadout_label.text = _resolve_menu_text("MENU_LOADOUT_LABEL", "Build Preset")
 	p1_profile_label.text = _resolve_menu_text("MENU_PROFILE_LOADING", "Loading profile...")
 	p2_profile_label.text = _resolve_menu_text("MENU_PROFILE_LOADING", "Loading profile...")
-	guided_start_button.text = _resolve_menu_text("MENU_GUIDED_START", "Guided Start (Training)")
+	mode_step_label.text = _resolve_menu_text("MENU_MODE_STEP_LABEL", "Then Choose a Mode")
+	guided_start_button.text = _resolve_menu_text(
+		"MENU_GUIDED_START_PRIMARY" if not onboarding_completed else "MENU_GUIDED_START",
+		"Guided Start (Recommended)" if not onboarding_completed else "Guided Start (Training)"
+	)
 	versus_button.text = tr("MENU_VERSUS")
 	story_button.text = _resolve_menu_text("MENU_STORY_AUTO_RIVAL_BUTTON", "Story (Auto Rival)")
 	training_button.text = tr("MENU_TRAINING")
@@ -176,10 +204,18 @@ func _refresh_text() -> void:
 	lang_label.text = tr("PAUSE_LANGUAGE")
 	lang_en_button.text = tr("PAUSE_LANG_EN")
 	lang_zh_button.text = tr("PAUSE_LANG_ZH")
+	advanced_hint_label.text = _resolve_menu_text(
+		"MENU_ADVANCED_INLINE_HINT",
+		"Rival / controls / video / language"
+	)
 	first_launch_title_label.text = tr("MENU_FIRST_LAUNCH_CONTROL_TITLE")
 	first_launch_hint_label.text = tr("MENU_FIRST_LAUNCH_CONTROL_HINT")
 	first_launch_classic_button.text = tr("MENU_CONTROL_STYLE_CLASSIC")
 	first_launch_modern_button.text = tr("MENU_CONTROL_STYLE_MODERN")
+	advanced_toggle_button.text = _resolve_menu_text(
+		"MENU_ADVANCED_HIDE" if advanced_setup_expanded else "MENU_ADVANCED_SHOW",
+		"Hide Advanced Setup" if advanced_setup_expanded else "Show Advanced Setup"
+	)
 	var locale := TranslationServer.get_locale()
 	lang_en_button.disabled = not main_menu_interactive or locale.begins_with("en")
 	lang_zh_button.disabled = not main_menu_interactive or locale.begins_with("zh")
@@ -194,6 +230,8 @@ func _refresh_text() -> void:
 	p2_character_option.disabled = not main_menu_interactive
 	p1_loadout_option.disabled = not main_menu_interactive
 	p2_loadout_option.disabled = not main_menu_interactive
+	advanced_toggle_button.disabled = not main_menu_interactive
+	_refresh_advanced_setup_visibility()
 	_refresh_character_profile_preview()
 
 func _ensure_translations_registered() -> void:
@@ -235,7 +273,9 @@ func _build_character_profile(character: Dictionary) -> Dictionary:
 		"archetype_key": str(ARCHETYPE_BY_CHARACTER_ID.get(character_id, "all_rounder")),
 		"archetype_hint_key": _resolve_archetype_hint_key(str(ARCHETYPE_BY_CHARACTER_ID.get(character_id, "all_rounder"))),
 		"signature_primary": "Signature A",
-		"signature_alt": "Signature B"
+		"signature_alt": "Signature B",
+		"signature_c": "Down Special",
+		"ultimate": "Ultimate"
 	}
 	if attack_table_path == "" or not ResourceLoader.exists(attack_table_path):
 		return profile
@@ -261,7 +301,36 @@ func _build_character_profile(character: Dictionary) -> Dictionary:
 				profile["signature_primary"] = primary
 			if alt != "":
 				profile["signature_alt"] = alt
+	profile["signature_c"] = _resolve_attack_display_name(attacks, "signature_c", "signature_mix", "Down Special", resource)
+	profile["ultimate"] = _resolve_attack_display_name(attacks, "ultimate", "signature_ultimate", "Ultimate", resource)
 	return profile
+
+func _resolve_attack_display_name(
+	attacks: Dictionary,
+	attack_key: String,
+	meta_key: String,
+	fallback: String,
+	resource: Resource
+) -> String:
+	var attack_value: Variant = attacks.get(attack_key, {})
+	if typeof(attack_value) == TYPE_DICTIONARY:
+		var attack_data := attack_value as Dictionary
+		var explicit_name := str(attack_data.get("display_name", "")).strip_edges()
+		if explicit_name != "":
+			return explicit_name
+	var special_value: Variant = attacks.get("special", {})
+	if typeof(special_value) == TYPE_DICTIONARY:
+		var special := special_value as Dictionary
+		var special_name := str(special.get(meta_key, "")).strip_edges()
+		if special_name != "":
+			return special_name
+	if resource != null:
+		var meta_value: Variant = resource.get(meta_key)
+		if typeof(meta_value) == TYPE_STRING or typeof(meta_value) == TYPE_STRING_NAME:
+			var direct_name := str(meta_value).strip_edges()
+			if direct_name != "":
+				return direct_name
+	return fallback
 
 func _refresh_character_profile_preview() -> void:
 	if p1_profile_label == null or p2_profile_label == null:
@@ -270,6 +339,7 @@ func _refresh_character_profile_preview() -> void:
 	p2_profile_label.text = _build_profile_preview_text(p2_character_option.selected, "p2")
 	p1_profile_label.tooltip_text = _build_profile_hint_text(p1_character_option.selected)
 	p2_profile_label.tooltip_text = _build_profile_hint_text(p2_character_option.selected)
+	_refresh_summary_panels()
 
 func _build_profile_preview_text(index: int, player_key: String) -> String:
 	if index < 0 or index >= character_profile_cache.size():
@@ -308,6 +378,132 @@ func _build_profile_loadout_brief(player_key: String, character_id: String) -> S
 		var fallback_inline := _resolve_menu_text("MENU_LOADOUT_FALLBACK_INLINE", "Default Applied")
 		return "%s (%s)" % [text, fallback_inline]
 	return text
+
+func _refresh_summary_panels() -> void:
+	if p1_summary_title_label == null or p1_summary_body_label == null:
+		return
+	if p2_summary_title_label == null or p2_summary_body_label == null:
+		return
+	p1_summary_title_label.text = _build_summary_panel_title("p1")
+	p1_summary_body_label.text = _build_summary_panel_body("p1")
+	p2_summary_title_label.text = _build_summary_panel_title("p2")
+	p2_summary_body_label.text = _build_summary_panel_body("p2")
+
+func _build_summary_panel_title(player_key: String) -> String:
+	if player_key == "p2" and not advanced_setup_expanded:
+		return _resolve_menu_text("MENU_SUMMARY_ROUTE_TITLE", "Start Paths")
+	var profile := _resolve_profile_for_player(player_key)
+	return str(profile.get("display_name", "Player")).strip_edges()
+
+func _build_summary_panel_body(player_key: String) -> String:
+	if player_key == "p2" and not advanced_setup_expanded:
+		return _build_route_summary_body()
+	var profile := _resolve_profile_for_player(player_key)
+	var character_id := str(profile.get("character_id", "")).strip_edges()
+	if character_id == "":
+		return "-"
+	var loadout := _resolve_current_loadout_for_player(player_key, character_id)
+	var resolved := LoadoutResolverStore.resolve_character_loadout(character_id, loadout)
+	var summary := resolved.get("summary", {}) as Dictionary
+	var lines: Array[String] = []
+	lines.append(
+		"%s: %s" % [
+			_resolve_menu_text("MENU_SUMMARY_ARCHETYPE", "Archetype"),
+			_resolve_archetype_label(str(profile.get("archetype_key", "all_rounder")))
+		]
+	)
+	var preset_name := _resolve_selected_preset_name(player_key)
+	if preset_name != "":
+		lines.append("%s: %s" % [_resolve_menu_text("MENU_SUMMARY_PRESET", "Preset"), preset_name])
+	lines.append("%s: %s" % [_resolve_menu_text("MENU_SUMMARY_SLOT_A", "A"), str(summary.get("signature_a", profile.get("signature_primary", "Signature A")))])
+	lines.append("%s: %s" % [_resolve_menu_text("MENU_SUMMARY_SLOT_B", "B"), str(summary.get("signature_b", profile.get("signature_alt", "Signature B")))])
+	lines.append(
+		"%s: %s" % [
+			_resolve_menu_text("MENU_SUMMARY_FIXED_DOWN_SPECIAL", "Fixed DS"),
+			str(profile.get("signature_c", "Down Special"))
+		]
+	)
+	lines.append("%s: %s" % [_resolve_menu_text("MENU_SUMMARY_SLOT_U", "U"), str(summary.get("ultimate", profile.get("ultimate", "Ultimate")))])
+	lines.append("%s: %s" % [_resolve_menu_text("MENU_SUMMARY_ITEM", "Item"), str(summary.get("item", "Item"))])
+	lines.append("%s: %s" % [_resolve_menu_text("MENU_SUMMARY_PASSIVE", "Passive"), str(summary.get("passive", "Passive"))])
+	var status_text := _resolve_menu_text("MENU_SUMMARY_STATUS_READY", "Ready")
+	if bool(summary.get("used_fallback", false)):
+		status_text = _resolve_menu_text("MENU_SUMMARY_STATUS_FALLBACK", "Fallback Applied")
+	lines.append(
+		"%s: %d/%d | %s" % [
+			_resolve_menu_text("MENU_SUMMARY_BUDGET", "Budget"),
+			int(summary.get("total_cost", 0)),
+			int(summary.get("budget_cap", LoadoutCatalogStore.get_budget_cap())),
+			status_text
+		]
+	)
+	if player_key == "p2":
+		lines.append(_resolve_menu_text("MENU_SUMMARY_STORY_NOTE", "Story auto-rivals override manual opponent setup. This preview applies to VS and Training."))
+	return "\n".join(lines)
+
+func _build_route_summary_body() -> String:
+	var lines: Array[String] = []
+	lines.append(
+		"%s: %s" % [
+			_resolve_menu_text("MENU_SUMMARY_ROUTE_GUIDED", "Guided"),
+			_resolve_menu_text(
+				"MENU_SUMMARY_ROUTE_GUIDED_HINT",
+				"Best first run. Replays move, jump, guard, dodge, and special."
+			)
+		]
+	)
+	lines.append(
+		"%s: %s" % [
+			_resolve_menu_text("MENU_SUMMARY_ROUTE_STORY", "Story"),
+			_resolve_menu_text(
+				"MENU_SUMMARY_ROUTE_STORY_HINT",
+				"Solo ladder with automatic rivals."
+			)
+		]
+	)
+	lines.append(
+		"%s: %s" % [
+			_resolve_menu_text("MENU_SUMMARY_ROUTE_VS", "VS"),
+			_resolve_menu_text(
+				"MENU_SUMMARY_ROUTE_VS_HINT",
+				"Two local fighters on one screen."
+			)
+		]
+	)
+	lines.append(
+		"%s: %s" % [
+			_resolve_menu_text("MENU_SUMMARY_ROUTE_TRAINING", "Training"),
+			_resolve_menu_text(
+				"MENU_SUMMARY_ROUTE_TRAINING_HINT",
+				"Sandbox for drills, dummy logic, and timing."
+			)
+		]
+	)
+	return "\n".join(lines)
+
+func _resolve_profile_for_player(player_key: String) -> Dictionary:
+	var index := 0
+	if player_key == "p1":
+		index = p1_character_option.selected
+	else:
+		index = p2_character_option.selected
+	if index < 0 or index >= character_profile_cache.size():
+		return {}
+	return (character_profile_cache[index] as Dictionary).duplicate(true)
+
+func _resolve_selected_preset_name(player_key: String) -> String:
+	var presets := p1_loadout_presets if player_key == "p1" else p2_loadout_presets
+	var selected_id := current_p1_preset_id if player_key == "p1" else current_p2_preset_id
+	for preset in presets:
+		var entry := preset as Dictionary
+		if str(entry.get("id", "")) != selected_id:
+			continue
+		var key := str(entry.get("display_name_key", "")).strip_edges()
+		var fallback := str(entry.get("display_name_fallback", "Preset")).strip_edges()
+		if key != "":
+			return _resolve_menu_text(key, fallback)
+		return fallback
+	return ""
 
 func _resolve_archetype_label(archetype_key: String) -> String:
 	match archetype_key:
@@ -422,6 +618,14 @@ func _initialize_control_preset() -> void:
 	first_launch_overlay.visible = false
 	_set_main_menu_interactive(true)
 
+func _initialize_advanced_setup_state() -> void:
+	advanced_setup_expanded = _has_completed_onboarding()
+	_refresh_advanced_setup_visibility()
+
+func _has_completed_onboarding() -> bool:
+	var onboarding_settings := GameSettingsStore.get_onboarding_settings()
+	return bool(onboarding_settings.get("completed", false))
+
 func _initialize_video_settings() -> void:
 	var settings := GameSettingsStore.get_video_settings()
 	current_window_mode = GameSettingsStore.normalize_window_mode(str(settings.get("window_mode", GameSettingsStore.WINDOW_MODE_WINDOWED)))
@@ -501,6 +705,10 @@ func _on_control_style_button_pressed() -> void:
 	_apply_control_preset(next_preset, true)
 	_refresh_text()
 
+func _on_advanced_toggle_pressed() -> void:
+	advanced_setup_expanded = not advanced_setup_expanded
+	_refresh_text()
+
 func _on_first_launch_preset_selected(preset: String) -> void:
 	_apply_control_preset(preset, true)
 	first_launch_overlay.visible = false
@@ -514,6 +722,7 @@ func _set_main_menu_interactive(enabled: bool) -> void:
 	training_button.disabled = not enabled
 	guided_start_button.disabled = not enabled
 	control_style_button.disabled = not enabled
+	advanced_toggle_button.disabled = not enabled
 	window_mode_option.disabled = not enabled
 	resolution_option.disabled = not enabled or not _is_resolution_editable(current_window_mode)
 	lang_en_button.disabled = not enabled or TranslationServer.get_locale().begins_with("en")
@@ -678,6 +887,77 @@ func _refresh_mode_hint_tooltips() -> void:
 	training_button.tooltip_text = training_hint
 	guided_start_button.tooltip_text = guided_hint
 	p2_character_option.tooltip_text = story_hint
+	p2_loadout_option.tooltip_text = story_hint
+	advanced_toggle_button.tooltip_text = _resolve_menu_text(
+		"MENU_ADVANCED_HINT",
+		"Advanced setup reveals rival, controls, video, and language configuration."
+	)
+	advanced_hint_label.tooltip_text = advanced_toggle_button.tooltip_text
+
+func _refresh_advanced_setup_visibility() -> void:
+	var show_advanced := advanced_setup_expanded
+	for helper in [quick_start_label, p1_loadout_label, mode_step_label]:
+		if helper is CanvasItem:
+			(helper as CanvasItem).visible = not show_advanced
+	for node in [
+		p2_character_label,
+		p2_character_option,
+		p2_loadout_option,
+		p2_profile_label,
+		control_style_label,
+		control_style_button,
+		video_settings_label,
+		window_mode_label,
+		window_mode_option,
+		resolution_label,
+		resolution_option,
+		lang_label,
+		lang_en_button,
+		lang_zh_button
+	]:
+		if node is CanvasItem:
+			(node as CanvasItem).visible = show_advanced
+	if p2_character_option:
+		p2_character_option.disabled = not main_menu_interactive or not show_advanced
+	if p2_loadout_option:
+		p2_loadout_option.disabled = not main_menu_interactive or not show_advanced
+	if control_style_button:
+		control_style_button.disabled = not main_menu_interactive or not show_advanced
+	if window_mode_option:
+		window_mode_option.disabled = not main_menu_interactive or not show_advanced
+	if resolution_option:
+		resolution_option.disabled = not main_menu_interactive or not show_advanced or not _is_resolution_editable(current_window_mode)
+	if lang_en_button:
+		lang_en_button.disabled = not main_menu_interactive or not show_advanced or TranslationServer.get_locale().begins_with("en")
+	if lang_zh_button:
+		lang_zh_button.disabled = not main_menu_interactive or not show_advanced or TranslationServer.get_locale().begins_with("zh")
+	_apply_focus_layout()
+
+func _apply_focus_layout() -> void:
+	if advanced_setup_expanded:
+		_set_control_vertical_bounds(guided_start_button, 70.0, 94.0)
+		_set_control_vertical_bounds(p1_character_label, 98.0, 118.0)
+		_set_control_vertical_bounds(p1_character_option, 120.0, 152.0)
+		_set_control_vertical_bounds(p1_loadout_option, 154.0, 184.0)
+		_set_control_vertical_bounds(p1_profile_label, 186.0, 212.0)
+		_set_control_vertical_bounds(story_button, 332.0, 364.0)
+		_set_control_vertical_bounds(versus_button, 368.0, 400.0)
+		_set_control_vertical_bounds(training_button, 404.0, 436.0)
+		return
+	_set_control_vertical_bounds(guided_start_button, 90.0, 122.0)
+	_set_control_vertical_bounds(p1_character_label, 132.0, 152.0)
+	_set_control_vertical_bounds(p1_character_option, 154.0, 186.0)
+	_set_control_vertical_bounds(p1_loadout_option, 212.0, 244.0)
+	_set_control_vertical_bounds(p1_profile_label, 248.0, 308.0)
+	_set_control_vertical_bounds(story_button, 344.0, 376.0)
+	_set_control_vertical_bounds(versus_button, 380.0, 412.0)
+	_set_control_vertical_bounds(training_button, 416.0, 448.0)
+
+func _set_control_vertical_bounds(control: Control, top: float, bottom: float) -> void:
+	if control == null:
+		return
+	control.offset_top = top
+	control.offset_bottom = bottom
 
 func _refresh_loadout_tooltip_for_player(player_key: String) -> void:
 	var character_id := _get_selected_character_id(player_key)

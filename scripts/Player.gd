@@ -1466,7 +1466,7 @@ func get_character_profile() -> Dictionary:
 	var archetype_key := _resolve_archetype_key()
 	var primary_signature := _resolve_signature_display_name("signature_a", "signature_primary", "Signature A")
 	var alt_signature := _resolve_signature_display_name("signature_b", "signature_alt", "Signature B")
-	var mix_signature := _resolve_signature_display_name("signature_c", "signature_mix", "Mix Signature")
+	var mix_signature := _resolve_signature_display_name("signature_c", "signature_mix", "Down Special")
 	var ultimate_signature := _resolve_signature_display_name("ultimate", "signature_ultimate", "Ultimate")
 	return {
 		"character_id": get_character_id(),
@@ -3412,8 +3412,11 @@ func get_runtime_status_snapshot() -> Dictionary:
 		"slow_seconds": status_slow_time,
 		"root_seconds": status_root_time,
 		"install_seconds": install_buff_time,
+		"loadout_item_name": str(loadout_item_runtime.get("display_name_fallback", "Item")),
 		"loadout_item_cooldown": float(loadout_item_runtime.get("cooldown_remaining", 0.0)),
 		"loadout_item_charges": int(loadout_item_runtime.get("charges_remaining", 0)),
+		"loadout_item_trigger_progress": float(loadout_item_runtime.get("trigger_progress", 0.0)),
+		"loadout_item_trigger_value": float(loadout_item_runtime.get("trigger_value", 0.0)),
 		"cooldowns": {
 			"signature_a": float(skill_cooldowns.get("signature_a", 0.0)),
 			"signature_b": float(skill_cooldowns.get("signature_b", 0.0)),

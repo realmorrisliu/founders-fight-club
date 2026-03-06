@@ -66,6 +66,7 @@ const WAVE1_CHARACTER_TUNING := {
 }
 
 static var _character_pool_cache: Dictionary = {}
+static var _character_move_name_cache: Dictionary = {}
 
 static func get_budget_cap() -> int:
 	return LOADOUT_BUDGET_CAP
@@ -90,6 +91,7 @@ static func get_wave1_character_tuning_profiles() -> Dictionary:
 
 static func clear_cache() -> void:
 	_character_pool_cache.clear()
+	_character_move_name_cache.clear()
 
 static func get_character_pool(character_id: String) -> Dictionary:
 	var resolved_id := _resolve_character_id(character_id)
@@ -186,18 +188,19 @@ static func _build_skill_defs(character_id: String, profile: Dictionary) -> Arra
 	var signature_a := _read_profile_entry(profile, "signature_a")
 	var signature_b := _read_profile_entry(profile, "signature_b")
 	var ultimate := _read_profile_entry(profile, "ultimate")
+	var move_names := _resolve_character_move_names(character_id)
 	var tuning := _resolve_character_tuning(character_id)
 	var signature_damage_multiplier := float(tuning.get("signature_damage_multiplier", 1.0))
 	var signature_cooldown_multiplier := float(tuning.get("signature_cooldown_multiplier", 1.0))
 	var ultimate_damage_multiplier := float(tuning.get("ultimate_damage_multiplier", 1.0))
 	var ultimate_cooldown_multiplier := float(tuning.get("ultimate_cooldown_multiplier", 1.0))
 	return [
-		_build_skill_def(character_id, "signature_a", "core", 2, PackedStringArray(["neutral_tool"]), signature_a, 1.00 * signature_damage_multiplier, 1.00 * signature_cooldown_multiplier, "Signature A Core"),
-		_build_skill_def(character_id, "signature_a", "burst", 2, PackedStringArray(["high_chip"]), signature_a, 1.12 * signature_damage_multiplier, 1.08 * signature_cooldown_multiplier, "Signature A Burst"),
-		_build_skill_def(character_id, "signature_b", "mobility", 2, PackedStringArray(["burst_mobility"]), signature_b, 1.00 * signature_damage_multiplier, 0.96 * signature_cooldown_multiplier, "Signature B Mobility"),
-		_build_skill_def(character_id, "signature_b", "control", 2, PackedStringArray(["hard_cc"]), signature_b, 0.92 * signature_damage_multiplier, 1.00 * signature_cooldown_multiplier, "Signature B Control"),
-		_build_skill_def(character_id, "ultimate", "core", 2, PackedStringArray(["neutral_tool"]), ultimate, 1.00 * ultimate_damage_multiplier, 1.00 * ultimate_cooldown_multiplier, "Ultimate Core"),
-		_build_skill_def(character_id, "ultimate", "overclock", 3, PackedStringArray(["neutral_tool"]), ultimate, 1.10 * ultimate_damage_multiplier, 1.10 * ultimate_cooldown_multiplier, "Ultimate Overclock")
+		_build_skill_def(character_id, "signature_a", "core", 2, PackedStringArray(["neutral_tool"]), signature_a, 1.00 * signature_damage_multiplier, 1.00 * signature_cooldown_multiplier, str(move_names.get("signature_a", "Signature A")), "Core"),
+		_build_skill_def(character_id, "signature_a", "burst", 2, PackedStringArray(["high_chip"]), signature_a, 1.12 * signature_damage_multiplier, 1.08 * signature_cooldown_multiplier, str(move_names.get("signature_a", "Signature A")), "Burst"),
+		_build_skill_def(character_id, "signature_b", "mobility", 2, PackedStringArray(["burst_mobility"]), signature_b, 1.00 * signature_damage_multiplier, 0.96 * signature_cooldown_multiplier, str(move_names.get("signature_b", "Signature B")), "Mobility"),
+		_build_skill_def(character_id, "signature_b", "control", 2, PackedStringArray(["hard_cc"]), signature_b, 0.92 * signature_damage_multiplier, 1.00 * signature_cooldown_multiplier, str(move_names.get("signature_b", "Signature B")), "Control"),
+		_build_skill_def(character_id, "ultimate", "core", 2, PackedStringArray(["neutral_tool"]), ultimate, 1.00 * ultimate_damage_multiplier, 1.00 * ultimate_cooldown_multiplier, str(move_names.get("ultimate", "Ultimate")), "Core"),
+		_build_skill_def(character_id, "ultimate", "overclock", 3, PackedStringArray(["neutral_tool"]), ultimate, 1.10 * ultimate_damage_multiplier, 1.10 * ultimate_cooldown_multiplier, str(move_names.get("ultimate", "Ultimate")), "Overclock")
 	]
 
 static func _build_skill_def(
@@ -209,15 +212,20 @@ static func _build_skill_def(
 	profile_entry: Dictionary,
 	damage_scale_multiplier: float,
 	cooldown_multiplier: float,
-	name_suffix: String
+	base_name: String,
+	variant_label: String
 ) -> Dictionary:
 	var skill_id := "%s_%s_%s" % [character_id, slot_key, variant]
 	var cooldown := maxf(0.35, float(profile_entry.get("cooldown", 1.6)) * cooldown_multiplier)
 	var base_damage_scale := float(profile_entry.get("damage_scale", 0.62))
+	var resolved_base_name := base_name.strip_edges()
+	if resolved_base_name == "":
+		resolved_base_name = _slot_fallback_name(slot_key)
+	var display_name := "%s (%s)" % [resolved_base_name, variant_label]
 	var attack_patch := {
 		"damage_scale": clampf(base_damage_scale * damage_scale_multiplier, 0.35, 1.80),
 		"cooldown": cooldown,
-		"display_name": "%s %s" % [_slot_fallback_name(slot_key), name_suffix]
+		"display_name": display_name
 	}
 	if profile_entry.has("effect"):
 		var effect_value: Variant = profile_entry.get("effect", {})
@@ -237,7 +245,7 @@ static func _build_skill_def(
 		"id": skill_id,
 		"owner_character_id": character_id,
 		"display_name_key": "",
-		"display_name_fallback": "%s %s" % [_slot_fallback_name(slot_key), name_suffix],
+		"display_name_fallback": display_name,
 		"slot_type": "ultimate" if slot_key == "ultimate" else "signature",
 		"slot_key": slot_key,
 		"cost": cost,
@@ -520,6 +528,75 @@ static func _index_by_id(entries: Array) -> Dictionary:
 			continue
 		by_id[id_value] = (entry as Dictionary).duplicate(true)
 	return by_id
+
+static func _resolve_character_move_names(character_id: String) -> Dictionary:
+	if _character_move_name_cache.has(character_id):
+		return (_character_move_name_cache[character_id] as Dictionary).duplicate(true)
+	var names := {
+		"signature_a": "Signature A",
+		"signature_b": "Signature B",
+		"signature_c": "Down Special",
+		"ultimate": "Ultimate"
+	}
+	for entry in CharacterCatalogStore.get_selectable_roster():
+		if typeof(entry) != TYPE_DICTIONARY:
+			continue
+		var character := entry as Dictionary
+		if str(character.get("id", "")).strip_edges().to_lower() != character_id:
+			continue
+		var attack_table_path := str(character.get("attack_table_path", "")).strip_edges()
+		if attack_table_path == "" or not ResourceLoader.exists(attack_table_path):
+			break
+		var resource := load(attack_table_path) as Resource
+		if resource == null:
+			break
+		var attacks := _resolve_attacks(resource)
+		names["signature_a"] = _resolve_attack_display_name(attacks, "signature_a", "signature_primary", "Signature A", resource)
+		names["signature_b"] = _resolve_attack_display_name(attacks, "signature_b", "signature_alt", "Signature B", resource)
+		names["signature_c"] = _resolve_attack_display_name(attacks, "signature_c", "signature_mix", "Down Special", resource)
+		names["ultimate"] = _resolve_attack_display_name(attacks, "ultimate", "signature_ultimate", "Ultimate", resource)
+		break
+	_character_move_name_cache[character_id] = names.duplicate(true)
+	return names
+
+static func _resolve_attacks(resource: Resource) -> Dictionary:
+	if resource == null:
+		return {}
+	if resource.has_method("get_runtime_attacks"):
+		var attacks_value: Variant = resource.call("get_runtime_attacks")
+		if typeof(attacks_value) == TYPE_DICTIONARY:
+			return (attacks_value as Dictionary).duplicate(true)
+	var raw_attacks: Variant = resource.get("attacks")
+	if typeof(raw_attacks) == TYPE_DICTIONARY:
+		return (raw_attacks as Dictionary).duplicate(true)
+	return {}
+
+static func _resolve_attack_display_name(
+	attacks: Dictionary,
+	attack_key: String,
+	meta_key: String,
+	fallback: String,
+	resource: Resource
+) -> String:
+	var attack_value: Variant = attacks.get(attack_key, {})
+	if typeof(attack_value) == TYPE_DICTIONARY:
+		var attack_data := attack_value as Dictionary
+		var explicit_name := str(attack_data.get("display_name", "")).strip_edges()
+		if explicit_name != "":
+			return explicit_name
+	var special_value: Variant = attacks.get("special", {})
+	if typeof(special_value) == TYPE_DICTIONARY:
+		var special := special_value as Dictionary
+		var special_name := str(special.get(meta_key, "")).strip_edges()
+		if special_name != "":
+			return special_name
+	if resource != null:
+		var meta_value: Variant = resource.get(meta_key)
+		if typeof(meta_value) == TYPE_STRING or typeof(meta_value) == TYPE_STRING_NAME:
+			var direct_name := str(meta_value).strip_edges()
+			if direct_name != "":
+				return direct_name
+	return fallback
 
 static func _slot_fallback_name(slot_key: String) -> String:
 	match slot_key:

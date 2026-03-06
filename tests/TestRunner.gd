@@ -51,6 +51,8 @@ func _run_smoke_suite() -> void:
 	await _test_training_timer_visibility()
 	await _test_training_quick_start_hint_renders()
 	await _test_onboarding_settings_and_guided_start_surface()
+	await _test_onboarding_progress_tracks_actual_player_state()
+	await _test_menu_focus_path_and_summary_cards()
 	await _test_control_preset_profiles()
 	await _test_video_settings_profiles()
 	await _test_loadout_system_foundation()
@@ -764,6 +766,64 @@ func _test_onboarding_settings_and_guided_start_surface() -> void:
 		])
 	)
 
+func _test_onboarding_progress_tracks_actual_player_state() -> void:
+	var previous_preset := GameSettingsStore.get_control_preset()
+	var previous_locale := TranslationServer.get_locale()
+	TranslationServer.set_locale("en")
+	GameSettingsStore.apply_control_preset(GameSettingsStore.CONTROL_PRESET_CLASSIC)
+
+	var training_packed := load("res://scenes/Training.tscn")
+	_assert_true(training_packed is PackedScene, "training scene loads for onboarding runtime state test")
+	if training_packed is PackedScene:
+		var training_node := (training_packed as PackedScene).instantiate()
+		get_root().add_child(training_node)
+		await process_frame
+		await process_frame
+		var player_1 := training_node.get_node_or_null("Player1")
+		var step_label := training_node.get_node_or_null("Hud/OnboardingPanel/StepLabel")
+		_assert_true(player_1 != null, "onboarding runtime state test resolves player1")
+		_assert_true(step_label is Label, "onboarding runtime state test resolves step label")
+		if player_1 != null and step_label is Label:
+			training_node.call("_start_onboarding_sequence")
+			training_node.set("onboarding_step_index", 2)
+			training_node.call("_refresh_onboarding_hud")
+			await process_frame
+			_assert_true(
+				(step_label as Label).text.findn("back") != -1,
+				"classic onboarding guard copy explains back-to-block"
+			)
+			_assert_true(not _action_has_any_keyboard_key("block"), "classic preset still removes keyboard block action during onboarding")
+
+			player_1.set("is_blocking", true)
+			training_node.call("_update_onboarding_progress")
+			_assert_true(
+				int(training_node.get("onboarding_step_index")) == 3,
+				"guard onboarding advances from actual blocking state"
+			)
+
+			player_1.set("is_blocking", false)
+			training_node.set("onboarding_step_index", 4)
+			training_node.call("_refresh_onboarding_hud")
+			await process_frame
+			_assert_true(
+				(step_label as Label).text.findn("back") != -1 and (step_label as Label).text.findn("dash") != -1,
+				"classic onboarding dodge copy explains back-plus-dash"
+			)
+
+			player_1.set("dodge_state", "roll")
+			training_node.call("_update_onboarding_progress")
+			_assert_true(
+				int(training_node.get("onboarding_step_index")) == 5,
+				"dodge onboarding advances from actual dodge state"
+			)
+		if is_instance_valid(training_node):
+			training_node.queue_free()
+		await process_frame
+
+	GameSettingsStore.apply_control_preset(previous_preset)
+	TranslationServer.set_locale(previous_locale)
+	await process_frame
+
 func _test_control_preset_profiles() -> void:
 	_replace_action_keyboard_keys("jump", [KEY_Z])
 	_replace_action_keyboard_keys("block", [KEY_X])
@@ -798,6 +858,80 @@ func _test_control_preset_profiles() -> void:
 	_assert_true(GameSettingsStore.get_control_preset() == GameSettingsStore.CONTROL_PRESET_CLASSIC, "control preset persists to user settings")
 	GameSettingsStore.set_control_preset(GameSettingsStore.CONTROL_PRESET_MODERN)
 	_assert_true(GameSettingsStore.get_control_preset() == GameSettingsStore.CONTROL_PRESET_MODERN, "control preset can switch back to modern")
+
+func _test_menu_focus_path_and_summary_cards() -> void:
+	var previous_settings := GameSettingsStore.get_onboarding_settings()
+	var previous_completed := bool(previous_settings.get("completed", false))
+	var previous_hints_enabled := bool(previous_settings.get("hints_enabled", true))
+	var previous_preset := GameSettingsStore.get_control_preset()
+	var previous_locale := TranslationServer.get_locale()
+	TranslationServer.set_locale("en")
+	GameSettingsStore.set_control_preset(GameSettingsStore.CONTROL_PRESET_MODERN)
+	GameSettingsStore.set_onboarding_completed(false)
+	GameSettingsStore.set_onboarding_hints_enabled(true)
+
+	var menu_packed := load("res://scenes/Menu.tscn")
+	_assert_true(menu_packed is PackedScene, "menu scene loads for focused path summary test")
+	if menu_packed is PackedScene:
+		var menu_node := (menu_packed as PackedScene).instantiate()
+		get_root().add_child(menu_node)
+		await process_frame
+		await process_frame
+		var advanced_button := menu_node.get_node_or_null("AdvancedToggleButton")
+		var quick_start_label := menu_node.get_node_or_null("CenterPanel/QuickStartLabel")
+		var mode_step_label := menu_node.get_node_or_null("CenterPanel/ModeStepLabel")
+		var guided_button := menu_node.get_node_or_null("CenterPanel/GuidedStartButton")
+		var p1_summary := menu_node.get_node_or_null("P1SummaryPanel/BodyLabel")
+		var p2_summary := menu_node.get_node_or_null("P2SummaryPanel/BodyLabel")
+		var p2_option := menu_node.get_node_or_null("CenterPanel/P2CharacterOption")
+		var control_button := menu_node.get_node_or_null("CenterPanel/ControlStyleButton")
+		_assert_true(
+			advanced_button is Button and quick_start_label is Label and mode_step_label is Label and guided_button is Button and p1_summary is Label and p2_summary is Label,
+			"focused path summary test resolves helper labels, guided CTA, and both summary cards"
+		)
+		if quick_start_label is CanvasItem:
+			_assert_true((quick_start_label as CanvasItem).visible, "focused menu path surfaces recommended first-run helper copy")
+		if mode_step_label is CanvasItem:
+			_assert_true((mode_step_label as CanvasItem).visible, "focused menu path surfaces explicit mode step copy")
+		if guided_button is Button:
+			_assert_true((guided_button as Button).text.find("Recommended") != -1, "focused menu path marks guided start as recommended before onboarding is completed")
+		if p1_summary is Label:
+			var p1_text := (p1_summary as Label).text
+			_assert_true(p1_text.find("Fixed DS") != -1, "p1 summary card surfaces fixed down special slot")
+			_assert_true(p1_text.find("Budget:") != -1, "p1 summary card surfaces budget state")
+		if p2_summary is Label:
+			_assert_true(
+				(p2_summary as Label).text.find("Guided:") != -1 and (p2_summary as Label).text.find("Story:") != -1,
+				"collapsed menu repurposes the right summary card into a route guide"
+			)
+		if p2_option is CanvasItem:
+			_assert_true(not (p2_option as CanvasItem).visible, "focused menu path hides opponent picker until advanced setup is expanded")
+		if control_button is CanvasItem:
+			_assert_true(not (control_button as CanvasItem).visible, "focused menu path hides system settings until advanced setup is expanded")
+		menu_node.call("_on_advanced_toggle_pressed")
+		await process_frame
+		if quick_start_label is CanvasItem:
+			_assert_true(not (quick_start_label as CanvasItem).visible, "advanced setup hides first-run helper copy")
+		if mode_step_label is CanvasItem:
+			_assert_true(not (mode_step_label as CanvasItem).visible, "advanced setup hides simplified mode step copy")
+		if p2_option is CanvasItem:
+			_assert_true((p2_option as CanvasItem).visible, "advanced toggle reveals opponent setup controls")
+		if control_button is CanvasItem:
+			_assert_true((control_button as CanvasItem).visible, "advanced toggle reveals system settings controls")
+		if p2_summary is Label:
+			var p2_text := (p2_summary as Label).text
+			_assert_true(p2_text.find("Fixed DS") != -1, "advanced setup restores opponent summary details on the right card")
+			_assert_true(p2_text.find("Story auto-rivals") != -1, "advanced setup keeps the story override note visible in rival preview")
+		if is_instance_valid(menu_node):
+			menu_node.queue_free()
+		await process_frame
+
+	GameSettingsStore.set_onboarding_completed(previous_completed)
+	GameSettingsStore.set_onboarding_hints_enabled(previous_hints_enabled)
+	if previous_preset != "":
+		GameSettingsStore.set_control_preset(previous_preset)
+	TranslationServer.set_locale(previous_locale)
+	await process_frame
 
 func _test_video_settings_profiles() -> void:
 	var original_settings := GameSettingsStore.get_video_settings()
@@ -874,6 +1008,12 @@ func _test_loadout_system_foundation() -> void:
 	var resolved_validation := resolved.get("validation", {}) as Dictionary
 	_assert_true(bool(resolved.get("used_fallback", false)), "resolver falls back to default for invalid loadout")
 	_assert_true(bool(resolved_validation.get("is_valid", false)), "resolver fallback result is validator-clean")
+	var skill_by_id := pool.get("skill_by_id", {}) as Dictionary
+	var signature_a_core := skill_by_id.get("%s_signature_a_core" % character_id, {}) as Dictionary
+	_assert_true(
+		str(signature_a_core.get("display_name_fallback", "")).find("GPT Burst") != -1,
+		"loadout skills inherit character-specific signature names instead of generic slot labels"
+	)
 
 func _test_loadout_session_flow_runtime_apply() -> void:
 	var menu_packed := load("res://scenes/Menu.tscn")
@@ -1027,6 +1167,15 @@ func _test_loadout_item_trigger_and_cooldown_runtime() -> void:
 	var trigger_steps := int(ceil(float(before_item.get("trigger_value", 1.0))))
 	for _index in range(maxi(1, trigger_steps)):
 		p1.call("_notify_loadout_item_event", "hit_landed")
+	var status_snapshot_value: Variant = p1.call("get_runtime_status_snapshot")
+	_assert_true(typeof(status_snapshot_value) == TYPE_DICTIONARY, "loadout item trigger test can read HUD-facing status snapshot")
+	if typeof(status_snapshot_value) == TYPE_DICTIONARY:
+		var status_snapshot := status_snapshot_value as Dictionary
+		_assert_true(str(status_snapshot.get("loadout_item_name", "")).strip_edges() != "", "HUD-facing status snapshot exposes item name")
+		_assert_true(
+			float(status_snapshot.get("loadout_item_trigger_value", 0.0)) >= 1.0,
+			"HUD-facing status snapshot exposes item trigger threshold"
+		)
 	var after_snapshot_value: Variant = p1.call("get_loadout_runtime_snapshot")
 	_assert_true(typeof(after_snapshot_value) == TYPE_DICTIONARY, "loadout item trigger test can read runtime snapshot after activation")
 	if typeof(after_snapshot_value) == TYPE_DICTIONARY:

@@ -1021,33 +1021,59 @@ func _update_onboarding_progress() -> void:
 		return
 	_refresh_onboarding_hud()
 
+func _get_active_control_preset() -> String:
+	var preset_value := str(Engine.get_meta(GameSettingsStore.ENGINE_META_KEY, ""))
+	if preset_value == "":
+		preset_value = GameSettingsStore.get_control_preset()
+	return GameSettingsStore.normalize_control_preset(preset_value)
+
+func _resolve_onboarding_step_copy(step_id: String, default_key: String, default_fallback: String) -> Dictionary:
+	if step_id == "guard" and _get_active_control_preset() == GameSettingsStore.CONTROL_PRESET_CLASSIC:
+		return {
+			"key": "HUD_ONBOARDING_STEP_GUARD_CLASSIC",
+			"fallback": "Hold back once to guard."
+		}
+	if step_id == "dodge" and _get_active_control_preset() == GameSettingsStore.CONTROL_PRESET_CLASSIC:
+		return {
+			"key": "HUD_ONBOARDING_STEP_DODGE_CLASSIC",
+			"fallback": "Hold back, then press Dash to dodge."
+		}
+	return {
+		"key": default_key,
+		"fallback": default_fallback
+	}
+
+func _resolve_onboarding_step_text(step: Dictionary) -> String:
+	var step_id := str(step.get("id", "")).strip_edges()
+	var default_key := str(step.get("key", "")).strip_edges()
+	var default_fallback := str(step.get("fallback", "Follow the prompt to continue."))
+	var copy := _resolve_onboarding_step_copy(step_id, default_key, default_fallback)
+	return _tr_or_fallback(
+		str(copy.get("key", default_key)).strip_edges(),
+		str(copy.get("fallback", default_fallback))
+	)
+
 func _is_onboarding_step_completed(step_id: String) -> bool:
 	if player_1 == null:
 		return false
-	var attack_state := str(player_1.get("attack_state"))
+	var attack_state := str(player_1.attack_state)
 	match step_id:
 		"move":
-			return Input.is_action_just_pressed("move_left") or Input.is_action_just_pressed("move_right") or absf(player_1.velocity.x) >= 24.0
+			return absf(player_1.velocity.x) >= 24.0
 		"jump":
-			return Input.is_action_just_pressed("jump") or player_1.velocity.y <= -48.0
+			return not player_1.is_on_floor() and player_1.velocity.y <= -24.0
 		"guard":
-			return Input.is_action_just_pressed("block") or Input.is_action_pressed("block")
+			return bool(player_1.is_blocking)
 		"attack":
 			return (
-				Input.is_action_just_pressed("attack_light")
-				or Input.is_action_just_pressed("attack_heavy")
-				or attack_state.begins_with("light")
+				attack_state.begins_with("light")
 				or attack_state.begins_with("heavy")
 			)
 		"dodge":
-			return (
-				(Input.is_action_pressed("block") and Input.is_action_just_pressed("dash"))
-				or (Input.is_action_pressed("block") and Input.is_action_pressed("dash"))
-			)
+			return str(player_1.dodge_state) != "" or float(player_1.dodge_time) > 0.0
 		"special":
 			return (
-				Input.is_action_just_pressed("attack_special")
-				or attack_state == "special"
+				attack_state == "special"
 				or attack_state == "ultimate"
 				or attack_state.begins_with("signature_")
 			)
@@ -1068,9 +1094,7 @@ func _refresh_onboarding_hud() -> void:
 		hud.set_onboarding_state(false, "", "", "", false, false)
 		return
 	var step := ONBOARDING_STEPS[onboarding_step_index] as Dictionary
-	var step_key := str(step.get("key", "")).strip_edges()
-	var step_fallback := str(step.get("fallback", "Follow the prompt to continue."))
-	var step_text := _tr_or_fallback(step_key, step_fallback)
+	var step_text := _resolve_onboarding_step_text(step)
 	var progress_template := _tr_or_fallback("HUD_ONBOARDING_PROGRESS", "Step %d/%d")
 	var progress_text := ""
 	if progress_template.find("%") == -1:
@@ -1341,6 +1365,9 @@ func _on_player_loadout_item_activated(
 			"elapsed_seconds": elapsed_seconds
 		}
 	)
+	var item_name := _resolve_item_callout_name(fighter, item_id)
+	if item_name != "" and hud and hud.has_method("show_combat_callout_text"):
+		hud.show_combat_callout_text("%s x%d" % [item_name, activation_count], Color(0.86, 0.98, 1.0, 1.0))
 
 func _on_player_loadout_item_evolved(
 	fighter: Node,
@@ -1361,7 +1388,23 @@ func _on_player_loadout_item_evolved(
 			"elapsed_seconds": elapsed_seconds
 		}
 	)
+	var from_name := _resolve_item_callout_name(fighter, from_item_id)
+	var to_name := _resolve_item_callout_name(fighter, to_item_id)
+	if from_name != "" and to_name != "" and hud and hud.has_method("show_combat_callout_text"):
+		hud.show_combat_callout_text("%s -> %s" % [from_name, to_name], Color(1.0, 0.92, 0.68, 1.0))
+		return
 	_show_combat_callout("HUD_CALLOUT_ITEM_EVOLVED", Color(1.0, 0.92, 0.68, 1.0))
+
+func _resolve_item_callout_name(fighter: Node, fallback_item_id: String) -> String:
+	if fighter and fighter.has_method("get_loadout_runtime_snapshot"):
+		var snapshot_value: Variant = fighter.call("get_loadout_runtime_snapshot")
+		if typeof(snapshot_value) == TYPE_DICTIONARY:
+			var snapshot := snapshot_value as Dictionary
+			var item_runtime := snapshot.get("item_runtime", {}) as Dictionary
+			var item_name := str(item_runtime.get("display_name_fallback", "")).strip_edges()
+			if item_name != "":
+				return item_name
+	return fallback_item_id.replace("_", " ").capitalize()
 
 func _show_combat_callout(message_key: String, tint: Color) -> void:
 	if hud and hud.has_method("show_combat_callout"):
@@ -1638,7 +1681,7 @@ func _apply_selected_character_table_for_player(
 			"signature_names": {
 				"signature_a": "Signature A",
 				"signature_b": "Signature B",
-				"signature_c": "Mix Signature",
+				"signature_c": "Down Special",
 				"ultimate": "Ultimate"
 			}
 		}

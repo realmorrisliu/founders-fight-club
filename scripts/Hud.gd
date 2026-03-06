@@ -451,6 +451,22 @@ func _refresh_side_combat_state(
 	var shield_percent := int(round((shield_value / shield_max) * 100.0))
 	var shield_prefix := _tr_or_fallback("HUD_SHIELD", "SH")
 	var shield_line := "%s %d" % [shield_prefix, shield_percent]
+	var item_prefix := _tr_or_fallback("HUD_ITEM", "Item")
+	var item_charges := maxi(0, int(state.get("loadout_item_charges", 0)))
+	var item_cooldown := maxf(0.0, float(state.get("loadout_item_cooldown", 0.0)))
+	var item_progress := maxf(0.0, float(state.get("loadout_item_trigger_progress", 0.0)))
+	var item_trigger := maxf(1.0, float(state.get("loadout_item_trigger_value", 1.0)))
+	var item_line := "%s %s" % [item_prefix, _tr_or_fallback("HUD_ITEM_EMPTY", "EMPTY")]
+	if item_charges > 0:
+		if item_cooldown > 0.05:
+			item_line = "%s %ss x%d" % [item_prefix, _format_cd_value(item_cooldown), item_charges]
+		else:
+			item_line = "%s %d/%d x%d" % [
+				item_prefix,
+				int(round(minf(item_progress, item_trigger))),
+				int(round(item_trigger)),
+				item_charges
+			]
 	var tags: Array[String] = []
 	if bool(state.get("shield_broken", false)) or float(state.get("shield_break_seconds", 0.0)) > 0.0:
 		tags.append(_tr_or_fallback("HUD_STATUS_SHIELD_BREAK", "BREAK"))
@@ -465,7 +481,7 @@ func _refresh_side_combat_state(
 	var status_suffix := ""
 	if not tags.is_empty():
 		status_suffix = " | %s" % " ".join(tags)
-	state_label.text = "%s | %s%s" % [cd_line, shield_line, status_suffix]
+	state_label.text = "%s | %s | %s%s" % [cd_line, shield_line, item_line, status_suffix]
 	state_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT if right_align else HORIZONTAL_ALIGNMENT_LEFT
 
 func _refresh_character_profile_labels() -> void:

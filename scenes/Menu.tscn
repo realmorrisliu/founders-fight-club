@@ -53,33 +53,51 @@ theme_override_colors/font_color = Color(0.78, 0.88, 1, 1)
 horizontal_alignment = 1
 text = "Select Mode (Solo vs AI)"
 
-[node name="GuidedStartButton" type="Button" parent="CenterPanel"]
+[node name="QuickStartLabel" type="Label" parent="CenterPanel"]
 offset_left = 50.0
 offset_top = 70.0
 offset_right = 310.0
-offset_bottom = 94.0
+offset_bottom = 88.0
+theme_override_colors/font_color = Color(0.98, 0.77, 0.4, 1)
+horizontal_alignment = 1
+text = "Recommended First Run"
+
+[node name="GuidedStartButton" type="Button" parent="CenterPanel"]
+offset_left = 50.0
+offset_top = 90.0
+offset_right = 310.0
+offset_bottom = 122.0
 text = "Guided Start (Training)"
 
 [node name="P1CharacterLabel" type="Label" parent="CenterPanel"]
 offset_left = 50.0
-offset_top = 98.0
+offset_top = 132.0
 offset_right = 310.0
-offset_bottom = 118.0
+offset_bottom = 152.0
 theme_override_colors/font_color = Color(0.88, 0.93, 1, 1)
 horizontal_alignment = 1
 text = "P1 Character"
 
 [node name="P1CharacterOption" type="OptionButton" parent="CenterPanel"]
 offset_left = 50.0
-offset_top = 120.0
+offset_top = 154.0
 offset_right = 310.0
-offset_bottom = 152.0
+offset_bottom = 186.0
+
+[node name="P1LoadoutLabel" type="Label" parent="CenterPanel"]
+offset_left = 50.0
+offset_top = 190.0
+offset_right = 310.0
+offset_bottom = 210.0
+theme_override_colors/font_color = Color(0.88, 0.93, 1, 1)
+horizontal_alignment = 1
+text = "Build Preset"
 
 [node name="P1ProfileLabel" type="Label" parent="CenterPanel"]
 offset_left = 50.0
-offset_top = 186.0
+offset_top = 248.0
 offset_right = 310.0
-offset_bottom = 212.0
+offset_bottom = 308.0
 theme_override_colors/font_color = Color(0.72, 0.84, 0.98, 1)
 horizontal_alignment = 1
 autowrap_mode = 2
@@ -88,9 +106,9 @@ text = "-"
 
 [node name="P1LoadoutOption" type="OptionButton" parent="CenterPanel"]
 offset_left = 50.0
-offset_top = 154.0
+offset_top = 212.0
 offset_right = 310.0
-offset_bottom = 184.0
+offset_bottom = 244.0
 
 [node name="P2CharacterLabel" type="Label" parent="CenterPanel"]
 offset_left = 50.0
@@ -124,25 +142,34 @@ autowrap_mode = 2
 clip_text = false
 text = "-"
 
+[node name="ModeStepLabel" type="Label" parent="CenterPanel"]
+offset_left = 50.0
+offset_top = 316.0
+offset_right = 310.0
+offset_bottom = 336.0
+theme_override_colors/font_color = Color(0.98, 0.77, 0.4, 1)
+horizontal_alignment = 1
+text = "Then Choose a Mode"
+
 [node name="VersusButton" type="Button" parent="CenterPanel"]
 offset_left = 50.0
-offset_top = 332.0
+offset_top = 380.0
 offset_right = 310.0
-offset_bottom = 364.0
+offset_bottom = 412.0
 text = "Local VS"
 
 [node name="StoryButton" type="Button" parent="CenterPanel"]
 offset_left = 50.0
-offset_top = 368.0
+offset_top = 344.0
 offset_right = 310.0
-offset_bottom = 400.0
+offset_bottom = 376.0
 text = "Story Mode"
 
 [node name="TrainingButton" type="Button" parent="CenterPanel"]
 offset_left = 50.0
-offset_top = 404.0
+offset_top = 416.0
 offset_right = 310.0
-offset_bottom = 436.0
+offset_bottom = 448.0
 text = "Training Mode"
 
 [node name="ControlStyleLabel" type="Label" parent="CenterPanel"]
@@ -222,6 +249,107 @@ offset_top = 652.0
 offset_right = 266.0
 offset_bottom = 680.0
 text = "中文"
+
+[node name="AdvancedToggleButton" type="Button" parent="."]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = 196.0
+offset_top = -334.0
+offset_right = 364.0
+offset_bottom = -306.0
+grow_horizontal = 2
+grow_vertical = 2
+text = "Show Advanced Setup"
+
+[node name="AdvancedHintLabel" type="Label" parent="."]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = 196.0
+offset_top = -304.0
+offset_right = 364.0
+offset_bottom = -276.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(0.72, 0.84, 0.98, 1)
+horizontal_alignment = 1
+autowrap_mode = 2
+text = "Rival / controls / video / language"
+
+[node name="P1SummaryPanel" type="Panel" parent="."]
+custom_minimum_size = Vector2(280, 396)
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -530.0
+offset_top = -210.0
+offset_right = -250.0
+offset_bottom = 186.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="TitleLabel" type="Label" parent="P1SummaryPanel"]
+offset_left = 18.0
+offset_top = 16.0
+offset_right = 262.0
+offset_bottom = 42.0
+theme_override_colors/font_color = Color(0.96, 0.98, 1, 1)
+horizontal_alignment = 1
+text = "Player 1"
+
+[node name="BodyLabel" type="Label" parent="P1SummaryPanel"]
+offset_left = 18.0
+offset_top = 52.0
+offset_right = 262.0
+offset_bottom = 376.0
+theme_override_colors/font_color = Color(0.82, 0.9, 1, 1)
+autowrap_mode = 2
+vertical_alignment = 1
+text = "-"
+
+[node name="P2SummaryPanel" type="Panel" parent="."]
+custom_minimum_size = Vector2(280, 396)
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = 250.0
+offset_top = -210.0
+offset_right = 530.0
+offset_bottom = 186.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="TitleLabel" type="Label" parent="P2SummaryPanel"]
+offset_left = 18.0
+offset_top = 16.0
+offset_right = 262.0
+offset_bottom = 42.0
+theme_override_colors/font_color = Color(0.96, 0.98, 1, 1)
+horizontal_alignment = 1
+text = "Opponent"
+
+[node name="BodyLabel" type="Label" parent="P2SummaryPanel"]
+offset_left = 18.0
+offset_top = 52.0
+offset_right = 262.0
+offset_bottom = 376.0
+theme_override_colors/font_color = Color(0.82, 0.9, 1, 1)
+autowrap_mode = 2
+vertical_alignment = 1
+text = "-"
 
 [node name="FirstLaunchControlOverlay" type="ColorRect" parent="."]
 visible = false
