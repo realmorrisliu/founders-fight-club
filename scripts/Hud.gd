@@ -4,7 +4,7 @@ const LocalizationRegistryStore := preload("res://scripts/config/LocalizationReg
 const GameSettingsStore := preload("res://scripts/GameSettings.gd")
 const UiSkinStore := preload("res://scripts/ui/UiSkin.gd")
 const ROUND_TUNING_PATCH_SUMMARY_MAX_PARTS := 2
-const ROUND_TUNING_CARD_MAX_LINES := 3
+const ROUND_TUNING_CARD_MAX_LINES := 2
 const TIMER_CHIP_TEXTURE_PATH := "res://assets/sprites/ui/hud_timer_chip.png"
 const RESULT_CHIP_TEXTURE_PATH := "res://assets/sprites/ui/hud_result_chip.png"
 const HP_UNDER_TEXTURE_PATH := "res://assets/sprites/ui/hp_under.png"
@@ -15,6 +15,8 @@ const TRAINING_PANEL_TEXTURE_PATH := "res://assets/sprites/ui/hud_training_panel
 const ONBOARDING_PANEL_TEXTURE_PATH := "res://assets/sprites/ui/hud_onboarding_panel.png"
 const ROUND_TUNING_PANEL_TEXTURE_PATH := "res://assets/sprites/ui/hud_round_tuning_panel.png"
 const ROUND_TUNING_CARD_TEXTURE_PATH := "res://assets/sprites/ui/hud_choice_card.png"
+const DIALOGUE_PANEL_FILL := Color(0.07, 0.10, 0.18, 0.92)
+const DIALOGUE_PANEL_BORDER := Color(0.36, 0.62, 0.94, 0.94)
 const HUD_BUTTON_PRIMARY_PALETTE := {
 	"normal_fill": Color(0.13, 0.26, 0.46, 0.97),
 	"hover_fill": Color(0.18, 0.34, 0.58, 0.99),
@@ -109,6 +111,7 @@ const MATCH_UI_MODE_STOCK := "stock"
 @onready var onboarding_skip_button := $OnboardingPanel/SkipButton
 @onready var onboarding_replay_button := $OnboardingPanel/ReplayButton
 
+var dialogue_panel: Panel
 var cached_timer_seconds := 60.0
 var cached_p1_hp := 100
 var cached_p2_hp := 100
@@ -154,8 +157,11 @@ func _ready() -> void:
 	var locale := TranslationServer.get_locale()
 	if not locale.begins_with("en") and not locale.begins_with("zh"):
 		TranslationServer.set_locale("en")
+	_ensure_runtime_overlay_nodes()
+	_layout_runtime_ui()
 	_apply_runtime_skin()
 	_apply_runtime_textures()
+	_apply_runtime_typography()
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	pause_panel.visible = false
 	combat_callout_label.visible = false
@@ -163,6 +169,8 @@ func _ready() -> void:
 		hit_type_callout_label.visible = false
 	if dialogue_label:
 		dialogue_label.visible = false
+	if dialogue_panel:
+		dialogue_panel.visible = false
 	if round_tuning_panel:
 		round_tuning_panel.visible = false
 	if onboarding_panel:
@@ -185,10 +193,141 @@ func _ready() -> void:
 		onboarding_replay_button.pressed.connect(_on_onboarding_replay_pressed)
 	_refresh_ui_text()
 
+func _ensure_runtime_overlay_nodes() -> void:
+	dialogue_panel = get_node_or_null("DialoguePanel") as Panel
+	if dialogue_panel == null:
+		dialogue_panel = Panel.new()
+		dialogue_panel.name = "DialoguePanel"
+		dialogue_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(dialogue_panel)
+		move_child(dialogue_panel, get_child_count() - 1)
+	if dialogue_label:
+		dialogue_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+func _layout_runtime_ui() -> void:
+	_set_control_rect(timer_chip, 260.0, 14.0, 380.0, 42.0)
+	_set_control_rect(timer_label, 278.0, 18.0, 364.0, 40.0)
+	_set_control_rect(result_chip, 150.0, 82.0, 490.0, 118.0)
+	_set_control_rect(result_label, 160.0, 88.0, 480.0, 122.0)
+	_set_control_rect(combat_callout_label, 208.0, 118.0, 432.0, 144.0)
+	_set_control_rect(hit_type_callout_label, 220.0, 142.0, 420.0, 164.0)
+	_set_control_rect(p1_hp_bar, 20.0, 18.0, 228.0, 34.0)
+	_set_control_rect(p1_hp_label, 20.0, 38.0, 258.0, 54.0)
+	_set_control_rect(p1_hype_label, 20.0, 56.0, 258.0, 70.0)
+	_set_control_rect(p1_hype_bar, 20.0, 72.0, 228.0, 82.0)
+	_set_control_rect(p1_state_label, 20.0, 86.0, 264.0, 102.0)
+	_set_control_rect(p1_profile_label, 20.0, 104.0, 264.0, 118.0)
+	_set_control_rect(p2_hp_bar, 412.0, 18.0, 620.0, 34.0)
+	_set_control_rect(p2_hp_label, 382.0, 38.0, 620.0, 54.0)
+	_set_control_rect(p2_hype_label, 382.0, 56.0, 620.0, 70.0)
+	_set_control_rect(p2_hype_bar, 412.0, 72.0, 620.0, 82.0)
+	_set_control_rect(p2_state_label, 376.0, 86.0, 620.0, 102.0)
+	_set_control_rect(p2_profile_label, 376.0, 104.0, 620.0, 118.0)
+	_set_control_rect(dialogue_panel, 154.0, 48.0, 486.0, 82.0)
+	_set_control_rect(dialogue_label, 166.0, 54.0, 474.0, 78.0)
+	_set_control_rect(onboarding_panel, 350.0, 144.0, 620.0, 258.0)
+	_set_control_rect(onboarding_title_label, 12.0, 8.0, 258.0, 28.0)
+	_set_control_rect(onboarding_step_label, 12.0, 30.0, 258.0, 74.0)
+	_set_control_rect(onboarding_progress_label, 12.0, 80.0, 120.0, 98.0)
+	_set_control_rect(onboarding_skip_button, 134.0, 78.0, 194.0, 104.0)
+	_set_control_rect(onboarding_replay_button, 200.0, 78.0, 258.0, 104.0)
+	_set_control_rect(round_tuning_panel, 98.0, 102.0, 542.0, 318.0)
+	_set_control_rect(round_tuning_title_label, 18.0, 12.0, 426.0, 32.0)
+	_set_control_rect(round_tuning_hint_label, 18.0, 36.0, 426.0, 54.0)
+	_set_control_rect(round_tuning_option_a_card, 18.0, 64.0, 210.0, 174.0)
+	_set_control_rect(round_tuning_option_b_card, 234.0, 64.0, 426.0, 174.0)
+	_set_control_rect(round_tuning_option_a_title_label, 10.0, 8.0, 182.0, 28.0)
+	_set_control_rect(round_tuning_option_b_title_label, 10.0, 8.0, 182.0, 28.0)
+	_set_control_rect(round_tuning_option_a_benefits_header_label, 10.0, 30.0, 182.0, 46.0)
+	_set_control_rect(round_tuning_option_b_benefits_header_label, 10.0, 30.0, 182.0, 46.0)
+	_set_control_rect(round_tuning_option_a_benefits_label, 10.0, 46.0, 182.0, 80.0)
+	_set_control_rect(round_tuning_option_b_benefits_label, 10.0, 46.0, 182.0, 80.0)
+	_set_control_rect(round_tuning_option_a_tradeoffs_header_label, 10.0, 82.0, 182.0, 98.0)
+	_set_control_rect(round_tuning_option_b_tradeoffs_header_label, 10.0, 82.0, 182.0, 98.0)
+	_set_control_rect(round_tuning_option_a_tradeoffs_label, 10.0, 98.0, 182.0, 126.0)
+	_set_control_rect(round_tuning_option_b_tradeoffs_label, 10.0, 98.0, 182.0, 126.0)
+	_set_control_rect(round_tuning_option_a_button, 18.0, 182.0, 210.0, 208.0)
+	_set_control_rect(round_tuning_option_b_button, 234.0, 182.0, 426.0, 208.0)
+
+func _apply_runtime_typography() -> void:
+	timer_label.add_theme_font_size_override("font_size", 13)
+	p1_hp_label.add_theme_font_size_override("font_size", 11)
+	p2_hp_label.add_theme_font_size_override("font_size", 11)
+	p1_hype_label.add_theme_font_size_override("font_size", 11)
+	p2_hype_label.add_theme_font_size_override("font_size", 11)
+	p1_state_label.add_theme_font_size_override("font_size", 10)
+	p2_state_label.add_theme_font_size_override("font_size", 10)
+	p1_profile_label.add_theme_font_size_override("font_size", 10)
+	p2_profile_label.add_theme_font_size_override("font_size", 10)
+	result_label.add_theme_font_size_override("font_size", 14)
+	combat_callout_label.add_theme_font_size_override("font_size", 15)
+	hit_type_callout_label.add_theme_font_size_override("font_size", 12)
+	dialogue_label.add_theme_font_size_override("font_size", 11)
+	dialogue_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	dialogue_label.clip_text = true
+	dialogue_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	onboarding_title_label.add_theme_font_size_override("font_size", 12)
+	onboarding_step_label.add_theme_font_size_override("font_size", 11)
+	onboarding_progress_label.add_theme_font_size_override("font_size", 10)
+	onboarding_skip_button.add_theme_font_size_override("font_size", 10)
+	onboarding_replay_button.add_theme_font_size_override("font_size", 10)
+	round_tuning_title_label.add_theme_font_size_override("font_size", 13)
+	round_tuning_hint_label.add_theme_font_size_override("font_size", 10)
+	for label in [
+		round_tuning_option_a_title_label,
+		round_tuning_option_b_title_label
+	]:
+		label.add_theme_font_size_override("font_size", 11)
+	for label in [
+		round_tuning_option_a_benefits_header_label,
+		round_tuning_option_b_benefits_header_label,
+		round_tuning_option_a_tradeoffs_header_label,
+		round_tuning_option_b_tradeoffs_header_label,
+		round_tuning_option_a_benefits_label,
+		round_tuning_option_b_benefits_label,
+		round_tuning_option_a_tradeoffs_label,
+		round_tuning_option_b_tradeoffs_label
+	]:
+		label.add_theme_font_size_override("font_size", 10)
+	for button in [round_tuning_option_a_button, round_tuning_option_b_button]:
+		button.add_theme_font_size_override("font_size", 10)
+	training_summary_label.add_theme_font_size_override("font_size", 10)
+	training_stun_label.add_theme_font_size_override("font_size", 10)
+	training_recovery_label.add_theme_font_size_override("font_size", 10)
+	training_advantage_label.add_theme_font_size_override("font_size", 10)
+
+func _set_control_rect(control: Control, left: float, top: float, right: float, bottom: float) -> void:
+	if control == null:
+		return
+	control.offset_left = left
+	control.offset_top = top
+	control.offset_right = right
+	control.offset_bottom = bottom
+
 func _apply_runtime_skin() -> void:
-	for panel in [training_panel, onboarding_panel, round_tuning_panel, round_tuning_option_a_card, round_tuning_option_b_card, pause_panel]:
+	for panel in [dialogue_panel, training_panel, onboarding_panel, round_tuning_panel, round_tuning_option_a_card, round_tuning_option_b_card, pause_panel]:
 		if panel is Panel:
 			UiSkinStore.clear_panel_skin(panel as Panel)
+	if dialogue_panel:
+		var dialogue_backdrop := UiSkinStore.ensure_backdrop(
+			dialogue_panel,
+			"BackdropTexture",
+			UiSkinStore.make_solid_texture(Vector2i(332, 34), DIALOGUE_PANEL_FILL)
+		)
+		if dialogue_backdrop:
+			dialogue_backdrop.modulate = Color(1.0, 1.0, 1.0, 1.0)
+		var dialogue_style := StyleBoxFlat.new()
+		dialogue_style.bg_color = Color(0.0, 0.0, 0.0, 0.0)
+		dialogue_style.border_color = DIALOGUE_PANEL_BORDER
+		dialogue_style.border_width_left = 1
+		dialogue_style.border_width_top = 1
+		dialogue_style.border_width_right = 1
+		dialogue_style.border_width_bottom = 2
+		dialogue_style.corner_radius_top_left = 4
+		dialogue_style.corner_radius_top_right = 4
+		dialogue_style.corner_radius_bottom_left = 4
+		dialogue_style.corner_radius_bottom_right = 4
+		dialogue_panel.add_theme_stylebox_override("panel", dialogue_style)
 	if training_panel:
 		UiSkinStore.ensure_backdrop(
 			training_panel,
@@ -199,26 +338,26 @@ func _apply_runtime_skin() -> void:
 		UiSkinStore.ensure_backdrop(
 			onboarding_panel,
 			"BackdropTexture",
-			_load_ui_texture(ONBOARDING_PANEL_TEXTURE_PATH, Vector2i(392, 110), Color(0.22, 0.18, 0.12, 0.98))
+			_load_ui_texture(ONBOARDING_PANEL_TEXTURE_PATH, Vector2i(270, 114), Color(0.22, 0.18, 0.12, 0.98))
 		)
 	if round_tuning_panel:
 		UiSkinStore.ensure_backdrop(
 			round_tuning_panel,
 			"BackdropTexture",
-			_load_ui_texture(ROUND_TUNING_PANEL_TEXTURE_PATH, Vector2i(556, 298), Color(0.10, 0.16, 0.28, 0.98))
+			_load_ui_texture(ROUND_TUNING_PANEL_TEXTURE_PATH, Vector2i(444, 216), Color(0.10, 0.16, 0.28, 0.98))
 		)
 	if round_tuning_option_a_card:
 		UiSkinStore.ensure_backdrop(
 			round_tuning_option_a_card,
 			"BackdropTexture",
-			_load_ui_texture(ROUND_TUNING_CARD_TEXTURE_PATH, Vector2i(248, 170), Color(0.12, 0.18, 0.30, 0.96)),
+			_load_ui_texture(ROUND_TUNING_CARD_TEXTURE_PATH, Vector2i(192, 110), Color(0.12, 0.18, 0.30, 0.96)),
 			Color(0.90, 1.0, 0.92, 1.0)
 		)
 	if round_tuning_option_b_card:
 		UiSkinStore.ensure_backdrop(
 			round_tuning_option_b_card,
 			"BackdropTexture",
-			_load_ui_texture(ROUND_TUNING_CARD_TEXTURE_PATH, Vector2i(248, 170), Color(0.12, 0.18, 0.30, 0.96)),
+			_load_ui_texture(ROUND_TUNING_CARD_TEXTURE_PATH, Vector2i(192, 110), Color(0.12, 0.18, 0.30, 0.96)),
 			Color(1.0, 0.93, 0.88, 1.0)
 		)
 	for button in [
@@ -467,6 +606,8 @@ func show_dialogue_line(text: String, duration: float = 2.4, tint: Color = Color
 		dialogue_tween.kill()
 	dialogue_label.text = text
 	dialogue_label.visible = true
+	if dialogue_panel:
+		dialogue_panel.visible = text.strip_edges() != ""
 	dialogue_label.modulate = Color(tint.r, tint.g, tint.b, 0.0)
 	dialogue_tween = create_tween()
 	dialogue_tween.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
@@ -477,6 +618,8 @@ func show_dialogue_line(text: String, duration: float = 2.4, tint: Color = Color
 		if dialogue_label:
 			dialogue_label.visible = false
 			dialogue_label.text = ""
+		if dialogue_panel:
+			dialogue_panel.visible = false
 	dialogue_tween.finished.connect(hide_dialogue, CONNECT_ONE_SHOT)
 
 func _play_combat_callout(text: String, tint: Color) -> void:
@@ -596,22 +739,22 @@ func _refresh_side_combat_state(
 	var shield_value := clampf(float(state.get("shield", shield_max)), 0.0, shield_max)
 	var shield_percent := int(round((shield_value / shield_max) * 100.0))
 	var shield_prefix := _tr_or_fallback("HUD_SHIELD", "SH")
-	var shield_line := "%s %d" % [shield_prefix, shield_percent]
-	var item_prefix := _tr_or_fallback("HUD_ITEM", "Item")
+	var shield_line := "%s%d" % [shield_prefix, shield_percent]
+	var item_prefix := _tr_or_fallback("HUD_ITEM", "IT")
 	var item_charges := maxi(0, int(state.get("loadout_item_charges", 0)))
 	var item_cooldown := maxf(0.0, float(state.get("loadout_item_cooldown", 0.0)))
 	var item_progress := maxf(0.0, float(state.get("loadout_item_trigger_progress", 0.0)))
 	var item_trigger := maxf(1.0, float(state.get("loadout_item_trigger_value", 1.0)))
-	var item_line := "%s %s" % [item_prefix, _tr_or_fallback("HUD_ITEM_EMPTY", "EMPTY")]
+	var item_line := "%s0" % item_prefix
 	if item_charges > 0:
 		if item_cooldown > 0.05:
-			item_line = "%s %ss x%d" % [item_prefix, _format_cd_value(item_cooldown), item_charges]
+			item_line = "%s%d @%s" % [item_prefix, item_charges, _format_cd_value(item_cooldown)]
 		else:
-			item_line = "%s %d/%d x%d" % [
+			item_line = "%s%d %d/%d" % [
 				item_prefix,
+				item_charges,
 				int(round(minf(item_progress, item_trigger))),
-				int(round(item_trigger)),
-				item_charges
+				int(round(item_trigger))
 			]
 	var tags: Array[String] = []
 	if bool(state.get("shield_broken", false)) or float(state.get("shield_break_seconds", 0.0)) > 0.0:
@@ -627,7 +770,30 @@ func _refresh_side_combat_state(
 	var status_suffix := ""
 	if not tags.is_empty():
 		status_suffix = " | %s" % " ".join(tags)
-	state_label.text = "%s | %s | %s%s" % [cd_line, shield_line, item_line, status_suffix]
+	state_label.text = "%s | %s | %s%s" % [
+		_compact_cooldown_line(cooldowns),
+		shield_line,
+		item_line,
+		status_suffix
+	]
+	var tooltip_lines: Array[String] = [
+		cd_line,
+		"%s %d" % [shield_prefix, shield_percent]
+	]
+	if item_charges > 0:
+		tooltip_lines.append("%s %d/%d x%d" % [
+			_tr_or_fallback("HUD_ITEM", "Item"),
+			int(round(minf(item_progress, item_trigger))),
+			int(round(item_trigger)),
+			item_charges
+		])
+	elif item_cooldown > 0.05:
+		tooltip_lines.append("%s %ss" % [_tr_or_fallback("HUD_ITEM", "Item"), _format_cd_value(item_cooldown)])
+	else:
+		tooltip_lines.append("%s %s" % [_tr_or_fallback("HUD_ITEM", "Item"), _tr_or_fallback("HUD_ITEM_EMPTY", "EMPTY")])
+	if not tags.is_empty():
+		tooltip_lines.append("Status: %s" % ", ".join(tags))
+	state_label.tooltip_text = "\n".join(tooltip_lines)
 	state_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT if right_align else HORIZONTAL_ALIGNMENT_LEFT
 
 func _refresh_character_profile_labels() -> void:
@@ -643,15 +809,17 @@ func _format_character_profile_line(profile: Dictionary) -> String:
 		return "-"
 	var archetype_label := _resolve_archetype_label(profile)
 	var signature_primary := str(profile.get("signature_primary", "")).strip_edges()
-	var signature_alt := str(profile.get("signature_alt", "")).strip_edges()
 	if signature_primary == "":
-		signature_primary = _tr_or_fallback("HUD_SIGNATURE_PRIMARY_FALLBACK", "Signature A")
-	if signature_alt == "":
-		signature_alt = _tr_or_fallback("HUD_SIGNATURE_ALT_FALLBACK", "Signature B")
-	var format_template := tr("HUD_PROFILE_ROW")
-	if format_template.find("%") == -1:
-		format_template = "%s | %s / %s"
-	return format_template % [archetype_label, signature_primary, signature_alt]
+		signature_primary = _tr_or_fallback("HUD_SIGNATURE_PRIMARY_FALLBACK", "Core Move")
+	return "%s | %s" % [archetype_label, signature_primary]
+
+func _compact_cooldown_line(cooldowns: Dictionary) -> String:
+	return "CD %s/%s/%s/%s" % [
+		_format_cd_value(float(cooldowns.get("signature_a", 0.0))),
+		_format_cd_value(float(cooldowns.get("signature_b", 0.0))),
+		_format_cd_value(float(cooldowns.get("signature_c", 0.0))),
+		_format_cd_value(float(cooldowns.get("ultimate", 0.0)))
+	]
 
 func _resolve_archetype_label(profile: Dictionary) -> String:
 	var key := str(profile.get("archetype_label_key", "")).strip_edges()

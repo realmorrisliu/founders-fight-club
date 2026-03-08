@@ -9,19 +9,19 @@
 
 [node name="Story" type="Node2D"]
 script = ExtResource("1")
-win_rule = "stock"
-stock_count = 3
+win_rule = "hp_timer"
 
 [node name="Arena" parent="." instance=ExtResource("2")]
+side_platforms_enabled = false
 
 [node name="Player1" parent="." instance=ExtResource("3")]
-position = Vector2(200, 300)
+position = Vector2(260, 300)
 player_id = 1
 attack_table_resource = ExtResource("5")
 opponent_path = NodePath("../Player2")
 
 [node name="Player2" parent="." instance=ExtResource("3")]
-position = Vector2(600, 300)
+position = Vector2(640, 300)
 player_id = 2
 is_ai = true
 attack_table_resource = ExtResource("6")

@@ -126,6 +126,17 @@ const GUARD_COUNTER_DAMAGE_BONUS := 3
 const GUARD_COUNTER_HITSTUN_BONUS := 0.05
 const GUARD_COUNTER_KNOCKBACK_SCALE := 1.15
 const PLACEHOLDER_FRAME_SIZE := Vector2i(24, 48)
+const VISUAL_BASE_SCALE := Vector2(2.18, 2.18)
+const VISUAL_MOVE_SCALE := Vector2(2.28, 2.10)
+const VISUAL_ATTACK_SCALE := Vector2(2.42, 1.96)
+const VISUAL_RECOIL_SCALE := Vector2(2.02, 2.32)
+const VISUAL_AIR_SCALE := Vector2(2.12, 2.22)
+const VISUAL_SCALE_BLEND := 0.38
+const VISUAL_POSITION_BLEND := 0.34
+const VISUAL_GROUND_LIFT := 4.0
+const VISUAL_ATTACK_OFFSET_X := 6.0
+const VISUAL_RECOIL_OFFSET_X := 5.0
+const VISUAL_AIR_OFFSET_Y := -4.0
 const OUTLINE_COLOR := Color(0.09, 0.09, 0.09, 1.0)
 const DEFAULT_SPRITE_FRAMES_PATH := "res://assets/sprites/player/PlayerSpriteFrames.tres"
 const DEFAULT_ATTACK_TABLE_PATH := "res://assets/data/PlayerAttackTable.tres"
@@ -2500,6 +2511,7 @@ func _update_visual() -> void:
 	if guard_counter_time > 0.0 and current_hp > 0 and attack_state == "":
 		base_tint = base_tint.lerp(Color(0.92, 1.0, 0.80, 1.0), 0.42)
 	visual.modulate = base_tint
+	_apply_visual_presentation()
 
 	var animation: StringName = &"idle"
 	if current_hp <= 0:
@@ -3520,10 +3532,38 @@ func _setup_visual() -> void:
 	if visual == null:
 		return
 	visual.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	visual.scale = VISUAL_BASE_SCALE
+	visual.position = Vector2(0.0, _resolve_visual_ground_offset(VISUAL_BASE_SCALE.y))
 	runtime_sprite_frames = _resolve_runtime_sprite_frames()
 	visual.sprite_frames = runtime_sprite_frames
 	if visual.sprite_frames and visual.sprite_frames.has_animation("idle"):
 		visual.play("idle")
+
+func _apply_visual_presentation() -> void:
+	if visual == null:
+		return
+	var target_scale := VISUAL_BASE_SCALE
+	var target_position := Vector2(0.0, _resolve_visual_ground_offset(VISUAL_BASE_SCALE.y))
+	if current_hp <= 0 or is_knocked_down or hitstun_time > 0.0 or shield_break_time > 0.0:
+		target_scale = VISUAL_RECOIL_SCALE
+		target_position.x = -float(facing) * VISUAL_RECOIL_OFFSET_X
+	elif attack_state != "" or guard_counter_time > 0.0:
+		target_scale = VISUAL_ATTACK_SCALE
+		target_position.x = float(facing) * VISUAL_ATTACK_OFFSET_X
+		target_position.y -= 4.0
+	elif is_dashing or absf(velocity.x) > WALK_ANIMATION_SPEED_THRESHOLD:
+		target_scale = VISUAL_MOVE_SCALE
+		target_position.x = float(facing) * 2.0
+	elif not is_on_floor():
+		target_scale = VISUAL_AIR_SCALE
+		target_position.y += VISUAL_AIR_OFFSET_Y
+	visual.scale = visual.scale.lerp(target_scale, VISUAL_SCALE_BLEND)
+	target_position.y += _resolve_visual_ground_offset(target_scale.y) - _resolve_visual_ground_offset(VISUAL_BASE_SCALE.y)
+	visual.position = visual.position.lerp(target_position, VISUAL_POSITION_BLEND)
+
+func _resolve_visual_ground_offset(scale_y: float) -> float:
+	var extra_height := float(PLACEHOLDER_FRAME_SIZE.y) * maxf(0.0, scale_y - 1.0)
+	return -(extra_height * 0.5 + VISUAL_GROUND_LIFT)
 
 func _resolve_runtime_sprite_frames() -> SpriteFrames:
 	var fallback := _build_placeholder_sprite_frames()

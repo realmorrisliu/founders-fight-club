@@ -43,6 +43,7 @@ func _run_smoke_suite() -> void:
 	await _test_main_scene_vs_mode_local_control_flow()
 	await _test_story_mode_sets_ai_opponent()
 	await _test_story_mode_round_progression_override()
+	await _test_story_mode_duel_rules_surface()
 	await _test_main_scene_stage_bounds_sync()
 	await _test_arena_extra_platform_colliders()
 	await _test_main_scene_ledge_recovery_flow()
@@ -52,6 +53,7 @@ func _run_smoke_suite() -> void:
 	await _test_training_timer_visibility()
 	await _test_training_quick_start_hint_renders()
 	await _test_onboarding_settings_and_guided_start_surface()
+	await _test_story_mode_skips_first_run_onboarding_overlay()
 	await _test_onboarding_progress_tracks_actual_player_state()
 	await _test_menu_focus_path_and_summary_cards()
 	await _test_control_preset_profiles()
@@ -505,6 +507,32 @@ func _test_story_mode_round_progression_override() -> void:
 		match_node.queue_free()
 	await process_frame
 
+func _test_story_mode_duel_rules_surface() -> void:
+	SessionStateStore.set_value(SessionKeysStore.MATCH_MODE, "story")
+	var packed := load("res://scenes/Story.tscn")
+	_assert_true(packed is PackedScene, "story scene loads for duel rules surface test")
+	if packed is not PackedScene:
+		SessionStateStore.clear_keys(PackedStringArray([SessionKeysStore.MATCH_MODE]))
+		return
+	var story_node := (packed as PackedScene).instantiate()
+	get_root().add_child(story_node)
+	await process_frame
+	await process_frame
+	_assert_true(str(story_node.get("win_rule")) == "hp_timer", "story mode switches to hp-timer duel rules")
+	var arena_node := story_node.get_node_or_null("Arena")
+	_assert_true(arena_node != null, "story duel rules test resolves arena")
+	if arena_node != null:
+		_assert_true(not bool(arena_node.get("side_platforms_enabled")), "story mode disables side platforms")
+		for platform_name in ["PlatformLeft", "PlatformRight"]:
+			var platform_node := arena_node.get_node_or_null(platform_name) as StaticBody2D
+			_assert_true(platform_node != null, "story arena resolves %s" % platform_name)
+			if platform_node != null:
+				_assert_true(platform_node.collision_layer == 0, "story arena removes %s collision layer" % platform_name)
+	if is_instance_valid(story_node):
+		story_node.queue_free()
+	await process_frame
+	SessionStateStore.clear_keys(PackedStringArray([SessionKeysStore.MATCH_MODE]))
+
 func _test_main_scene_stage_bounds_sync() -> void:
 	var packed := load("res://scenes/Main.tscn")
 	_assert_true(packed is PackedScene, "main scene loads for stage bounds sync test")
@@ -766,6 +794,35 @@ func _test_onboarding_settings_and_guided_start_surface() -> void:
 			SessionKeysStore.ONBOARDING_ENTRY_POINT
 		])
 	)
+
+func _test_story_mode_skips_first_run_onboarding_overlay() -> void:
+	var previous_settings := GameSettingsStore.get_onboarding_settings()
+	var previous_completed := bool(previous_settings.get("completed", false))
+	var previous_hints_enabled := bool(previous_settings.get("hints_enabled", true))
+	GameSettingsStore.set_onboarding_completed(false)
+	GameSettingsStore.set_onboarding_hints_enabled(true)
+	SessionStateStore.set_value(SessionKeysStore.MATCH_MODE, "story")
+	SessionStateStore.set_value(SessionKeysStore.ONBOARDING_ENTRY_POINT, "story")
+	var story_packed := load("res://scenes/Story.tscn")
+	_assert_true(story_packed is PackedScene, "story scene loads for first-run onboarding gate test")
+	if story_packed is PackedScene:
+		var story_node := (story_packed as PackedScene).instantiate()
+		get_root().add_child(story_node)
+		await process_frame
+		await process_frame
+		var onboarding_panel := story_node.get_node_or_null("Hud/OnboardingPanel")
+		_assert_true(onboarding_panel is CanvasItem, "story onboarding gate test resolves onboarding panel")
+		if onboarding_panel is CanvasItem:
+			_assert_true(not (onboarding_panel as CanvasItem).visible, "story mode skips quick onboarding overlay on first run")
+		if is_instance_valid(story_node):
+			story_node.queue_free()
+		await process_frame
+	GameSettingsStore.set_onboarding_completed(previous_completed)
+	GameSettingsStore.set_onboarding_hints_enabled(previous_hints_enabled)
+	SessionStateStore.clear_keys(PackedStringArray([
+		SessionKeysStore.MATCH_MODE,
+		SessionKeysStore.ONBOARDING_ENTRY_POINT
+	]))
 
 func _test_onboarding_progress_tracks_actual_player_state() -> void:
 	var previous_preset := GameSettingsStore.get_control_preset()

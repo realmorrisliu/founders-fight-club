@@ -6,10 +6,32 @@ static func is_headless_runtime() -> bool:
 
 static func load_texture_or_placeholder(path: String, size: Vector2i, fill: Color) -> Texture2D:
 	if not is_headless_runtime():
-		var loaded = load(path)
+		var loaded := load_texture(path)
 		if loaded is Texture2D:
 			return loaded as Texture2D
 	return make_solid_texture(size, fill)
+
+static func load_texture(path: String) -> Texture2D:
+	var direct_texture := _load_image_texture(path)
+	if direct_texture != null:
+		return direct_texture
+	var loaded := load(path)
+	if loaded is Texture2D:
+		return loaded as Texture2D
+	return null
+
+static func _load_image_texture(path: String) -> Texture2D:
+	var extension := path.get_extension().to_lower()
+	if extension not in ["png", "jpg", "jpeg", "webp", "bmp"]:
+		return null
+	var absolute_path := ProjectSettings.globalize_path(path)
+	if not FileAccess.file_exists(absolute_path):
+		return null
+	var image := Image.new()
+	var error := image.load(absolute_path)
+	if error != OK:
+		return null
+	return ImageTexture.create_from_image(image)
 
 static func make_solid_texture(size: Vector2i, fill: Color) -> Texture2D:
 	var safe_size := Vector2i(maxi(1, size.x), maxi(1, size.y))

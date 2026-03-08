@@ -39,47 +39,64 @@ const BLOCKSTOP_BY_TIER := {
 	"ultimate": 0.089
 }
 const CAMERA_SHAKE_BY_ATTACK := {
-	"light": {"duration": 0.08, "strength": 2.2},
-	"heavy": {"duration": 0.12, "strength": 4.8},
-	"special": {"duration": 0.14, "strength": 5.8},
-	"throw": {"duration": 0.10, "strength": 3.6}
+	"light": {"duration": 0.09, "strength": 3.0},
+	"heavy": {"duration": 0.14, "strength": 6.6},
+	"special": {"duration": 0.16, "strength": 7.4},
+	"throw": {"duration": 0.11, "strength": 4.2}
 }
 const CAMERA_SHAKE_BY_BLOCK := {
-	"light": {"duration": 0.05, "strength": 1.4},
-	"heavy": {"duration": 0.08, "strength": 2.2},
-	"special": {"duration": 0.09, "strength": 2.8},
-	"throw": {"duration": 0.04, "strength": 1.0}
+	"light": {"duration": 0.06, "strength": 1.8},
+	"heavy": {"duration": 0.09, "strength": 3.0},
+	"special": {"duration": 0.10, "strength": 3.6},
+	"throw": {"duration": 0.05, "strength": 1.2}
 }
 const COUNTER_HITSTOP_BONUS := 0.03
-const COUNTER_SHAKE_MULTIPLIER := 1.28
+const COUNTER_SHAKE_MULTIPLIER := 1.42
 const MENU_SCENE_PATH := "res://scenes/Menu.tscn"
 const STORY_SCENE_PATH := "res://scenes/Story.tscn"
 const STORY_SCENE_MODE := "story"
 const STORY_ROUND_TRANSITION_SECONDS := 1.35
 const SFX_PLAYER_POOL_SIZE := 12
-const MAX_ACTIVE_IMPACTS := 24
-const CAMERA_TRACK_BASE_Y := 270.0
-const CAMERA_TRACK_TOP_Y := 128.0
-const CAMERA_TRACK_BOTTOM_Y := 360.0
-const CAMERA_TRACK_X_SMOOTH_SPEED := 7.8
-const CAMERA_TRACK_Y_SMOOTH_SPEED := 6.2
-const CAMERA_EDGE_BIAS_DISTANCE := 72.0
-const CAMERA_EDGE_BIAS_WEIGHT := 0.24
-const CAMERA_HORIZONTAL_NEAR_DISTANCE := 180.0
-const CAMERA_HORIZONTAL_FAR_DISTANCE := 640.0
-const CAMERA_VERTICAL_NEAR_DISTANCE := 72.0
-const CAMERA_VERTICAL_FAR_DISTANCE := 360.0
-const CAMERA_VERTICAL_ZOOM_WEIGHT := 0.86
-const CAMERA_VERTICAL_FOCUS_RANGE := 240.0
-const CAMERA_ZOOM_NEAR := 0.96
-const CAMERA_ZOOM_FAR := 1.22
-const CAMERA_ZOOM_SMOOTH_SPEED := 6.0
+const MAX_ACTIVE_IMPACTS := 48
+const CAMERA_TRACK_BASE_Y := 258.0
+const CAMERA_TRACK_TOP_Y := 136.0
+const CAMERA_TRACK_BOTTOM_Y := 320.0
+const CAMERA_TRACK_X_SMOOTH_SPEED := 9.0
+const CAMERA_TRACK_Y_SMOOTH_SPEED := 7.0
+const CAMERA_EDGE_BIAS_DISTANCE := 56.0
+const CAMERA_EDGE_BIAS_WEIGHT := 0.16
+const CAMERA_HORIZONTAL_NEAR_DISTANCE := 92.0
+const CAMERA_HORIZONTAL_FAR_DISTANCE := 460.0
+const CAMERA_VERTICAL_NEAR_DISTANCE := 52.0
+const CAMERA_VERTICAL_FAR_DISTANCE := 240.0
+const CAMERA_VERTICAL_ZOOM_WEIGHT := 0.94
+const CAMERA_VERTICAL_FOCUS_RANGE := 210.0
+const CAMERA_ZOOM_NEAR := 0.56
+const CAMERA_ZOOM_FAR := 0.78
+const CAMERA_ZOOM_SMOOTH_SPEED := 7.0
+const CAMERA_PUNCH_BY_TIER := {
+	"light": {"duration": 0.080, "zoom": 0.020},
+	"heavy": {"duration": 0.110, "zoom": 0.034},
+	"special": {"duration": 0.130, "zoom": 0.042},
+	"throw": {"duration": 0.095, "zoom": 0.026},
+	"signature": {"duration": 0.145, "zoom": 0.050},
+	"ultimate": {"duration": 0.170, "zoom": 0.060}
+}
+const CAMERA_PUNCH_BLOCK_SCALE := 0.64
+const COUNTER_CAMERA_PUNCH_SCALE := 1.14
+const ONBOARDING_ALLOWED_ENTRY_POINTS := ["guided_start", "training", "hud_replay"]
 const TRAINING_DEFAULT_OPTIONS := {
 	"enabled": true,
 	"dummy_mode": "stand",
 	"show_detail": false
 }
 const IMPACT_ANIMATION_TEXTURE_PATHS := {
+	"hit": [
+		"res://assets/sprites/effects/counter_spark_0.png",
+		"res://assets/sprites/effects/counter_spark_1.png",
+		"res://assets/sprites/effects/counter_spark_2.png",
+		"res://assets/sprites/effects/counter_spark_3.png"
+	],
 	"counter": [
 		"res://assets/sprites/effects/counter_spark_0.png",
 		"res://assets/sprites/effects/counter_spark_1.png",
@@ -94,10 +111,17 @@ const IMPACT_ANIMATION_TEXTURE_PATHS := {
 	]
 }
 const IMPACT_ANIMATION_SPEEDS := {
+	"hit": 20.0,
 	"counter": 22.0,
 	"guard": 20.0
 }
 const IMPACT_PLACEHOLDER_COLORS := {
+	"hit": [
+		Color(1.0, 0.98, 0.86, 0.98),
+		Color(1.0, 0.88, 0.54, 0.92),
+		Color(1.0, 0.76, 0.30, 0.84),
+		Color(1.0, 0.64, 0.18, 0.70)
+	],
 	"counter": [
 		Color(1.0, 0.95, 0.72, 0.96),
 		Color(1.0, 0.88, 0.45, 0.90),
@@ -112,6 +136,26 @@ const IMPACT_PLACEHOLDER_COLORS := {
 	]
 }
 const IMPACT_PLACEHOLDER_SIZE := Vector2i(32, 32)
+const IMPACT_RING_TEXTURE_SIZE := Vector2i(96, 96)
+const IMPACT_BLOOM_TEXTURE_SIZE := Vector2i(112, 112)
+const SCREEN_FLASH_BY_TIER := {
+	"light": {"duration": 0.080, "color": Color(1.0, 0.94, 0.82, 0.16)},
+	"heavy": {"duration": 0.100, "color": Color(1.0, 0.84, 0.60, 0.24)},
+	"special": {"duration": 0.115, "color": Color(1.0, 0.76, 0.48, 0.28)},
+	"throw": {"duration": 0.075, "color": Color(0.92, 1.0, 0.86, 0.14)},
+	"signature": {"duration": 0.130, "color": Color(1.0, 0.80, 0.42, 0.30)},
+	"ultimate": {"duration": 0.150, "color": Color(1.0, 0.74, 0.30, 0.34)}
+}
+const BLOCK_FLASH_ALPHA_SCALE := 0.65
+const COUNTER_FLASH_ALPHA_BONUS := 0.08
+const IMPACT_TINT_BY_TIER := {
+	"light": Color(1.0, 0.94, 0.78, 0.96),
+	"heavy": Color(1.0, 0.82, 0.48, 0.98),
+	"special": Color(1.0, 0.72, 0.32, 0.98),
+	"throw": Color(0.92, 1.0, 0.84, 0.94),
+	"signature": Color(1.0, 0.68, 0.26, 1.0),
+	"ultimate": Color(1.0, 0.60, 0.18, 1.0)
+}
 const SFX_PATHS := {
 	"hit_light": "res://assets/audio/sfx/hit_light.wav",
 	"hit_heavy": "res://assets/audio/sfx/hit_heavy.wav",
@@ -161,6 +205,9 @@ var camera_shake_time := 0.0
 var camera_shake_duration := 0.0
 var camera_shake_strength := 0.0
 var camera_rng := RandomNumberGenerator.new()
+var camera_punch_time := 0.0
+var camera_punch_duration := 0.0
+var camera_punch_amount := 0.0
 var hitstop_active := false
 var hitstop_end_msec := 0
 var sfx_player_pool: Array[AudioStreamPlayer] = []
@@ -186,7 +233,15 @@ var sfx_player_pool_cursor := 0
 
 var camera: Camera2D
 var effects_layer: Node2D
+var screen_fx_layer: CanvasLayer
+var screen_flash: ColorRect
 var impact_sprite_frames: SpriteFrames
+var impact_additive_material: CanvasItemMaterial
+var impact_ring_texture: Texture2D
+var impact_bloom_texture: Texture2D
+var screen_flash_color := Color(1.0, 1.0, 1.0, 0.0)
+var screen_flash_time := 0.0
+var screen_flash_duration := 0.0
 var sfx_streams := {}
 var training_options := TRAINING_DEFAULT_OPTIONS.duplicate(true)
 var selected_character_ids := {"p1": "", "p2": ""}
@@ -243,6 +298,7 @@ func _ready() -> void:
 	_setup_camera()
 	_setup_walls()
 	_setup_effects_layer()
+	_setup_screen_fx_layer()
 	_load_impact_sprite_frames()
 	_load_sfx_streams()
 	_setup_sfx_player_pool()
@@ -331,6 +387,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _process(delta: float) -> void:
 	_update_hitstop_state()
+	_update_screen_fx(delta)
 	if get_tree().paused:
 		return
 	match_elapsed_seconds += maxf(0.0, delta)
@@ -368,7 +425,7 @@ func _process(delta: float) -> void:
 func _setup_camera() -> void:
 	camera = Camera2D.new()
 	add_child(camera)
-	camera.zoom = Vector2(1.08, 1.08)
+	camera.zoom = Vector2(CAMERA_ZOOM_NEAR, CAMERA_ZOOM_NEAR)
 	camera.position_smoothing_enabled = false
 	camera_track_x = (player_1.position.x + player_2.position.x) * 0.5 if player_1 and player_2 else (stage_left_x + stage_right_x) * 0.5
 	camera_track_y = CAMERA_TRACK_BASE_Y
@@ -407,9 +464,30 @@ func _setup_effects_layer() -> void:
 	effects_layer = Node2D.new()
 	effects_layer.name = "Effects"
 	add_child(effects_layer)
+	if impact_additive_material == null:
+		impact_additive_material = CanvasItemMaterial.new()
+		impact_additive_material.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	if impact_ring_texture == null:
+		impact_ring_texture = _make_impact_ring_texture(IMPACT_RING_TEXTURE_SIZE)
+	if impact_bloom_texture == null:
+		impact_bloom_texture = _make_impact_bloom_texture(IMPACT_BLOOM_TEXTURE_SIZE)
+
+func _setup_screen_fx_layer() -> void:
+	screen_fx_layer = CanvasLayer.new()
+	screen_fx_layer.name = "ScreenFx"
+	screen_fx_layer.layer = 24
+	add_child(screen_fx_layer)
+	screen_flash = ColorRect.new()
+	screen_flash.name = "Flash"
+	screen_flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	screen_flash.set_anchors_preset(Control.PRESET_FULL_RECT)
+	screen_flash.color = Color(1.0, 1.0, 1.0, 0.0)
+	screen_flash.visible = false
+	screen_fx_layer.add_child(screen_flash)
 
 func _load_impact_sprite_frames() -> void:
 	impact_sprite_frames = SpriteFrames.new()
+	_add_impact_animation(&"hit")
 	_add_impact_animation(&"counter")
 	_add_impact_animation(&"guard")
 
@@ -469,6 +547,38 @@ func _make_impact_placeholder_texture(fill: Color) -> Texture2D:
 			image.set_pixel(x, y, pixel)
 	return ImageTexture.create_from_image(image)
 
+func _make_impact_ring_texture(size: Vector2i) -> Texture2D:
+	var image := Image.create(size.x, size.y, false, Image.FORMAT_RGBA8)
+	image.fill(Color(0.0, 0.0, 0.0, 0.0))
+	for y in range(size.y):
+		for x in range(size.x):
+			var uv := Vector2(
+				(float(x) + 0.5) / float(size.x),
+				(float(y) + 0.5) / float(size.y)
+			)
+			var distance := uv.distance_to(Vector2(0.5, 0.5))
+			if distance < 0.18 or distance > 0.48:
+				continue
+			var alpha := 1.0 - absf(distance - 0.33) / 0.15
+			image.set_pixel(x, y, Color(1.0, 1.0, 1.0, clampf(alpha, 0.0, 1.0)))
+	return ImageTexture.create_from_image(image)
+
+func _make_impact_bloom_texture(size: Vector2i) -> Texture2D:
+	var image := Image.create(size.x, size.y, false, Image.FORMAT_RGBA8)
+	image.fill(Color(0.0, 0.0, 0.0, 0.0))
+	for y in range(size.y):
+		for x in range(size.x):
+			var uv := Vector2(
+				(float(x) + 0.5) / float(size.x),
+				(float(y) + 0.5) / float(size.y)
+			)
+			var distance := uv.distance_to(Vector2(0.5, 0.5))
+			if distance > 0.50:
+				continue
+			var alpha := clampf((0.50 - distance) / 0.50, 0.0, 1.0)
+			image.set_pixel(x, y, Color(1.0, 1.0, 1.0, alpha))
+	return ImageTexture.create_from_image(image)
+
 func _load_sfx_streams() -> void:
 	sfx_streams.clear()
 	for key in SFX_PATHS.keys():
@@ -508,6 +618,11 @@ func _update_camera(delta: float) -> void:
 		)
 		var zoom_t: float = maxf(zoom_t_horizontal, zoom_t_vertical * CAMERA_VERTICAL_ZOOM_WEIGHT)
 		var target_zoom: float = lerpf(CAMERA_ZOOM_NEAR, CAMERA_ZOOM_FAR, zoom_t)
+		if camera_punch_time > 0.0:
+			camera_punch_time = maxf(0.0, camera_punch_time - delta)
+			var punch_progress := camera_punch_time / maxf(0.001, camera_punch_duration)
+			target_zoom -= sin(punch_progress * PI) * camera_punch_amount
+		target_zoom = maxf(0.42, target_zoom)
 		var zoom_blend: float = clampf(delta * CAMERA_ZOOM_SMOOTH_SPEED, 0.0, 1.0)
 		var next_zoom: float = lerpf(camera.zoom.x, target_zoom, zoom_blend)
 		camera.zoom = Vector2(next_zoom, next_zoom)
@@ -533,6 +648,18 @@ func _update_camera(delta: float) -> void:
 			camera_pos.x = round(camera_pos.x + camera_rng.randf_range(-strength, strength))
 			camera_pos.y = round(camera_pos.y + camera_rng.randf_range(-strength, strength))
 		camera.position = camera_pos
+
+func _update_screen_fx(delta: float) -> void:
+	if screen_flash == null:
+		return
+	if screen_flash_time <= 0.0:
+		screen_flash.visible = false
+		return
+	screen_flash_time = maxf(0.0, screen_flash_time - delta)
+	var progress := screen_flash_time / maxf(0.001, screen_flash_duration)
+	var alpha := screen_flash_color.a * progress * progress
+	screen_flash.color = Color(screen_flash_color.r, screen_flash_color.g, screen_flash_color.b, alpha)
+	screen_flash.visible = alpha > 0.002
 
 func _resolve_camera_track_y_target(center_y: float) -> float:
 	var up_t := clampf((CAMERA_TRACK_BASE_Y - center_y) / maxf(1.0, CAMERA_VERTICAL_FOCUS_RANGE), 0.0, 1.0)
@@ -1070,6 +1197,10 @@ func _initialize_onboarding_flow() -> void:
 	var onboarding_settings := GameSettingsStore.get_onboarding_settings()
 	var hints_enabled := bool(onboarding_settings.get("hints_enabled", true))
 	var already_completed := bool(onboarding_settings.get("completed", false))
+	var entry_supports_onboarding := training_scene_enabled or onboarding_entry_point in ONBOARDING_ALLOWED_ENTRY_POINTS
+	if not entry_supports_onboarding:
+		_refresh_onboarding_hud()
+		return
 	if not force_replay and (not hints_enabled or already_completed):
 		_refresh_onboarding_hud()
 		return
@@ -1265,14 +1396,20 @@ func _on_hit_landed(_attacker, _target, _kind, _is_counter: bool, _combo_count: 
 	_apply_hitstop(hitstop)
 	_play_attack_sfx("hit", _kind)
 	_start_camera_shake(_kind, false, _is_counter)
+	_start_camera_punch(_kind, false, _is_counter)
+	_trigger_screen_flash(_kind, false, _is_counter)
 	if _is_counter:
 		_play_sfx_key("counter")
 		_show_combat_callout("HUD_CALLOUT_COUNTER", Color(1.0, 0.90, 0.54, 1.0))
 	elif _combo_count >= 2:
 		_play_sfx_key("combo", -8.5, 1.0 + minf(0.15, float(_combo_count - 2) * 0.03))
 		_show_combo_callout(_combo_count)
-	if _is_counter and _target is Node2D:
-		_spawn_counter_spark((_target as Node2D).global_position + Vector2(0, -24), _kind)
+	if _target is Node2D:
+		var hit_position := (_target as Node2D).global_position + Vector2(0, -24)
+		if _is_counter:
+			_spawn_counter_spark(hit_position, _kind)
+		else:
+			_spawn_hit_spark(hit_position, _kind)
 	var training_info := _push_training_info(_attacker)
 	_show_hit_type_feedback(training_info, false)
 
@@ -1281,6 +1418,8 @@ func _on_block_landed(_attacker, target, _kind) -> void:
 	_apply_hitstop(blockstop)
 	_play_attack_sfx("block", _kind)
 	_start_camera_shake(_kind, true)
+	_start_camera_punch(_kind, true)
+	_trigger_screen_flash(_kind, true)
 	_show_combat_callout("HUD_CALLOUT_GUARD", Color(0.74, 0.92, 1.0, 1.0))
 	if target is Node2D:
 		_spawn_guard_spark((target as Node2D).global_position + Vector2(0, -26), _kind)
@@ -1291,6 +1430,8 @@ func _on_throw_teched(attacker, target) -> void:
 	_apply_hitstop(0.035)
 	_play_sfx_key("tech", -8.5, 1.08)
 	_start_camera_shake("light", true)
+	_start_camera_punch("light", true)
+	_trigger_screen_flash("light", true)
 	_show_combat_callout("HUD_CALLOUT_THROW_TECH", Color(0.80, 1.0, 0.88, 1.0))
 	if target is Node2D:
 		_spawn_impact_animation(
@@ -1306,6 +1447,7 @@ func _on_tech_recovered(fighter, tech_kind: String) -> void:
 	_show_combat_callout("HUD_CALLOUT_TECH", Color(0.78, 1.0, 0.80, 1.0))
 	_play_sfx_key("tech", -10.0, 1.0 if tech_kind == "quick" else 0.92)
 	_start_camera_shake("light", true)
+	_start_camera_punch("light", true)
 	if fighter is Node2D:
 		_spawn_impact_animation(
 			(fighter as Node2D).global_position + Vector2(0, -22),
@@ -1579,9 +1721,12 @@ func _on_hud_training_options_changed(options: Dictionary) -> void:
 	_apply_training_options()
 
 func _play_attack_sfx(prefix: String, attack_kind: String) -> void:
-	var key := "%s_%s" % [prefix, attack_kind]
+	var attack_tier := _resolve_attack_tier(attack_kind)
+	var key := "%s_%s" % [prefix, attack_tier]
 	if not sfx_streams.has(key):
-		if attack_kind == "throw":
+		if attack_tier == "signature" or attack_tier == "ultimate":
+			key = "%s_special" % prefix
+		elif attack_tier == "throw":
 			key = "%s_heavy" % prefix
 		else:
 			return
@@ -1615,7 +1760,8 @@ func _play_sfx_stream(stream: AudioStream, volume_db: float, pitch_scale: float)
 
 func _start_camera_shake(attack_kind: String, is_block: bool, is_counter: bool = false) -> void:
 	var source := CAMERA_SHAKE_BY_BLOCK if is_block else CAMERA_SHAKE_BY_ATTACK
-	var profile: Dictionary = source.get(attack_kind, {})
+	var attack_tier := _resolve_attack_tier(attack_kind)
+	var profile: Dictionary = source.get(attack_tier, {})
 	var duration := float(profile.get("duration", 0.08))
 	var strength := float(profile.get("strength", 2.8))
 	if is_counter and not is_block:
@@ -1625,13 +1771,54 @@ func _start_camera_shake(attack_kind: String, is_block: bool, is_counter: bool =
 	camera_shake_time = duration
 	camera_shake_strength = strength
 
+func _start_camera_punch(attack_kind: String, is_block: bool, is_counter: bool = false) -> void:
+	var attack_tier := _resolve_attack_tier(attack_kind)
+	var profile: Dictionary = CAMERA_PUNCH_BY_TIER.get(attack_tier, CAMERA_PUNCH_BY_TIER["special"])
+	var duration := float(profile.get("duration", 0.10))
+	var amount := float(profile.get("zoom", 0.03))
+	if is_block:
+		duration *= 0.92
+		amount *= CAMERA_PUNCH_BLOCK_SCALE
+	elif is_counter:
+		amount *= COUNTER_CAMERA_PUNCH_SCALE
+	camera_punch_duration = duration
+	camera_punch_time = duration
+	camera_punch_amount = amount
+
+func _trigger_screen_flash(attack_kind: String, is_block: bool, is_counter: bool = false) -> void:
+	var attack_tier := _resolve_attack_tier(attack_kind)
+	var profile: Dictionary = SCREEN_FLASH_BY_TIER.get(attack_tier, SCREEN_FLASH_BY_TIER["special"])
+	var color := profile.get("color", Color(1.0, 0.82, 0.48, 0.24)) as Color
+	var duration := float(profile.get("duration", 0.10))
+	if is_block:
+		color = color.lerp(Color(0.80, 0.95, 1.0, color.a), 0.42)
+		color.a *= BLOCK_FLASH_ALPHA_SCALE
+	elif is_counter:
+		color = color.lerp(Color(1.0, 0.82, 0.48, color.a), 0.30)
+		color.a = minf(0.42, color.a + COUNTER_FLASH_ALPHA_BONUS)
+	screen_flash_color = color
+	screen_flash_duration = duration
+	screen_flash_time = duration
+	if screen_flash:
+		screen_flash.color = color
+		screen_flash.visible = true
+
+func _spawn_hit_spark(world_position: Vector2, attack_kind: String) -> void:
+	_spawn_impact_animation(
+		world_position,
+		&"hit",
+		attack_kind,
+		_resolve_impact_tint(attack_kind, false, false),
+		1.06
+	)
+
 func _spawn_guard_spark(world_position: Vector2, attack_kind: String) -> void:
 	_spawn_impact_animation(
 		world_position,
 		&"guard",
 		attack_kind,
-		Color(0.78, 0.95, 1.0, 0.95),
-		0.95
+		_resolve_impact_tint(attack_kind, true, false),
+		1.10
 	)
 
 func _spawn_counter_spark(world_position: Vector2, attack_kind: String) -> void:
@@ -1639,8 +1826,8 @@ func _spawn_counter_spark(world_position: Vector2, attack_kind: String) -> void:
 		world_position,
 		&"counter",
 		attack_kind,
-		Color(1.0, 0.92, 0.60, 0.96),
-		1.08
+		_resolve_impact_tint(attack_kind, false, true),
+		1.26
 	)
 
 func _spawn_impact_animation(
@@ -1654,26 +1841,30 @@ func _spawn_impact_animation(
 		return
 	if not impact_sprite_frames.has_animation(animation_name):
 		return
-	while effects_layer.get_child_count() >= MAX_ACTIVE_IMPACTS:
-		var oldest := effects_layer.get_child(0)
-		if oldest:
-			oldest.queue_free()
+	_trim_effects_layer()
 	var spark := AnimatedSprite2D.new()
 	spark.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	spark.sprite_frames = impact_sprite_frames
 	spark.centered = true
+	spark.z_as_relative = false
 	spark.z_index = 12
 	spark.position = world_position
 	spark.modulate = tint
+	spark.material = impact_additive_material
+	spark.rotation = camera_rng.randf_range(-0.16, 0.16)
 
-	var scale_factor := base_scale
-	if attack_kind == "heavy":
-		scale_factor *= 1.18
-	elif attack_kind == "special":
-		scale_factor *= 1.28
+	var attack_tier := _resolve_attack_tier(attack_kind)
+	var scale_factor := _resolve_impact_scale(base_scale, attack_tier)
 	spark.scale = Vector2.ONE * scale_factor
 
 	effects_layer.add_child(spark)
+	_spawn_impact_burst(
+		world_position,
+		tint,
+		scale_factor,
+		attack_tier,
+		animation_name == &"guard"
+	)
 	spark.animation_finished.connect(
 		func():
 			if is_instance_valid(spark):
@@ -1681,6 +1872,121 @@ func _spawn_impact_animation(
 		CONNECT_ONE_SHOT
 	)
 	spark.play(animation_name)
+
+func _spawn_impact_burst(
+	world_position: Vector2,
+	tint: Color,
+	scale_factor: float,
+	attack_tier: String,
+	is_guard: bool
+) -> void:
+	if effects_layer == null or impact_ring_texture == null or impact_bloom_texture == null:
+		return
+	var bloom := Sprite2D.new()
+	bloom.texture = impact_bloom_texture
+	bloom.centered = true
+	bloom.z_as_relative = false
+	bloom.z_index = 10
+	bloom.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	bloom.material = impact_additive_material
+	bloom.position = world_position
+	bloom.modulate = Color(tint.r, tint.g, tint.b, 0.36 if is_guard else 0.52)
+	bloom.scale = Vector2.ONE * (scale_factor * (1.22 if is_guard else 1.42))
+	_trim_effects_layer()
+	effects_layer.add_child(bloom)
+	_tween_transient_effect(
+		bloom,
+		bloom.scale * 1.82,
+		0.16 if is_guard else 0.18,
+		Color(tint.r, tint.g, tint.b, 0.0),
+		Vector2(0.0, -5.0)
+	)
+
+	var ring := Sprite2D.new()
+	ring.texture = impact_ring_texture
+	ring.centered = true
+	ring.z_as_relative = false
+	ring.z_index = 11
+	ring.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	ring.material = impact_additive_material
+	ring.position = world_position
+	ring.modulate = Color(1.0, 1.0, 1.0, 0.56 if is_guard else 0.76)
+	ring.scale = Vector2.ONE * (scale_factor * (0.84 if is_guard else 0.96))
+	ring.rotation = camera_rng.randf_range(-0.22, 0.22)
+	_trim_effects_layer()
+	effects_layer.add_child(ring)
+	var expansion := 1.84
+	match attack_tier:
+		"heavy":
+			expansion = 2.04
+		"special":
+			expansion = 2.22
+		"signature":
+			expansion = 2.34
+		"ultimate":
+			expansion = 2.52
+	_tween_transient_effect(
+		ring,
+		ring.scale * expansion,
+		0.14 if is_guard else 0.16,
+		Color(ring.modulate.r, ring.modulate.g, ring.modulate.b, 0.0),
+		Vector2(0.0, -7.0)
+	)
+
+func _tween_transient_effect(
+	sprite: Sprite2D,
+	final_scale: Vector2,
+	duration: float,
+	final_modulate: Color,
+	drift: Vector2
+) -> void:
+	if sprite == null or not is_instance_valid(sprite):
+		return
+	var tween := create_tween()
+	tween.set_trans(Tween.TRANS_QUAD)
+	tween.set_ease(Tween.EASE_OUT)
+	tween.parallel().tween_property(sprite, "scale", final_scale, duration)
+	tween.parallel().tween_property(sprite, "modulate", final_modulate, duration)
+	tween.parallel().tween_property(sprite, "position", sprite.position + drift, duration)
+	tween.finished.connect(
+		func():
+			if is_instance_valid(sprite):
+				sprite.queue_free(),
+		CONNECT_ONE_SHOT
+	)
+
+func _trim_effects_layer() -> void:
+	if effects_layer == null:
+		return
+	while effects_layer.get_child_count() >= MAX_ACTIVE_IMPACTS:
+		var oldest := effects_layer.get_child(0)
+		if oldest:
+			oldest.free()
+		else:
+			break
+
+func _resolve_impact_scale(base_scale: float, attack_tier: String) -> float:
+	var scale_factor := base_scale
+	match attack_tier:
+		"heavy":
+			scale_factor *= 1.26
+		"special":
+			scale_factor *= 1.38
+		"signature":
+			scale_factor *= 1.46
+		"ultimate":
+			scale_factor *= 1.56
+	return scale_factor
+
+func _resolve_impact_tint(attack_kind: String, is_guard: bool, is_counter: bool) -> Color:
+	var attack_tier := _resolve_attack_tier(attack_kind)
+	var tint := IMPACT_TINT_BY_TIER.get(attack_tier, IMPACT_TINT_BY_TIER["special"]) as Color
+	if is_guard:
+		tint = tint.lerp(Color(0.74, 0.95, 1.0, tint.a), 0.58)
+		tint.a = 0.95
+	elif is_counter:
+		tint = tint.lerp(Color(1.0, 0.94, 0.64, tint.a), 0.24)
+	return tint
 
 func _apply_selected_character_tables() -> void:
 	_apply_selected_character_table_for_player(
