@@ -3,10 +3,10 @@
 [ext_resource type="Script" path="res://scripts/Arena.gd" id="1"]
 
 [sub_resource type="RectangleShape2D" id=1]
-size = Vector2(900, 40)
+size = Vector2(760, 40)
 
 [sub_resource type="RectangleShape2D" id=2]
-size = Vector2(180, 14)
+size = Vector2(144, 14)
 
 [node name="Arena" type="Node2D"]
 script = ExtResource("1")
@@ -29,7 +29,7 @@ shape = SubResource( 1 )
 collision_layer = 2
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="PlatformLeft"]
-position = Vector2(270, 282)
+position = Vector2(255, 282)
 shape = SubResource( 2 )
 one_way_collision = true
 one_way_collision_margin = 4.0
@@ -38,7 +38,7 @@ one_way_collision_margin = 4.0
 collision_layer = 2
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="PlatformRight"]
-position = Vector2(630, 282)
+position = Vector2(645, 282)
 shape = SubResource( 2 )
 one_way_collision = true
 one_way_collision_margin = 4.0

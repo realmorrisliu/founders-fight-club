@@ -84,6 +84,7 @@ func _run_smoke_suite() -> void:
 	await _test_camera_vertical_framing_response()
 	await _test_training_toggle_keeps_dummy_non_ai()
 	await _test_character_visual_readability_tinting()
+	await _test_player_visual_fx_pipeline()
 	await _test_double_ko_resolution()
 	await _test_player_damage_and_block_flow()
 	await _test_throw_tech_and_ai_defense_windows()
@@ -1789,6 +1790,23 @@ func _test_character_visual_readability_tinting() -> void:
 		var c2 := (p2_visual as CanvasItem).modulate
 		var tint_delta := absf(c1.r - c2.r) + absf(c1.g - c2.g) + absf(c1.b - c2.b)
 		_assert_true(tint_delta > 0.06, "different character profiles produce distinct readability tint")
+	host.queue_free()
+	await process_frame
+
+func _test_player_visual_fx_pipeline() -> void:
+	var setup: Dictionary = await _spawn_test_players()
+	var p1 := setup.get("p1") as CharacterBody2D
+	var host := setup.get("host") as Node2D
+	if p1 == null or host == null:
+		return
+	p1.set("attack_state", "signature_a")
+	p1.set("attack_phase", "startup")
+	p1.call("_update_visual")
+	var aura := p1.get_node_or_null("AuraGlow")
+	_assert_true(aura is Sprite2D, "player visual fx pipeline creates aura glow sprite")
+	if aura is Sprite2D:
+		_assert_true((aura as Sprite2D).visible, "signature startup enables aura glow")
+		_assert_true((aura as Sprite2D).modulate.a > 0.10, "aura glow carries readable alpha during signature startup")
 	host.queue_free()
 	await process_frame
 

@@ -126,17 +126,28 @@ const GUARD_COUNTER_DAMAGE_BONUS := 3
 const GUARD_COUNTER_HITSTUN_BONUS := 0.05
 const GUARD_COUNTER_KNOCKBACK_SCALE := 1.15
 const PLACEHOLDER_FRAME_SIZE := Vector2i(24, 48)
-const VISUAL_BASE_SCALE := Vector2(2.18, 2.18)
-const VISUAL_MOVE_SCALE := Vector2(2.28, 2.10)
-const VISUAL_ATTACK_SCALE := Vector2(2.42, 1.96)
-const VISUAL_RECOIL_SCALE := Vector2(2.02, 2.32)
-const VISUAL_AIR_SCALE := Vector2(2.12, 2.22)
-const VISUAL_SCALE_BLEND := 0.38
+const VISUAL_BASE_SCALE := Vector2(2.58, 2.58)
+const VISUAL_MOVE_SCALE := Vector2(2.70, 2.46)
+const VISUAL_ATTACK_SCALE := Vector2(2.92, 2.30)
+const VISUAL_RECOIL_SCALE := Vector2(2.36, 2.78)
+const VISUAL_AIR_SCALE := Vector2(2.50, 2.64)
+const VISUAL_SCALE_BLEND := 0.34
 const VISUAL_POSITION_BLEND := 0.34
-const VISUAL_GROUND_LIFT := 4.0
-const VISUAL_ATTACK_OFFSET_X := 6.0
-const VISUAL_RECOIL_OFFSET_X := 5.0
-const VISUAL_AIR_OFFSET_Y := -4.0
+const VISUAL_GROUND_LIFT := 8.0
+const VISUAL_ATTACK_OFFSET_X := 9.0
+const VISUAL_RECOIL_OFFSET_X := 7.0
+const VISUAL_AIR_OFFSET_Y := -6.0
+const VISUAL_AURA_TEXTURE_SIZE := Vector2i(96, 96)
+const VISUAL_AURA_BLEND := 0.26
+const VISUAL_AURA_IDLE_SCALE := Vector2(0.92, 0.84)
+const VISUAL_AURA_SPECIAL_SCALE := Vector2(1.18, 1.04)
+const VISUAL_AURA_SIGNATURE_SCALE := Vector2(1.34, 1.18)
+const VISUAL_AURA_ULTIMATE_SCALE := Vector2(1.52, 1.34)
+const AFTERIMAGE_DASH_INTERVAL := 0.080
+const AFTERIMAGE_SPECIAL_INTERVAL := 0.060
+const AFTERIMAGE_SIGNATURE_INTERVAL := 0.045
+const AFTERIMAGE_DRIFT_X := 8.0
+const AFTERIMAGE_DRIFT_Y := -3.0
 const OUTLINE_COLOR := Color(0.09, 0.09, 0.09, 1.0)
 const DEFAULT_SPRITE_FRAMES_PATH := "res://assets/sprites/player/PlayerSpriteFrames.tres"
 const DEFAULT_ATTACK_TABLE_PATH := "res://assets/data/PlayerAttackTable.tres"
@@ -330,6 +341,10 @@ var loadout_passive_speed_multiplier := 1.0
 var loadout_passive_startup_multiplier := 1.0
 var loadout_passive_chip_bonus := 0.0
 var loadout_match_elapsed_seconds := 0.0
+var visual_fx_material: CanvasItemMaterial
+var visual_fx_tick_delta := 0.0
+var afterimage_cooldown_time := 0.0
+var aura_glow_texture: Texture2D
 
 static var _ledge_occupancy_by_side := {
 	-1: 0,
@@ -339,6 +354,7 @@ static var _ledge_occupancy_by_side := {
 @onready var hitbox := $Hitbox as Area2D
 @onready var hitbox_shape := $Hitbox/CollisionShape2D
 @onready var visual := $Visual as AnimatedSprite2D
+@onready var aura_glow := get_node_or_null("AuraGlow") as Sprite2D
 @onready var opponent: CharacterBody2D = get_node_or_null(opponent_path) as CharacterBody2D
 
 func _ready() -> void:
@@ -362,9 +378,11 @@ func _exit_tree() -> void:
 
 func _physics_process(delta: float) -> void:
 	if hitstop_active:
+		visual_fx_tick_delta = 0.0
 		_update_facing()
 		_update_visual()
 		return
+	visual_fx_tick_delta = maxf(0.0, delta)
 	loadout_match_elapsed_seconds += maxf(0.0, delta)
 	platform_drop_through_time = maxf(0.0, platform_drop_through_time - delta)
 	_update_platform_collision_mask()
@@ -2512,6 +2530,7 @@ func _update_visual() -> void:
 		base_tint = base_tint.lerp(Color(0.92, 1.0, 0.80, 1.0), 0.42)
 	visual.modulate = base_tint
 	_apply_visual_presentation()
+	_update_visual_fx(visual_fx_tick_delta)
 
 	var animation: StringName = &"idle"
 	if current_hp <= 0:
@@ -3531,6 +3550,7 @@ func _start_dash() -> void:
 func _setup_visual() -> void:
 	if visual == null:
 		return
+	_ensure_visual_fx_nodes()
 	visual.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	visual.scale = VISUAL_BASE_SCALE
 	visual.position = Vector2(0.0, _resolve_visual_ground_offset(VISUAL_BASE_SCALE.y))
@@ -3560,6 +3580,168 @@ func _apply_visual_presentation() -> void:
 	visual.scale = visual.scale.lerp(target_scale, VISUAL_SCALE_BLEND)
 	target_position.y += _resolve_visual_ground_offset(target_scale.y) - _resolve_visual_ground_offset(VISUAL_BASE_SCALE.y)
 	visual.position = visual.position.lerp(target_position, VISUAL_POSITION_BLEND)
+
+func _ensure_visual_fx_nodes() -> void:
+	var created := false
+	if visual_fx_material == null:
+		visual_fx_material = CanvasItemMaterial.new()
+		visual_fx_material.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	if aura_glow_texture == null:
+		aura_glow_texture = _make_visual_glow_texture(VISUAL_AURA_TEXTURE_SIZE)
+	if aura_glow == null:
+		created = true
+		aura_glow = Sprite2D.new()
+		aura_glow.name = "AuraGlow"
+		aura_glow.centered = true
+		aura_glow.z_as_relative = true
+		aura_glow.z_index = -1
+		add_child(aura_glow)
+		move_child(aura_glow, 0)
+	aura_glow.texture = aura_glow_texture
+	aura_glow.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	aura_glow.material = visual_fx_material
+	if created:
+		aura_glow.visible = false
+		aura_glow.scale = VISUAL_AURA_IDLE_SCALE
+
+func _make_visual_glow_texture(size: Vector2i) -> Texture2D:
+	var image := Image.create(size.x, size.y, false, Image.FORMAT_RGBA8)
+	image.fill(Color(0.0, 0.0, 0.0, 0.0))
+	for y in range(size.y):
+		for x in range(size.x):
+			var uv := Vector2(
+				(float(x) + 0.5) / float(size.x),
+				(float(y) + 0.5) / float(size.y)
+			)
+			var offset := Vector2((uv.x - 0.5) * 1.08, (uv.y - 0.5) * 1.32)
+			var distance := offset.length()
+			if distance > 0.50:
+				continue
+			var alpha := clampf((0.50 - distance) / 0.50, 0.0, 1.0)
+			image.set_pixel(x, y, Color(1.0, 1.0, 1.0, alpha))
+	return ImageTexture.create_from_image(image)
+
+func _update_visual_fx(delta: float) -> void:
+	if visual == null:
+		return
+	_ensure_visual_fx_nodes()
+	afterimage_cooldown_time = maxf(0.0, afterimage_cooldown_time - delta)
+	var aura_tint := _resolve_visual_fx_tint()
+	var aura_alpha := 0.0
+	var aura_scale := VISUAL_AURA_IDLE_SCALE
+	var fx_tier := _resolve_visual_fx_tier()
+	if fx_tier == "ultimate":
+		aura_alpha = 0.72 if attack_phase == "active" else 0.56
+		aura_scale = VISUAL_AURA_ULTIMATE_SCALE
+	elif fx_tier == "signature":
+		aura_alpha = 0.58 if attack_phase == "active" else 0.46
+		aura_scale = VISUAL_AURA_SIGNATURE_SCALE
+	elif fx_tier == "special":
+		aura_alpha = 0.42 if attack_phase == "active" else 0.30
+		aura_scale = VISUAL_AURA_SPECIAL_SCALE
+	elif guard_counter_time > 0.0:
+		aura_alpha = 0.34
+		aura_scale = VISUAL_AURA_SPECIAL_SCALE
+	if aura_glow:
+		aura_glow.visible = aura_alpha > 0.02
+		aura_glow.position = Vector2(float(facing) * -2.0, visual.position.y + 6.0)
+		aura_glow.scale = aura_glow.scale.lerp(aura_scale, VISUAL_AURA_BLEND)
+		aura_glow.modulate = Color(aura_tint.r, aura_tint.g, aura_tint.b, aura_alpha)
+	var afterimage_interval := _resolve_afterimage_interval(fx_tier)
+	if delta <= 0.0 or afterimage_interval <= 0.0 or afterimage_cooldown_time > 0.0:
+		return
+	_spawn_afterimage(_resolve_afterimage_tint(fx_tier))
+	afterimage_cooldown_time = afterimage_interval
+
+func _resolve_visual_fx_tier() -> String:
+	if attack_state in ["ultimate"]:
+		return "ultimate"
+	if attack_state in ["signature_a", "signature_b", "signature_c"]:
+		return "signature"
+	if attack_state == "special" or attack_state.begins_with("special_"):
+		return "special"
+	return ""
+
+func _resolve_afterimage_interval(fx_tier: String) -> float:
+	if is_dashing:
+		return AFTERIMAGE_DASH_INTERVAL
+	if dodge_time > 0.0 and dodge_state in ["roll", "air"]:
+		return AFTERIMAGE_DASH_INTERVAL
+	if attack_state != "" and attack_phase in ["startup", "active"]:
+		match fx_tier:
+			"ultimate":
+				return AFTERIMAGE_SIGNATURE_INTERVAL * 0.92
+			"signature":
+				return AFTERIMAGE_SIGNATURE_INTERVAL
+			"special":
+				return AFTERIMAGE_SPECIAL_INTERVAL
+	return -1.0
+
+func _resolve_visual_fx_tint() -> Color:
+	var player_color := Color(0.42, 0.72, 1.0, 1.0) if player_id == 1 else Color(1.0, 0.64, 0.34, 1.0)
+	var fx_tier := _resolve_visual_fx_tier()
+	match fx_tier:
+		"ultimate":
+			return player_color.lerp(Color(1.0, 0.82, 0.30, 1.0), 0.62)
+		"signature":
+			return player_color.lerp(Color(1.0, 0.70, 0.28, 1.0), 0.46)
+		"special":
+			return player_color.lerp(Color(0.72, 0.90, 1.0, 1.0), 0.24)
+		_:
+			if guard_counter_time > 0.0:
+				return Color(0.88, 1.0, 0.78, 1.0)
+			return player_color
+
+func _resolve_afterimage_tint(fx_tier: String) -> Color:
+	var tint := _resolve_visual_fx_tint()
+	var alpha := 0.18
+	if fx_tier == "ultimate":
+		alpha = 0.28
+	elif fx_tier == "signature":
+		alpha = 0.24
+	elif fx_tier == "special":
+		alpha = 0.20
+	elif is_dashing or dodge_time > 0.0:
+		alpha = 0.16
+	return Color(tint.r, tint.g, tint.b, alpha)
+
+func _spawn_afterimage(tint: Color) -> void:
+	if runtime_sprite_frames == null or visual == null or get_parent() == null:
+		return
+	var animation_name := visual.animation
+	if not runtime_sprite_frames.has_animation(animation_name):
+		return
+	var frame_count := runtime_sprite_frames.get_frame_count(animation_name)
+	if frame_count <= 0:
+		return
+	var frame_index := clampi(visual.frame, 0, frame_count - 1)
+	var frame_texture := runtime_sprite_frames.get_frame_texture(animation_name, frame_index)
+	if frame_texture == null:
+		return
+	var ghost := Sprite2D.new()
+	ghost.texture = frame_texture
+	ghost.centered = true
+	ghost.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	ghost.z_as_relative = false
+	ghost.z_index = -1
+	ghost.global_position = visual.global_position
+	ghost.scale = visual.scale
+	ghost.flip_h = visual.flip_h
+	ghost.modulate = tint
+	get_parent().add_child(ghost)
+	var drift := Vector2(-float(facing) * AFTERIMAGE_DRIFT_X, AFTERIMAGE_DRIFT_Y)
+	var tween := create_tween()
+	tween.set_trans(Tween.TRANS_QUAD)
+	tween.set_ease(Tween.EASE_OUT)
+	tween.parallel().tween_property(ghost, "global_position", ghost.global_position + drift, 0.18)
+	tween.parallel().tween_property(ghost, "scale", ghost.scale * Vector2(1.04, 1.02), 0.18)
+	tween.parallel().tween_property(ghost, "modulate", Color(tint.r, tint.g, tint.b, 0.0), 0.18)
+	tween.finished.connect(
+		func():
+			if is_instance_valid(ghost):
+				ghost.queue_free(),
+		CONNECT_ONE_SHOT
+	)
 
 func _resolve_visual_ground_offset(scale_y: float) -> float:
 	var extra_height := float(PLACEHOLDER_FRAME_SIZE.y) * maxf(0.0, scale_y - 1.0)
