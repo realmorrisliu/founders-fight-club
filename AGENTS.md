@@ -9,6 +9,7 @@
 
 ## Build, Test, and Development Commands
 - Run locally: open the project in the Godot editor and press `F5` to play the main scene.
+- For real-window scene capture/debugging on macOS, use `./scripts/godot.sh run-scene-attached <scene_path>`; plain `run-scene` detaches by default.
 - Exports: use the Godot editor export presets for Windows/macOS/Linux when ready.
 - No CLI build/test commands are defined yet; add them here if tooling is introduced.
 

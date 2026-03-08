@@ -5,12 +5,15 @@ usage() {
 	cat <<'EOF'
 Usage:
   scripts/godot.sh run
+  scripts/godot.sh run-attached
   scripts/godot.sh editor
+  scripts/godot.sh editor-attached
   scripts/godot.sh run-scene <scene_path>
+  scripts/godot.sh run-scene-attached <scene_path>
 
 Env:
   GODOT_BIN=/path/to/godot  # optional override
-  GODOT_ATTACH=1            # optional: keep Godot attached to the terminal
+  GODOT_ATTACH=1            # optional: legacy override to keep Godot attached
 EOF
 }
 
@@ -44,13 +47,15 @@ godot_bin="$(resolve_godot_bin)"
 cmd="${1:-}"
 
 should_detach_gui() {
-	[ "${GODOT_ATTACH:-0}" != "1" ] && [ "$(uname -s)" = "Darwin" ]
+	local attach_mode="${1:-auto}"
+	[ "$attach_mode" != "attached" ] && [ "${GODOT_ATTACH:-0}" != "1" ] && [ "$(uname -s)" = "Darwin" ]
 }
 
 launch_godot() {
 	local mode="${1:-run}"
-	shift
-	if should_detach_gui; then
+	local attach_mode="${2:-auto}"
+	shift 2
+	if should_detach_gui "$attach_mode"; then
 		local log_dir="$repo_root/.godot-user/logs"
 		local log_file="$log_dir/${mode}.log"
 		mkdir -p "$log_dir"
@@ -66,10 +71,16 @@ launch_godot() {
 
 case "$cmd" in
 	run)
-		launch_godot "run" --path "$repo_root"
+		launch_godot "run" "auto" --path "$repo_root"
+		;;
+	run-attached)
+		launch_godot "run" "attached" --path "$repo_root"
 		;;
 	editor)
-		launch_godot "editor" --path "$repo_root" -e
+		launch_godot "editor" "auto" --path "$repo_root" -e
+		;;
+	editor-attached)
+		launch_godot "editor" "attached" --path "$repo_root" -e
 		;;
 	run-scene)
 		scene="${2:-}"
@@ -79,7 +90,17 @@ case "$cmd" in
 			exit 1
 		fi
 		scene_tag="$(printf '%s' "$scene" | tr '/:' '__')"
-		launch_godot "run-scene-${scene_tag}" --path "$repo_root" --scene "$scene"
+		launch_godot "run-scene-${scene_tag}" "auto" --path "$repo_root" --scene "$scene"
+		;;
+	run-scene-attached)
+		scene="${2:-}"
+		if [ -z "$scene" ]; then
+			echo "error: missing scene path for run-scene-attached" >&2
+			usage >&2
+			exit 1
+		fi
+		scene_tag="$(printf '%s' "$scene" | tr '/:' '__')"
+		launch_godot "run-scene-${scene_tag}" "attached" --path "$repo_root" --scene "$scene"
 		;;
 	-h|--help|help|"")
 		usage
