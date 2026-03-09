@@ -157,6 +157,23 @@ const ATTACK_FX_ACCENT_BY_KIND := {
 	"signature_c": Color(0.74, 1.0, 0.56, 1.0),
 	"ultimate": Color(1.0, 0.82, 0.30, 1.0)
 }
+const SIGNATURE_TRAIL_TEXTURE_SIZE := Vector2i(152, 92)
+const GROUND_TRACE_TEXTURE_SIZE := Vector2i(144, 40)
+const TRANSIENT_VISUAL_Z_INDEX := 6
+const TRANSIENT_VISUAL_BLEND := 0.22
+const GROUND_TRACE_INTERVAL := 0.055
+const GROUND_TRACE_SPEED_THRESHOLD := 190.0
+const LANDING_TRACE_SPEED_THRESHOLD := 250.0
+const SIGNATURE_VARIANT_KEYWORDS := {
+	"comet": ["launch", "spacex", "airdrop", "leap", "arc"],
+	"fan": ["drone", "fleet", "storm", "barrage", "threads", "tweet"],
+	"wave": ["burst", "flood", "gemini", "cloud", "pivot"],
+	"split": ["mirror", "fork", "blink"],
+	"scan": ["scan", "index", "palantir", "search"],
+	"frame": ["cutscene", "blue screen", "checkout", "block chain"],
+	"slash": ["rush", "kick", "ram", "roll", "crash", "flash"],
+	"halo": ["one more thing", "reality distortion", "autoplay", "string"]
+}
 const AFTERIMAGE_DASH_INTERVAL := 0.080
 const AFTERIMAGE_SPECIAL_INTERVAL := 0.060
 const AFTERIMAGE_SIGNATURE_INTERVAL := 0.045
@@ -312,6 +329,8 @@ var install_startup_multiplier := 1.0
 var install_chip_bonus := 0.0
 var hype_meter := 0.0
 var skill_entity_texture_cache: Dictionary = {}
+var transient_fx_texture_cache: Dictionary = {}
+var transient_visual_fx: Array[Dictionary] = []
 var facing_locked := false
 var facing_locked_direction := 1
 var forward_input_buffer_time := 0.0
@@ -358,6 +377,8 @@ var loadout_match_elapsed_seconds := 0.0
 var visual_fx_material: CanvasItemMaterial
 var visual_fx_tick_delta := 0.0
 var afterimage_cooldown_time := 0.0
+var ground_trace_cooldown_time := 0.0
+var last_airborne_fall_speed := 0.0
 var aura_glow_texture: Texture2D
 var ground_shadow_texture: Texture2D
 
@@ -391,6 +412,7 @@ func _ready() -> void:
 
 func _exit_tree() -> void:
 	_release_occupied_ledge()
+	_clear_transient_visual_fx()
 
 func _physics_process(delta: float) -> void:
 	if hitstop_active:
@@ -915,14 +937,22 @@ func _end_dodge_state() -> void:
 	facing_locked = false
 
 func _move_and_finalize(was_on_floor: bool) -> void:
+	var fall_speed := maxf(0.0, velocity.y)
 	move_and_slide()
 	var now_on_floor := is_on_floor()
+	if not now_on_floor:
+		last_airborne_fall_speed = maxf(last_airborne_fall_speed, fall_speed)
 	if not was_on_floor and now_on_floor:
-		_on_landed_from_air()
+		_on_landed_from_air(maxf(last_airborne_fall_speed, fall_speed))
+		last_airborne_fall_speed = 0.0
+	elif now_on_floor:
+		last_airborne_fall_speed = 0.0
 	was_on_floor_last_frame = now_on_floor
 
-func _on_landed_from_air() -> void:
+func _on_landed_from_air(landing_speed: float = 0.0) -> void:
 	var landed_while_fast_fall := fast_fall_active
+	var landing_attack_kind := attack_state if attack_started_in_air else ""
+	_emit_landing_trace(landing_speed, landed_while_fast_fall, landing_attack_kind)
 	fast_fall_active = false
 	jump_cut_available = false
 	coyote_time = COYOTE_TIME_SECONDS
@@ -1634,6 +1664,7 @@ func _update_skill_runtime(delta: float) -> void:
 	_update_status_timers(delta)
 	_update_skill_entities(delta)
 	_update_loadout_item_runtime(delta)
+	_update_transient_visual_fx(delta)
 
 func _update_skill_cooldowns(delta: float) -> void:
 	if skill_cooldowns.is_empty():
@@ -1907,6 +1938,8 @@ func _on_attack_active_started(data: Dictionary) -> void:
 	if attack_effect_triggered:
 		return
 	attack_effect_triggered = true
+	if _is_signature_attack(attack_state):
+		_emit_signature_attack_visual(attack_state, "active", data)
 	_try_apply_attack_effect(data)
 
 func _try_apply_attack_effect(data: Dictionary) -> void:
@@ -1921,6 +1954,8 @@ func _try_apply_attack_effect(data: Dictionary) -> void:
 		"mobility":
 			_apply_mobility_effect(effect)
 		"buff":
+			if _is_signature_attack(attack_state):
+				_emit_signature_effect_visual(attack_state, effect, "buff")
 			var buff_value: Variant = effect.get("buff", {})
 			if typeof(buff_value) == TYPE_DICTIONARY:
 				_apply_install_buff(buff_value as Dictionary)
@@ -1965,10 +2000,12 @@ func _spawn_skill_entity_from_effect(effect: Dictionary, data: Dictionary) -> vo
 		"destroy_on_wall": bool(effect.get("destroy_on_wall", str(effect.get("type", "")) != "trap")),
 		"payload": payload
 	}
-	entity["node"] = _create_skill_entity_visual(str(entity.get("type", "projectile")), size, start_position)
+	entity["node"] = _create_skill_entity_visual(str(entity.get("type", "projectile")), size, start_position, attack_state, effect)
+	if _is_signature_attack(attack_state):
+		_emit_signature_effect_visual(attack_state, effect, str(effect.get("type", "projectile")), start_position, velocity, size)
 	skill_entities.append(entity)
 
-func _create_skill_entity_visual(effect_type: String, size: Vector2, start_position: Vector2) -> Node2D:
+func _create_skill_entity_visual(effect_type: String, size: Vector2, start_position: Vector2, attack_kind: String = "", effect: Dictionary = {}) -> Node2D:
 	if get_parent() == null:
 		return null
 	var node := Node2D.new()
@@ -1976,14 +2013,21 @@ func _create_skill_entity_visual(effect_type: String, size: Vector2, start_posit
 	sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	sprite.centered = true
 	sprite.z_index = 8
-	sprite.texture = _get_skill_entity_texture(effect_type, size)
+	sprite.texture = _get_skill_entity_texture(effect_type, size, attack_kind, effect)
 	node.add_child(sprite)
 	node.global_position = start_position
-	node.modulate = _get_skill_entity_color(effect_type)
+	node.modulate = _get_skill_entity_color(effect_type, attack_kind)
 	get_parent().add_child(node)
 	return node
 
-func _get_skill_entity_texture(effect_type: String, size: Vector2) -> Texture2D:
+func _get_skill_entity_texture(effect_type: String, size: Vector2, attack_kind: String = "", effect: Dictionary = {}) -> Texture2D:
+	var visual_context := _resolve_signature_visual_context(attack_kind, effect)
+	if not visual_context.is_empty():
+		return _get_signature_fx_texture(
+			str(visual_context.get("family", "streak")),
+			str(visual_context.get("variant", "bolt")),
+			Vector2i(maxi(12, int(round(size.x))), maxi(10, int(round(size.y))))
+		)
 	var key := "%s:%dx%d" % [effect_type, int(round(size.x)), int(round(size.y))]
 	if skill_entity_texture_cache.has(key):
 		var cached: Variant = skill_entity_texture_cache.get(key, null)
@@ -1999,29 +2043,39 @@ func _get_skill_entity_texture(effect_type: String, size: Vector2) -> Texture2D:
 	skill_entity_texture_cache[key] = texture
 	return texture
 
-func _get_skill_entity_color(effect_type: String) -> Color:
+func _get_skill_entity_color(effect_type: String, attack_kind: String = "") -> Color:
+	var accent := _resolve_attack_fx_accent_for_kind(attack_kind)
 	match effect_type:
 		"projectile":
-			return Color(1.0, 0.88, 0.48, 0.90)
+			return Color(1.0, 0.88, 0.48, 0.90).lerp(accent, 0.34) if accent != Color.TRANSPARENT else Color(1.0, 0.88, 0.48, 0.90)
 		"trap":
-			return Color(0.68, 0.94, 1.0, 0.85)
+			return Color(0.68, 0.94, 1.0, 0.85).lerp(accent, 0.30) if accent != Color.TRANSPARENT else Color(0.68, 0.94, 1.0, 0.85)
 		"summon":
-			return Color(0.86, 0.80, 1.0, 0.9)
+			return Color(0.86, 0.80, 1.0, 0.9).lerp(accent, 0.32) if accent != Color.TRANSPARENT else Color(0.86, 0.80, 1.0, 0.9)
 		_:
-			return Color(0.95, 0.95, 0.95, 0.86)
+			return accent if accent != Color.TRANSPARENT else Color(0.95, 0.95, 0.95, 0.86)
 
 func _apply_mobility_effect(effect: Dictionary) -> void:
 	var mode := str(effect.get("mode", "dash"))
+	var start_position := global_position
 	match mode:
 		"teleport":
 			var distance := float(effect.get("distance", 120.0))
+			if _is_signature_attack(attack_state):
+				_emit_signature_effect_visual(attack_state, effect, "teleport_start", start_position)
 			global_position.x = _clamp_player_to_stage_x(global_position.x + distance * facing)
 			velocity.x = 0.0
+			if _is_signature_attack(attack_state):
+				_emit_signature_effect_visual(attack_state, effect, "teleport_end", global_position)
 		"rising":
 			velocity.y = -absf(float(effect.get("rise_speed", 320.0)))
 			velocity.x = float(effect.get("forward_speed", 120.0)) * facing
+			if _is_signature_attack(attack_state):
+				_emit_signature_effect_visual(attack_state, effect, "rising", start_position, velocity)
 		_:
 			velocity.x = float(effect.get("speed", 360.0)) * facing
+			if _is_signature_attack(attack_state):
+				_emit_signature_effect_visual(attack_state, effect, "dash", start_position, velocity)
 
 func _resolve_skill_entity_stage_bounds(size: Vector2) -> Vector2:
 	var half_width := maxf(2.0, size.x * 0.5)
@@ -2052,6 +2106,674 @@ func _apply_install_buff(buff: Dictionary) -> void:
 	install_speed_multiplier = maxf(install_speed_multiplier, float(buff.get("speed_multiplier", 1.0)))
 	install_startup_multiplier = minf(install_startup_multiplier, float(buff.get("startup_multiplier", 1.0)))
 	install_chip_bonus = maxf(install_chip_bonus, float(buff.get("chip_bonus", 0.0)))
+
+func _resolve_signature_visual_context(attack_kind: String, effect_override: Dictionary = {}) -> Dictionary:
+	if attack_kind == "":
+		return {}
+	var attack_data := _get_attack_data(attack_kind)
+	var effect: Dictionary = {}
+	if not effect_override.is_empty():
+		effect = effect_override.duplicate(true)
+	else:
+		var effect_value: Variant = attack_data.get("effect", {})
+		if typeof(effect_value) == TYPE_DICTIONARY:
+			effect = (effect_value as Dictionary).duplicate(true)
+	var control: Dictionary = {}
+	var control_value: Variant = attack_data.get("control", {})
+	if typeof(control_value) == TYPE_DICTIONARY:
+		control = (control_value as Dictionary).duplicate(true)
+	var generated_entry_value: Variant = _get_generated_skill_profile_for_character(get_character_id()).get(attack_kind, {})
+	if typeof(generated_entry_value) == TYPE_DICTIONARY:
+		var generated_entry := generated_entry_value as Dictionary
+		if effect.is_empty():
+			var generated_effect_value: Variant = generated_entry.get("effect", {})
+			if typeof(generated_effect_value) == TYPE_DICTIONARY:
+				effect = (generated_effect_value as Dictionary).duplicate(true)
+		if control.is_empty():
+			var generated_control_value: Variant = generated_entry.get("control", {})
+			if typeof(generated_control_value) == TYPE_DICTIONARY:
+				control = (generated_control_value as Dictionary).duplicate(true)
+	var effect_type := str(effect.get("type", ""))
+	if effect_type == "" and not control.is_empty():
+		effect_type = "control"
+	var variant := _resolve_signature_visual_variant(_resolve_signature_visual_name(attack_kind), effect_type, effect)
+	var family := _resolve_signature_visual_family(effect_type, str(effect.get("mode", "")), variant)
+	var accent := _resolve_attack_fx_accent_for_kind(attack_kind)
+	if accent == Color.TRANSPARENT:
+		accent = _resolve_visual_fx_tint()
+	return {
+		"kind": attack_kind,
+		"display_name": _resolve_signature_visual_name(attack_kind),
+		"effect_type": effect_type,
+		"effect": effect,
+		"control": control,
+		"family": family,
+		"variant": variant,
+		"accent": accent
+	}
+
+func _resolve_signature_visual_name(attack_kind: String) -> String:
+	match attack_kind:
+		"signature_a":
+			return _resolve_signature_display_name("signature_a", "signature_primary", "Signature A")
+		"signature_b":
+			return _resolve_signature_display_name("signature_b", "signature_alt", "Signature B")
+		"signature_c":
+			return _resolve_signature_display_name("signature_c", "signature_mix", "Down Special")
+		"ultimate":
+			return _resolve_signature_display_name("ultimate", "signature_ultimate", "Ultimate")
+		_:
+			var attack_data := _get_attack_data(attack_kind)
+			var explicit_name := str(attack_data.get("display_name", "")).strip_edges()
+			return explicit_name if explicit_name != "" else attack_kind.capitalize()
+
+func _resolve_signature_visual_variant(display_name: String, effect_type: String, effect: Dictionary) -> String:
+	var lower_name := display_name.to_lower()
+	for variant_key in SIGNATURE_VARIANT_KEYWORDS.keys():
+		var keywords_value: Variant = SIGNATURE_VARIANT_KEYWORDS.get(variant_key, [])
+		if typeof(keywords_value) != TYPE_ARRAY:
+			continue
+		for keyword_value in keywords_value as Array:
+			var keyword := str(keyword_value)
+			if keyword != "" and lower_name.contains(keyword):
+				return str(variant_key)
+	match effect_type:
+		"projectile":
+			return "bolt"
+		"summon":
+			return "fan"
+		"trap":
+			return "frame"
+		"buff":
+			return "halo"
+		"control":
+			return "scan"
+		"mobility":
+			match str(effect.get("mode", "")):
+				"teleport":
+					return "split"
+				"rising":
+					return "comet"
+				_:
+					return "slash"
+		_:
+			return "slash"
+
+func _resolve_signature_visual_family(effect_type: String, effect_mode: String, variant: String) -> String:
+	match effect_type:
+		"trap":
+			return "glyph"
+		"buff":
+			return "ring"
+		"projectile", "summon", "control":
+			return "streak"
+		"mobility":
+			match effect_mode:
+				"teleport":
+					return "rift"
+				"rising":
+					return "pillar"
+				_:
+					return "slash"
+		_:
+			if variant == "frame":
+				return "glyph"
+			if variant == "split":
+				return "rift"
+			if variant == "halo":
+				return "ring"
+			if variant == "comet":
+				return "pillar"
+			return "slash"
+
+func _emit_signature_attack_visual(attack_kind: String, stage: String, attack_data: Dictionary = {}) -> void:
+	var context := _resolve_signature_visual_context(attack_kind)
+	if context.is_empty():
+		return
+	var resolved_attack_data := attack_data if not attack_data.is_empty() else _get_attack_data(attack_kind)
+	var damage_scale := clampf(float(resolved_attack_data.get("damage", 10)) / 13.0, 0.78, 1.36)
+	var origin := global_position + Vector2(24.0 * facing, -12.0)
+	var stage_key := "startup" if stage == "" else stage
+	var spawns := _build_signature_visual_spawns(context, stage_key, origin, damage_scale)
+	_spawn_transient_visual_spawns(spawns)
+
+func _emit_signature_effect_visual(
+	attack_kind: String,
+	effect: Dictionary,
+	stage: String,
+	world_position: Vector2 = global_position,
+	world_velocity: Vector2 = Vector2.ZERO,
+	entity_size: Vector2 = Vector2.ZERO
+) -> void:
+	var context := _resolve_signature_visual_context(attack_kind, effect)
+	if context.is_empty():
+		return
+	var stage_key := stage
+	if stage_key == "":
+		stage_key = str(context.get("effect_type", "active"))
+	var speed_scale := clampf(world_velocity.length() / 320.0, 0.82, 1.42)
+	var spawns := _build_signature_visual_spawns(context, stage_key, world_position, speed_scale, world_velocity, entity_size)
+	_spawn_transient_visual_spawns(spawns)
+
+func _build_signature_visual_spawns(
+	context: Dictionary,
+	stage: String,
+	origin: Vector2,
+	intensity: float = 1.0,
+	world_velocity: Vector2 = Vector2.ZERO,
+	entity_size: Vector2 = Vector2.ZERO
+) -> Array[Dictionary]:
+	var family := str(context.get("family", "slash"))
+	var variant := str(context.get("variant", "slash"))
+	var accent := context.get("accent", Color(1.0, 1.0, 1.0, 1.0)) as Color
+	var direction := 1.0 if facing >= 0 else -1.0
+	var drift := world_velocity
+	if drift.length() < 8.0:
+		drift = Vector2(88.0 * direction, -12.0)
+	var alpha_scale := 1.0 if stage in ["active", "projectile", "summon", "dash", "rising", "teleport_end", "buff"] else 0.76
+	var size_x := maxi(56, int(round((entity_size.x if entity_size.x > 0.0 else float(SIGNATURE_TRAIL_TEXTURE_SIZE.x)) * intensity)))
+	var size_y := maxi(34, int(round((entity_size.y if entity_size.y > 0.0 else float(SIGNATURE_TRAIL_TEXTURE_SIZE.y)) * (0.88 + 0.12 * intensity))))
+	var texture_size := Vector2i(size_x, size_y)
+	var duration := 0.18
+	match stage:
+		"active", "projectile", "summon", "dash", "rising", "teleport_end":
+			duration = 0.24
+		"buff", "trap":
+			duration = 0.28
+		"teleport_start":
+			duration = 0.16
+		_:
+			duration = 0.18
+	var spawns: Array[Dictionary] = []
+	match family:
+		"streak":
+			var offsets := [0.0]
+			var angles := [0.0]
+			if variant in ["fan", "wave", "scan"]:
+				offsets = [-10.0, 0.0, 10.0]
+				angles = [-0.18, 0.0, 0.18]
+			elif variant == "bolt":
+				offsets = [-5.0, 5.0]
+				angles = [-0.08, 0.08]
+			for index in range(offsets.size()):
+				spawns.append(_make_transient_visual_descriptor(
+					"streak",
+					variant,
+					origin + Vector2(4.0 * direction, offsets[index]),
+					accent,
+					duration,
+					texture_size,
+					Vector2(0.80, 0.72),
+					Vector2(1.16, 0.98),
+					angles[index] * direction,
+					drift * 0.12,
+					0.52 * alpha_scale,
+					0.0
+				))
+		"slash":
+			var slash_rotation := deg_to_rad(-18.0 * direction)
+			if variant == "comet":
+				slash_rotation = deg_to_rad(-32.0 * direction)
+			spawns.append(_make_transient_visual_descriptor(
+				"slash",
+				variant,
+				origin + Vector2(10.0 * direction, -2.0),
+				accent,
+				duration,
+				texture_size,
+				Vector2(0.92, 0.76),
+				Vector2(1.18, 1.04),
+				slash_rotation,
+				drift * 0.10,
+				0.56 * alpha_scale,
+				0.0
+			))
+			if variant in ["slash", "comet"]:
+				spawns.append(_make_transient_visual_descriptor(
+					"slash",
+					"ribbon",
+					origin + Vector2(-4.0 * direction, 6.0),
+					accent.lightened(0.18),
+					duration * 0.88,
+					Vector2i(int(round(texture_size.x * 0.82)), int(round(texture_size.y * 0.74))),
+					Vector2(0.66, 0.58),
+					Vector2(0.98, 0.86),
+					slash_rotation + deg_to_rad(8.0 * direction),
+					drift * 0.08,
+					0.34 * alpha_scale,
+					0.0
+				))
+		"rift":
+			spawns.append(_make_transient_visual_descriptor(
+				"rift",
+				variant,
+				origin,
+				accent,
+				duration,
+				texture_size,
+				Vector2(0.84, 0.84),
+				Vector2(1.22, 1.14),
+				0.0,
+				Vector2.ZERO,
+				0.58 * alpha_scale,
+				0.0
+			))
+			if variant == "split":
+				spawns.append(_make_transient_visual_descriptor(
+					"rift",
+					"frame",
+					origin + Vector2(10.0 * direction, 0.0),
+					accent.lightened(0.12),
+					duration * 0.92,
+					Vector2i(int(round(texture_size.x * 0.82)), int(round(texture_size.y * 0.82))),
+					Vector2(0.72, 0.72),
+					Vector2(1.06, 0.98),
+					0.0,
+					Vector2.ZERO,
+					0.32 * alpha_scale,
+					0.0
+				))
+		"pillar":
+			var pillar_position := origin + Vector2(0.0, -18.0)
+			spawns.append(_make_transient_visual_descriptor(
+				"pillar",
+				variant,
+				pillar_position,
+				accent,
+				duration,
+				texture_size,
+				Vector2(0.74, 0.82),
+				Vector2(1.04, 1.18),
+				0.0,
+				Vector2(12.0 * direction, -22.0),
+				0.60 * alpha_scale,
+				0.0
+			))
+			spawns.append(_make_transient_visual_descriptor(
+				"ring",
+				"halo",
+				origin + Vector2(0.0, 16.0),
+				accent.lightened(0.10),
+				duration * 0.86,
+				Vector2i(int(round(texture_size.x * 0.70)), int(round(texture_size.y * 0.52))),
+				Vector2(0.58, 0.42),
+				Vector2(1.02, 0.76),
+				0.0,
+				Vector2.ZERO,
+				0.28 * alpha_scale,
+				0.0
+			))
+		"glyph":
+			var glyph_position := origin + Vector2(10.0 * direction, 22.0)
+			spawns.append(_make_transient_visual_descriptor(
+				"glyph",
+				variant,
+				glyph_position,
+				accent,
+				duration,
+				Vector2i(texture_size.x, maxi(28, int(round(texture_size.y * 0.48)))),
+				Vector2(0.84, 0.52),
+				Vector2(1.12, 0.72),
+				0.0,
+				Vector2.ZERO,
+				0.52 * alpha_scale,
+				0.0
+			))
+		"ring":
+			spawns.append(_make_transient_visual_descriptor(
+				"ring",
+				variant,
+				origin,
+				accent,
+				duration,
+				texture_size,
+				Vector2(0.70, 0.70),
+				Vector2(1.10, 1.06),
+				0.0,
+				Vector2.ZERO,
+				0.50 * alpha_scale,
+				0.0
+			))
+	return spawns
+
+func _make_transient_visual_descriptor(
+	family: String,
+	variant: String,
+	position: Vector2,
+	color: Color,
+	duration: float,
+	texture_size: Vector2i,
+	scale_from: Vector2,
+	scale_to: Vector2,
+	rotation: float,
+	drift: Vector2 = Vector2.ZERO,
+	alpha_from: float = 0.56,
+	alpha_to: float = 0.0,
+	z_index: int = TRANSIENT_VISUAL_Z_INDEX
+) -> Dictionary:
+	return {
+		"family": family,
+		"variant": variant,
+		"position": position,
+		"color": color,
+		"duration": maxf(0.05, duration),
+		"texture_size": texture_size,
+		"scale_from": scale_from,
+		"scale_to": scale_to,
+		"rotation": rotation,
+		"drift": drift,
+		"alpha_from": alpha_from,
+		"alpha_to": alpha_to,
+		"z_index": z_index
+	}
+
+func _spawn_transient_visual_spawns(spawns: Array) -> void:
+	if get_parent() == null:
+		return
+	for spawn in spawns:
+		if typeof(spawn) != TYPE_DICTIONARY:
+			continue
+		var descriptor := spawn as Dictionary
+		var texture := _get_signature_fx_texture(
+			str(descriptor.get("family", "streak")),
+			str(descriptor.get("variant", "bolt")),
+			descriptor.get("texture_size", SIGNATURE_TRAIL_TEXTURE_SIZE) as Vector2i
+		)
+		if texture == null:
+			continue
+		var sprite := Sprite2D.new()
+		sprite.texture = texture
+		sprite.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+		sprite.centered = true
+		sprite.material = visual_fx_material
+		sprite.z_as_relative = false
+		sprite.z_index = int(descriptor.get("z_index", TRANSIENT_VISUAL_Z_INDEX))
+		sprite.global_position = descriptor.get("position", global_position) as Vector2
+		sprite.scale = descriptor.get("scale_from", Vector2.ONE) as Vector2
+		sprite.rotation = float(descriptor.get("rotation", 0.0))
+		var color := descriptor.get("color", Color(1.0, 1.0, 1.0, 1.0)) as Color
+		color.a = float(descriptor.get("alpha_from", 0.56))
+		sprite.modulate = color
+		get_parent().add_child(sprite)
+		transient_visual_fx.append({
+			"node": sprite,
+			"duration": float(descriptor.get("duration", 0.18)),
+			"life": float(descriptor.get("duration", 0.18)),
+			"position": sprite.global_position,
+			"drift": descriptor.get("drift", Vector2.ZERO) as Vector2,
+			"scale_from": descriptor.get("scale_from", Vector2.ONE) as Vector2,
+			"scale_to": descriptor.get("scale_to", Vector2.ONE) as Vector2,
+			"rotation": sprite.rotation,
+			"alpha_from": float(descriptor.get("alpha_from", 0.56)),
+			"alpha_to": float(descriptor.get("alpha_to", 0.0)),
+			"color": Color(color.r, color.g, color.b, 1.0)
+		})
+
+func _update_transient_visual_fx(delta: float) -> void:
+	if transient_visual_fx.is_empty():
+		return
+	var remaining: Array[Dictionary] = []
+	for fx_value in transient_visual_fx:
+		if typeof(fx_value) != TYPE_DICTIONARY:
+			continue
+		var fx := (fx_value as Dictionary).duplicate(true)
+		var node_value: Variant = fx.get("node", null)
+		if node_value == null or not (node_value is Sprite2D):
+			continue
+		var sprite := node_value as Sprite2D
+		if not is_instance_valid(sprite):
+			continue
+		var life := maxf(0.0, float(fx.get("life", 0.0)) - delta)
+		var duration := maxf(0.05, float(fx.get("duration", 0.18)))
+		if life <= 0.0:
+			sprite.queue_free()
+			continue
+		var progress := clampf(1.0 - (life / duration), 0.0, 1.0)
+		var position := fx.get("position", sprite.global_position) as Vector2
+		position += (fx.get("drift", Vector2.ZERO) as Vector2) * delta
+		fx["position"] = position
+		sprite.global_position = position
+		sprite.scale = (fx.get("scale_from", Vector2.ONE) as Vector2).lerp(fx.get("scale_to", Vector2.ONE) as Vector2, progress)
+		var color := fx.get("color", Color(1.0, 1.0, 1.0, 1.0)) as Color
+		color.a = lerpf(float(fx.get("alpha_from", 0.56)), float(fx.get("alpha_to", 0.0)), progress)
+		sprite.modulate = color
+		fx["life"] = life
+		remaining.append(fx)
+	transient_visual_fx = remaining
+
+func _clear_transient_visual_fx() -> void:
+	for fx_value in transient_visual_fx:
+		if typeof(fx_value) != TYPE_DICTIONARY:
+			continue
+		var node_value: Variant = (fx_value as Dictionary).get("node", null)
+		if node_value is Node and is_instance_valid(node_value as Node):
+			(node_value as Node).queue_free()
+	transient_visual_fx.clear()
+
+func _emit_ground_motion_trace() -> void:
+	if not is_on_floor():
+		return
+	if ground_trace_cooldown_time > 0.0:
+		return
+	var speed_x := absf(velocity.x)
+	if speed_x < GROUND_TRACE_SPEED_THRESHOLD:
+		return
+	var attack_kind := ""
+	if attack_state != "":
+		var attack_data := _get_attack_data(attack_state)
+		if _resolve_attack_effect_type(attack_data) != "mobility" and not is_dashing:
+			return
+		attack_kind = attack_state
+	elif not is_dashing and tech_slide_time <= 0.0 and dodge_state != "roll":
+		return
+	_spawn_ground_scrape_fx(attack_kind, clampf(speed_x / DASH_SPEED, 0.72, 1.26))
+	ground_trace_cooldown_time = GROUND_TRACE_INTERVAL
+
+func _spawn_ground_scrape_fx(attack_kind: String, intensity: float) -> void:
+	var color := _resolve_attack_fx_accent_for_kind(attack_kind)
+	if color == Color.TRANSPARENT:
+		color = Color(0.82, 0.88, 0.96, 1.0) if player_id == 1 else Color(1.0, 0.82, 0.70, 1.0)
+	var base_position := global_position + Vector2(-10.0 * facing, 24.0)
+	var spawns: Array[Dictionary] = [
+		_make_transient_visual_descriptor(
+			"ground",
+			"skid",
+			base_position,
+			color,
+			0.18,
+			GROUND_TRACE_TEXTURE_SIZE,
+			Vector2(0.74 * intensity, 0.48),
+			Vector2(1.18 * intensity, 0.60),
+			0.0,
+			Vector2(-28.0 * facing, 0.0),
+			0.34,
+			0.0,
+			TRANSIENT_VISUAL_Z_INDEX - 1
+		)
+	]
+	_spawn_transient_visual_spawns(spawns)
+
+func _emit_landing_trace(landing_speed: float, landed_while_fast_fall: bool, attack_kind: String) -> void:
+	var should_emit := landing_speed >= LANDING_TRACE_SPEED_THRESHOLD or landed_while_fast_fall or attack_kind != ""
+	if not should_emit:
+		return
+	var color := _resolve_attack_fx_accent_for_kind(attack_kind)
+	if color == Color.TRANSPARENT:
+		color = Color(0.94, 0.92, 0.84, 1.0)
+	var impact_scale := clampf(landing_speed / 420.0, 0.78, 1.34)
+	var position := global_position + Vector2(0.0, 24.0)
+	var spawns: Array[Dictionary] = [
+		_make_transient_visual_descriptor(
+			"ground",
+			"impact",
+			position,
+			color,
+			0.22,
+			Vector2i(int(round(GROUND_TRACE_TEXTURE_SIZE.x * 1.08)), int(round(GROUND_TRACE_TEXTURE_SIZE.y * 1.05))),
+			Vector2(0.58 * impact_scale, 0.44 * impact_scale),
+			Vector2(1.18 * impact_scale, 0.80 * impact_scale),
+			0.0,
+			Vector2.ZERO,
+			0.52,
+			0.0,
+			TRANSIENT_VISUAL_Z_INDEX - 1
+		)
+	]
+	if attack_kind != "":
+		var context := _resolve_signature_visual_context(attack_kind)
+		if str(context.get("family", "")) == "pillar":
+			spawns.append(_make_transient_visual_descriptor(
+				"pillar",
+				str(context.get("variant", "comet")),
+				position + Vector2(0.0, -22.0),
+				color,
+				0.20,
+				Vector2i(int(round(SIGNATURE_TRAIL_TEXTURE_SIZE.x * 0.58)), int(round(SIGNATURE_TRAIL_TEXTURE_SIZE.y * 0.62))),
+				Vector2(0.46, 0.48),
+				Vector2(0.80, 0.90),
+				0.0,
+				Vector2(0.0, -16.0),
+				0.24,
+				0.0
+			))
+	elif landing_speed >= LANDING_TRACE_SPEED_THRESHOLD * 1.18:
+		spawns.append(_make_transient_visual_descriptor(
+			"ground",
+			"skid",
+			position,
+			color.darkened(0.14),
+			0.16,
+			GROUND_TRACE_TEXTURE_SIZE,
+			Vector2(0.70, 0.42),
+			Vector2(1.02, 0.54),
+			0.0,
+			Vector2.ZERO,
+			0.22,
+			0.0,
+			TRANSIENT_VISUAL_Z_INDEX - 1
+		))
+	_spawn_transient_visual_spawns(spawns)
+
+func _get_signature_fx_texture(family: String, variant: String, size: Vector2i) -> Texture2D:
+	var resolved_size := Vector2i(maxi(12, size.x), maxi(10, size.y))
+	var key := "%s:%s:%dx%d" % [family, variant, resolved_size.x, resolved_size.y]
+	if transient_fx_texture_cache.has(key):
+		var cached: Variant = transient_fx_texture_cache.get(key, null)
+		if cached is Texture2D:
+			return cached as Texture2D
+	var texture := _make_signature_fx_texture(family, variant, resolved_size)
+	transient_fx_texture_cache[key] = texture
+	return texture
+
+func _make_signature_fx_texture(family: String, variant: String, size: Vector2i) -> Texture2D:
+	var image := Image.create(size.x, size.y, false, Image.FORMAT_RGBA8)
+	image.fill(Color(0.0, 0.0, 0.0, 0.0))
+	for y in range(size.y):
+		for x in range(size.x):
+			var uv := Vector2(
+				((float(x) + 0.5) / float(size.x)) * 2.0 - 1.0,
+				((float(y) + 0.5) / float(size.y)) * 2.0 - 1.0
+			)
+			var alpha := _sample_signature_fx_alpha(family, variant, uv)
+			if alpha <= 0.01:
+				continue
+			image.set_pixel(x, y, Color(1.0, 1.0, 1.0, clampf(alpha, 0.0, 1.0)))
+	return ImageTexture.create_from_image(image)
+
+func _sample_signature_fx_alpha(family: String, variant: String, uv: Vector2) -> float:
+	match family:
+		"streak":
+			return _sample_streak_fx_alpha(variant, uv)
+		"slash":
+			return _sample_slash_fx_alpha(variant, uv)
+		"rift":
+			return _sample_rift_fx_alpha(variant, uv)
+		"pillar":
+			return _sample_pillar_fx_alpha(variant, uv)
+		"glyph":
+			return _sample_glyph_fx_alpha(variant, uv)
+		"ring":
+			return _sample_ring_fx_alpha(variant, uv)
+		"ground":
+			return _sample_ground_fx_alpha(variant, uv)
+		_:
+			return 0.0
+
+func _sample_streak_fx_alpha(variant: String, uv: Vector2) -> float:
+	var taper := pow(maxf(0.0, 1.0 - absf(uv.x)), 0.52)
+	match variant:
+		"fan":
+			var beam := 0.0
+			for offset in [-0.34, 0.0, 0.34]:
+				beam = maxf(beam, clampf((0.16 - absf(uv.y - offset * (1.0 - absf(uv.x)))) / 0.16, 0.0, 1.0))
+			return beam * taper
+		"wave":
+			var wave_y := sin((uv.x + 1.0) * PI * 1.35) * 0.18
+			return clampf((0.20 - absf(uv.y - wave_y)) / 0.20, 0.0, 1.0) * taper
+		"scan":
+			var spread := 0.12 + maxf(0.0, uv.x + 0.4) * 0.26
+			return clampf((spread - absf(uv.y)) / spread, 0.0, 1.0) * clampf((uv.x + 1.0) * 0.5, 0.0, 1.0)
+		"chevron":
+			var ridge := absf(uv.y) + absf(uv.x) * 0.34
+			return clampf((0.32 - ridge) / 0.32, 0.0, 1.0) * taper
+		_:
+			return clampf((0.18 - absf(uv.y)) / 0.18, 0.0, 1.0) * taper
+
+func _sample_slash_fx_alpha(variant: String, uv: Vector2) -> float:
+	var band_primary := clampf((0.18 - absf(uv.y + uv.x * 0.34)) / 0.18, 0.0, 1.0) * pow(maxf(0.0, 1.0 - absf(uv.x)), 0.58)
+	var band_secondary := clampf((0.10 - absf(uv.y + uv.x * 0.20 - 0.18)) / 0.10, 0.0, 1.0) * 0.42
+	if variant == "ribbon":
+		return maxf(band_primary * 0.82, band_secondary)
+	if variant == "comet":
+		var comet_head := clampf((0.28 - (uv - Vector2(0.42, -0.08)).length()) / 0.28, 0.0, 1.0)
+		return maxf(band_primary, comet_head * 0.72)
+	return maxf(band_primary, band_secondary * 0.6)
+
+func _sample_rift_fx_alpha(variant: String, uv: Vector2) -> float:
+	if variant == "frame":
+		var frame_distance := absf(maxf(absf(uv.x) * 0.92, absf(uv.y) * 1.10) - 0.52)
+		return clampf((0.12 - frame_distance) / 0.12, 0.0, 1.0)
+	var ring_distance := absf(uv.length() - 0.42)
+	var ring := clampf((0.12 - ring_distance) / 0.12, 0.0, 1.0)
+	var split := clampf((0.12 - absf(uv.x)) / 0.12, 0.0, 1.0) * clampf((0.68 - absf(uv.y)) / 0.68, 0.0, 1.0)
+	return maxf(ring * 0.86, split * (0.88 if variant == "split" else 0.60))
+
+func _sample_pillar_fx_alpha(variant: String, uv: Vector2) -> float:
+	var y_t := clampf((uv.y + 1.0) * 0.5, 0.0, 1.0)
+	var width := lerpf(0.42, 0.10, y_t)
+	var beam := clampf((width - absf(uv.x)) / width, 0.0, 1.0) * clampf((0.94 - absf(uv.y)) / 0.94, 0.0, 1.0)
+	if variant == "comet":
+		var flare := clampf((0.26 - (uv - Vector2(0.0, -0.60)).length()) / 0.26, 0.0, 1.0)
+		return maxf(beam, flare)
+	return beam
+
+func _sample_glyph_fx_alpha(variant: String, uv: Vector2) -> float:
+	var frame_distance := absf(maxf(absf(uv.x), absf(uv.y) * 1.8) - 0.56)
+	var frame := clampf((0.11 - frame_distance) / 0.11, 0.0, 1.0)
+	var floor_line := clampf((0.10 - absf(uv.y - 0.34)) / 0.10, 0.0, 1.0) * clampf((0.88 - absf(uv.x)) / 0.88, 0.0, 1.0)
+	if variant == "frame":
+		return maxf(frame, floor_line * 0.82)
+	if variant == "scan":
+		var scan := clampf((0.18 - absf(uv.y)) / 0.18, 0.0, 1.0) * clampf((uv.x + 1.0) * 0.5, 0.0, 1.0)
+		return maxf(frame * 0.62, scan * 0.78)
+	return maxf(frame, floor_line)
+
+func _sample_ring_fx_alpha(variant: String, uv: Vector2) -> float:
+	var ring_distance := absf(uv.length() - 0.44)
+	var ring := clampf((0.12 - ring_distance) / 0.12, 0.0, 1.0)
+	if variant == "halo":
+		var crest := clampf((0.08 - absf(uv.x)) / 0.08, 0.0, 1.0) * clampf((0.84 - absf(uv.y)) / 0.84, 0.0, 1.0)
+		return maxf(ring, crest * 0.42)
+	return ring
+
+func _sample_ground_fx_alpha(variant: String, uv: Vector2) -> float:
+	if variant == "impact":
+		var flattened := Vector2(uv.x, uv.y * 1.8)
+		var ring := clampf((0.16 - absf(flattened.length() - 0.50)) / 0.16, 0.0, 1.0)
+		var core := clampf((0.18 - absf(uv.y + 0.02)) / 0.18, 0.0, 1.0) * clampf((0.90 - absf(uv.x)) / 0.90, 0.0, 1.0) * 0.34
+		return maxf(ring, core)
+	var smear := clampf((0.16 - absf(uv.y - 0.24 * absf(uv.x))) / 0.16, 0.0, 1.0)
+	return smear * pow(maxf(0.0, 1.0 - absf(uv.x)), 0.48)
 
 func _is_signature_attack(kind: String) -> bool:
 	return kind in SIGNATURE_ATTACK_KEYS
@@ -2489,6 +3211,8 @@ func _start_attack(kind: String) -> void:
 	_start_skill_cooldown_for_kind(kind)
 	_consume_hype_for_attack(kind)
 	_notify_loadout_item_event("attack_started")
+	if _is_signature_attack(kind):
+		_emit_signature_attack_visual(kind, "startup", data)
 
 func _clear_attack_state() -> void:
 	attack_state = ""
@@ -3674,6 +4398,7 @@ func _update_visual_fx(delta: float) -> void:
 		return
 	_ensure_visual_fx_nodes()
 	afterimage_cooldown_time = maxf(0.0, afterimage_cooldown_time - delta)
+	ground_trace_cooldown_time = maxf(0.0, ground_trace_cooldown_time - delta)
 	var lift_distance := maxf(0.0, stage_floor_y - global_position.y - 24.0)
 	var air_lift_t := clampf(lift_distance / 160.0, 0.0, 1.0) if not is_on_floor() else 0.0
 	if ground_shadow:
@@ -3709,6 +4434,7 @@ func _update_visual_fx(delta: float) -> void:
 		aura_glow.position = Vector2(float(facing) * -2.0, visual.position.y + 6.0)
 		aura_glow.scale = aura_glow.scale.lerp(aura_scale, VISUAL_AURA_BLEND)
 		aura_glow.modulate = Color(aura_tint.r, aura_tint.g, aura_tint.b, aura_alpha)
+	_emit_ground_motion_trace()
 	var afterimage_interval := _resolve_afterimage_interval(fx_tier)
 	if delta <= 0.0 or afterimage_interval <= 0.0 or afterimage_cooldown_time > 0.0:
 		return
@@ -3761,8 +4487,11 @@ func _resolve_visual_fx_tint() -> Color:
 			return player_color
 
 func _resolve_attack_fx_accent() -> Color:
-	if ATTACK_FX_ACCENT_BY_KIND.has(attack_state):
-		return ATTACK_FX_ACCENT_BY_KIND[attack_state] as Color
+	return _resolve_attack_fx_accent_for_kind(attack_state)
+
+func _resolve_attack_fx_accent_for_kind(kind: String) -> Color:
+	if ATTACK_FX_ACCENT_BY_KIND.has(kind):
+		return ATTACK_FX_ACCENT_BY_KIND[kind] as Color
 	return Color.TRANSPARENT
 
 func _resolve_afterimage_tint(fx_tier: String) -> Color:

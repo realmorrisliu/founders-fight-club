@@ -86,6 +86,7 @@ func _run_smoke_suite() -> void:
 	await _test_training_toggle_keeps_dummy_non_ai()
 	await _test_character_visual_readability_tinting()
 	await _test_player_visual_fx_pipeline()
+	await _test_signature_visual_identity_pipeline()
 	await _test_double_ko_resolution()
 	await _test_player_damage_and_block_flow()
 	await _test_throw_tech_and_ai_defense_windows()
@@ -1841,6 +1842,39 @@ func _test_player_visual_fx_pipeline() -> void:
 		var signature_b_tint := (aura as Sprite2D).modulate
 		var tint_shift := absf(signature_a_tint.r - signature_b_tint.r) + absf(signature_a_tint.g - signature_b_tint.g) + absf(signature_a_tint.b - signature_b_tint.b)
 		_assert_true(tint_shift > 0.16, "different signature attacks surface distinct aura colors")
+	host.queue_free()
+	await process_frame
+
+func _test_signature_visual_identity_pipeline() -> void:
+	var setup: Dictionary = await _spawn_test_players()
+	var p1 := setup.get("p1") as CharacterBody2D
+	var host := setup.get("host") as Node2D
+	if p1 == null or host == null:
+		return
+	var sam_table := load("res://assets/data/characters/SamAltmynAttackTable.tres")
+	var zef_table := load("res://assets/data/characters/ZefBezosAttackTable.tres")
+	_assert_true(sam_table is Resource and zef_table is Resource, "signature visual identity test loads authored character tables")
+	if sam_table is not Resource or zef_table is not Resource:
+		host.queue_free()
+		await process_frame
+		return
+	p1.set("attack_table_resource", sam_table)
+	p1.set("use_external_attack_table", true)
+	p1.call("_setup_attack_data")
+	var sam_signature_a := p1.call("_resolve_signature_visual_context", "signature_a") as Dictionary
+	var sam_signature_b := p1.call("_resolve_signature_visual_context", "signature_b") as Dictionary
+	var sam_ultimate := p1.call("_resolve_signature_visual_context", "ultimate") as Dictionary
+	_assert_true(str(sam_signature_a.get("variant", "")) == "wave", "GPT Burst resolves a wave-style signature trail variant")
+	_assert_true(str(sam_signature_b.get("family", "")) == "glyph", "trap-style signatures resolve a ground glyph trail family")
+	_assert_true(str(sam_ultimate.get("family", "")) == "ring", "buff-style ultimates resolve a ring trail family")
+	p1.set("attack_table_resource", zef_table)
+	p1.call("_setup_attack_data")
+	var zef_signature_a := p1.call("_resolve_signature_visual_context", "signature_a") as Dictionary
+	_assert_true(str(zef_signature_a.get("variant", "")) == "fan", "Prime Drone Fleet resolves a fan-style signature trail variant")
+	p1.call("_clear_transient_visual_fx")
+	p1.call("_emit_landing_trace", 360.0, false, "signature_b")
+	var transient_fx := p1.get("transient_visual_fx") as Array
+	_assert_true(transient_fx.size() >= 1, "signature landing trace spawns transient world fx nodes")
 	host.queue_free()
 	await process_frame
 
