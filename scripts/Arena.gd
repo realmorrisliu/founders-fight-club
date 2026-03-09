@@ -18,6 +18,8 @@ const FLOOR_RIM_COLOR := Color(0.46, 0.84, 1.0, 0.42)
 const FRONT_FOG_COLOR := Color(0.04, 0.10, 0.16, 0.42)
 const TOP_VIGNETTE_COLOR := Color(0.03, 0.06, 0.10, 0.58)
 const NEON_RAIL_COLOR := Color(0.88, 0.96, 1.0, 0.32)
+const SKYLINE_HAZE_COLOR := Color(0.54, 0.78, 1.0, 0.24)
+const FLOOR_SHEEN_COLOR := Color(0.88, 0.96, 1.0, 0.16)
 const STAGE_PULSE_SPEED := 0.88
 
 @export var side_platforms_enabled := true
@@ -35,6 +37,8 @@ var floor_rim: Sprite2D
 var front_fog: Sprite2D
 var top_vignette: Sprite2D
 var neon_rail: Sprite2D
+var skyline_haze: Sprite2D
+var floor_sheen: Sprite2D
 var additive_material: CanvasItemMaterial
 var stage_fx_time := 0.0
 var presentation_center := Vector2(450.0, 252.0)
@@ -115,6 +119,12 @@ func _process(delta: float) -> void:
 	if neon_rail:
 		var alpha := 0.20 + sin(stage_fx_time * 2.10 + 1.4) * 0.05
 		neon_rail.modulate = Color(NEON_RAIL_COLOR.r, NEON_RAIL_COLOR.g, NEON_RAIL_COLOR.b, alpha)
+	if skyline_haze:
+		var alpha := 0.20 + sin(stage_fx_time * 0.76 + 0.2) * 0.04
+		skyline_haze.modulate = Color(SKYLINE_HAZE_COLOR.r, SKYLINE_HAZE_COLOR.g, SKYLINE_HAZE_COLOR.b, alpha)
+	if floor_sheen:
+		var alpha := 0.12 + sin(stage_fx_time * 1.04 + 1.1) * 0.03
+		floor_sheen.modulate = Color(FLOOR_SHEEN_COLOR.r, FLOOR_SHEEN_COLOR.g, FLOOR_SHEEN_COLOR.b, alpha)
 
 func _ensure_stage_dressing() -> void:
 	if additive_material == null:
@@ -138,6 +148,16 @@ func _ensure_stage_dressing() -> void:
 		true,
 		-14,
 		WARM_GLOW_COLOR,
+		true
+	)
+	skyline_haze = _configure_dressing_sprite(
+		"SkylineHaze",
+		_make_horizon_haze_texture(Vector2i(1960, 300)),
+		Vector2(-530.0, 104.0),
+		Vector2(1960.0, 300.0),
+		false,
+		-13,
+		SKYLINE_HAZE_COLOR,
 		true
 	)
 	crowd_band = _configure_dressing_sprite(
@@ -168,6 +188,16 @@ func _ensure_stage_dressing() -> void:
 		false,
 		3,
 		NEON_RAIL_COLOR,
+		true
+	)
+	floor_sheen = _configure_dressing_sprite(
+		"FloorSheen",
+		_make_floor_sheen_texture(Vector2i(1840, 260)),
+		Vector2(-470.0, 356.0),
+		Vector2(1840.0, 260.0),
+		false,
+		1,
+		FLOOR_SHEEN_COLOR,
 		true
 	)
 	front_fog = _configure_dressing_sprite(
@@ -204,17 +234,25 @@ func _sync_visual_shell() -> void:
 	var top_left := presentation_center - world_view_size * 0.5
 	var floor_y := _resolve_floor_y()
 	var shell_width := maxf(world_view_size.x + bleed_x * 2.0, 1500.0)
-	var shell_left := presentation_center.x - shell_width * 0.5
+	var stage_anchor_x := 450.0
+	var background_center_x := lerpf(stage_anchor_x, presentation_center.x, 0.70)
+	var skyline_center_x := lerpf(stage_anchor_x, presentation_center.x, 0.78)
+	var crowd_center_x := lerpf(stage_anchor_x, presentation_center.x, 0.86)
+	var shell_left := background_center_x - shell_width * 0.5
 	var shell_top := top_left.y - top_bleed
 	var shell_background_height := (floor_y - shell_top) + bottom_bleed * 0.58
 	var floor_height := world_view_size.y * 0.56 + bottom_bleed
 	var floor_top := floor_y - floor_height * 0.12
 	var horizon_y := floor_y - world_view_size.y * 0.22
+	var skyline_left := skyline_center_x - shell_width * 0.5
+	var crowd_left := crowd_center_x - shell_width * 0.5
 	_position_sprite(background, Vector2(shell_left, shell_top), Vector2(shell_width, shell_background_height), false)
 	_position_sprite(floor_visual, Vector2(shell_left, floor_top), Vector2(shell_width, floor_height), false)
-	_position_sprite(crowd_band, Vector2(shell_left, horizon_y - world_view_size.y * 0.07), Vector2(shell_width, world_view_size.y * 0.16), false)
+	_position_sprite(skyline_haze, Vector2(skyline_left, horizon_y - world_view_size.y * 0.30), Vector2(shell_width, world_view_size.y * 0.34), false)
+	_position_sprite(crowd_band, Vector2(crowd_left, horizon_y - world_view_size.y * 0.07), Vector2(shell_width, world_view_size.y * 0.16), false)
 	_position_sprite(floor_rim, Vector2(presentation_center.x, floor_y + world_view_size.y * 0.01), Vector2(world_view_size.x * 1.18, world_view_size.y * 0.14), true)
 	_position_sprite(neon_rail, Vector2(shell_left, floor_y - world_view_size.y * 0.012), Vector2(shell_width, world_view_size.y * 0.018), false)
+	_position_sprite(floor_sheen, Vector2(shell_left, floor_y - world_view_size.y * 0.02), Vector2(shell_width, world_view_size.y * 0.18), false)
 	_position_sprite(front_fog, Vector2(shell_left, floor_y - world_view_size.y * 0.12), Vector2(shell_width, world_view_size.y * 0.22), false)
 	_position_sprite(top_vignette, Vector2(shell_left, shell_top), Vector2(shell_width, world_view_size.y * 0.24), false)
 	_position_sprite(cool_glow, Vector2(presentation_center.x, horizon_y), Vector2(world_view_size.x * 0.96, world_view_size.y * 0.42), true)
@@ -360,6 +398,32 @@ func _make_front_fog_texture(size: Vector2i) -> Texture2D:
 			var alpha := clampf((y_t - 0.08) / 0.92, 0.0, 1.0) * (0.34 + horizontal * 0.26)
 			var pixel := Color(1.0, 1.0, 1.0, alpha)
 			image.set_pixel(x, y, pixel)
+	return ImageTexture.create_from_image(image)
+
+func _make_horizon_haze_texture(size: Vector2i) -> Texture2D:
+	var safe_size := Vector2i(maxi(1, size.x), maxi(1, size.y))
+	var image := Image.create(safe_size.x, safe_size.y, false, Image.FORMAT_RGBA8)
+	for y in range(safe_size.y):
+		var y_t := float(y) / maxf(1.0, float(safe_size.y - 1))
+		var vertical := clampf((1.0 - absf(y_t - 0.52) / 0.52), 0.0, 1.0)
+		for x in range(safe_size.x):
+			var x_t := float(x) / maxf(1.0, float(safe_size.x - 1))
+			var center_weight := clampf(1.0 - absf(x_t - 0.5) / 0.56, 0.0, 1.0)
+			var alpha := vertical * center_weight * 0.88
+			image.set_pixel(x, y, Color(1.0, 1.0, 1.0, alpha))
+	return ImageTexture.create_from_image(image)
+
+func _make_floor_sheen_texture(size: Vector2i) -> Texture2D:
+	var safe_size := Vector2i(maxi(1, size.x), maxi(1, size.y))
+	var image := Image.create(safe_size.x, safe_size.y, false, Image.FORMAT_RGBA8)
+	for y in range(safe_size.y):
+		var y_t := float(y) / maxf(1.0, float(safe_size.y - 1))
+		var band := clampf(1.0 - absf(y_t - 0.28) / 0.28, 0.0, 1.0)
+		for x in range(safe_size.x):
+			var x_t := float(x) / maxf(1.0, float(safe_size.x - 1))
+			var center_weight := clampf(1.0 - absf(x_t - 0.5) / 0.60, 0.0, 1.0)
+			var alpha := band * (0.22 + center_weight * 0.78)
+			image.set_pixel(x, y, Color(1.0, 1.0, 1.0, alpha))
 	return ImageTexture.create_from_image(image)
 
 func _make_top_vignette_texture(size: Vector2i) -> Texture2D:

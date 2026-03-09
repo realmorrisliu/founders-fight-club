@@ -1825,11 +1825,22 @@ func _test_player_visual_fx_pipeline() -> void:
 	p1.set("attack_state", "signature_a")
 	p1.set("attack_phase", "startup")
 	p1.call("_update_visual")
+	var shadow := p1.get_node_or_null("GroundShadow")
 	var aura := p1.get_node_or_null("AuraGlow")
+	_assert_true(shadow is Sprite2D, "player visual fx pipeline creates ground shadow sprite")
 	_assert_true(aura is Sprite2D, "player visual fx pipeline creates aura glow sprite")
+	if shadow is Sprite2D:
+		_assert_true((shadow as Sprite2D).modulate.a > 0.12, "ground shadow keeps readable grounding alpha")
 	if aura is Sprite2D:
 		_assert_true((aura as Sprite2D).visible, "signature startup enables aura glow")
 		_assert_true((aura as Sprite2D).modulate.a > 0.10, "aura glow carries readable alpha during signature startup")
+		var signature_a_tint := (aura as Sprite2D).modulate
+		p1.set("attack_state", "signature_b")
+		p1.set("attack_phase", "startup")
+		p1.call("_update_visual")
+		var signature_b_tint := (aura as Sprite2D).modulate
+		var tint_shift := absf(signature_a_tint.r - signature_b_tint.r) + absf(signature_a_tint.g - signature_b_tint.g) + absf(signature_a_tint.b - signature_b_tint.b)
+		_assert_true(tint_shift > 0.16, "different signature attacks surface distinct aura colors")
 	host.queue_free()
 	await process_frame
 

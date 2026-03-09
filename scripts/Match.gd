@@ -156,6 +156,13 @@ const IMPACT_TINT_BY_TIER := {
 	"signature": Color(1.0, 0.68, 0.26, 1.0),
 	"ultimate": Color(1.0, 0.60, 0.18, 1.0)
 }
+const IMPACT_ACCENT_TINT_BY_ATTACK := {
+	"special": Color(0.72, 0.90, 1.0, 1.0),
+	"signature_a": Color(1.0, 0.72, 0.30, 1.0),
+	"signature_b": Color(0.54, 0.94, 1.0, 1.0),
+	"signature_c": Color(0.74, 1.0, 0.56, 1.0),
+	"ultimate": Color(1.0, 0.84, 0.34, 1.0)
+}
 const SFX_PATHS := {
 	"hit_light": "res://assets/audio/sfx/hit_light.wav",
 	"hit_heavy": "res://assets/audio/sfx/hit_heavy.wav",
@@ -2001,6 +2008,8 @@ func _resolve_impact_scale(base_scale: float, attack_tier: String) -> float:
 func _resolve_impact_tint(attack_kind: String, is_guard: bool, is_counter: bool) -> Color:
 	var attack_tier := _resolve_attack_tier(attack_kind)
 	var tint := IMPACT_TINT_BY_TIER.get(attack_tier, IMPACT_TINT_BY_TIER["special"]) as Color
+	if IMPACT_ACCENT_TINT_BY_ATTACK.has(attack_kind):
+		tint = tint.lerp(IMPACT_ACCENT_TINT_BY_ATTACK[attack_kind] as Color, 0.56)
 	if is_guard:
 		tint = tint.lerp(Color(0.74, 0.95, 1.0, tint.a), 0.58)
 		tint.a = 0.95

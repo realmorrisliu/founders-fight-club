@@ -143,6 +143,20 @@ const VISUAL_AURA_IDLE_SCALE := Vector2(0.92, 0.84)
 const VISUAL_AURA_SPECIAL_SCALE := Vector2(1.18, 1.04)
 const VISUAL_AURA_SIGNATURE_SCALE := Vector2(1.34, 1.18)
 const VISUAL_AURA_ULTIMATE_SCALE := Vector2(1.52, 1.34)
+const GROUND_SHADOW_TEXTURE_SIZE := Vector2i(128, 48)
+const GROUND_SHADOW_BASE_SCALE := Vector2(0.94, 0.52)
+const GROUND_SHADOW_MOVE_SCALE := Vector2(1.04, 0.56)
+const GROUND_SHADOW_AIR_SCALE := Vector2(0.70, 0.34)
+const GROUND_SHADOW_BLEND := 0.24
+const GROUND_SHADOW_COLOR := Color(0.05, 0.07, 0.11, 0.32)
+const GROUND_SHADOW_COLOR_AIR := Color(0.05, 0.07, 0.11, 0.10)
+const ATTACK_FX_ACCENT_BY_KIND := {
+	"special": Color(0.72, 0.90, 1.0, 1.0),
+	"signature_a": Color(1.0, 0.70, 0.28, 1.0),
+	"signature_b": Color(0.54, 0.94, 1.0, 1.0),
+	"signature_c": Color(0.74, 1.0, 0.56, 1.0),
+	"ultimate": Color(1.0, 0.82, 0.30, 1.0)
+}
 const AFTERIMAGE_DASH_INTERVAL := 0.080
 const AFTERIMAGE_SPECIAL_INTERVAL := 0.060
 const AFTERIMAGE_SIGNATURE_INTERVAL := 0.045
@@ -345,6 +359,7 @@ var visual_fx_material: CanvasItemMaterial
 var visual_fx_tick_delta := 0.0
 var afterimage_cooldown_time := 0.0
 var aura_glow_texture: Texture2D
+var ground_shadow_texture: Texture2D
 
 static var _ledge_occupancy_by_side := {
 	-1: 0,
@@ -354,6 +369,7 @@ static var _ledge_occupancy_by_side := {
 @onready var hitbox := $Hitbox as Area2D
 @onready var hitbox_shape := $Hitbox/CollisionShape2D
 @onready var visual := $Visual as AnimatedSprite2D
+@onready var ground_shadow := get_node_or_null("GroundShadow") as Sprite2D
 @onready var aura_glow := get_node_or_null("AuraGlow") as Sprite2D
 @onready var opponent: CharacterBody2D = get_node_or_null(opponent_path) as CharacterBody2D
 
@@ -3586,6 +3602,17 @@ func _ensure_visual_fx_nodes() -> void:
 	if visual_fx_material == null:
 		visual_fx_material = CanvasItemMaterial.new()
 		visual_fx_material.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	if ground_shadow_texture == null:
+		ground_shadow_texture = _make_ground_shadow_texture(GROUND_SHADOW_TEXTURE_SIZE)
+	if ground_shadow == null:
+		created = true
+		ground_shadow = Sprite2D.new()
+		ground_shadow.name = "GroundShadow"
+		ground_shadow.centered = true
+		ground_shadow.z_as_relative = true
+		ground_shadow.z_index = -2
+		add_child(ground_shadow)
+		move_child(ground_shadow, 0)
 	if aura_glow_texture == null:
 		aura_glow_texture = _make_visual_glow_texture(VISUAL_AURA_TEXTURE_SIZE)
 	if aura_glow == null:
@@ -3597,12 +3624,33 @@ func _ensure_visual_fx_nodes() -> void:
 		aura_glow.z_index = -1
 		add_child(aura_glow)
 		move_child(aura_glow, 0)
+	ground_shadow.texture = ground_shadow_texture
+	ground_shadow.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	aura_glow.texture = aura_glow_texture
 	aura_glow.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	aura_glow.material = visual_fx_material
 	if created:
+		ground_shadow.visible = true
+		ground_shadow.scale = GROUND_SHADOW_BASE_SCALE
 		aura_glow.visible = false
 		aura_glow.scale = VISUAL_AURA_IDLE_SCALE
+
+func _make_ground_shadow_texture(size: Vector2i) -> Texture2D:
+	var image := Image.create(size.x, size.y, false, Image.FORMAT_RGBA8)
+	image.fill(Color(0.0, 0.0, 0.0, 0.0))
+	for y in range(size.y):
+		for x in range(size.x):
+			var uv := Vector2(
+				(float(x) + 0.5) / float(size.x),
+				(float(y) + 0.5) / float(size.y)
+			)
+			var offset := Vector2((uv.x - 0.5) * 1.22, (uv.y - 0.5) * 2.10)
+			var distance := offset.length()
+			if distance > 0.52:
+				continue
+			var alpha := clampf((0.52 - distance) / 0.52, 0.0, 1.0)
+			image.set_pixel(x, y, Color(1.0, 1.0, 1.0, alpha))
+	return ImageTexture.create_from_image(image)
 
 func _make_visual_glow_texture(size: Vector2i) -> Texture2D:
 	var image := Image.create(size.x, size.y, false, Image.FORMAT_RGBA8)
@@ -3626,6 +3674,20 @@ func _update_visual_fx(delta: float) -> void:
 		return
 	_ensure_visual_fx_nodes()
 	afterimage_cooldown_time = maxf(0.0, afterimage_cooldown_time - delta)
+	var lift_distance := maxf(0.0, stage_floor_y - global_position.y - 24.0)
+	var air_lift_t := clampf(lift_distance / 160.0, 0.0, 1.0) if not is_on_floor() else 0.0
+	if ground_shadow:
+		var shadow_scale := GROUND_SHADOW_BASE_SCALE
+		var shadow_color := GROUND_SHADOW_COLOR
+		if is_dashing or attack_state != "":
+			shadow_scale = GROUND_SHADOW_MOVE_SCALE
+			shadow_color.a += 0.05
+		if not is_on_floor():
+			shadow_scale = GROUND_SHADOW_BASE_SCALE.lerp(GROUND_SHADOW_AIR_SCALE, air_lift_t)
+			shadow_color = GROUND_SHADOW_COLOR.lerp(GROUND_SHADOW_COLOR_AIR, air_lift_t)
+		ground_shadow.position = Vector2(float(facing) * -1.5, stage_floor_y - global_position.y + 2.0)
+		ground_shadow.scale = ground_shadow.scale.lerp(shadow_scale, GROUND_SHADOW_BLEND)
+		ground_shadow.modulate = shadow_color
 	var aura_tint := _resolve_visual_fx_tint()
 	var aura_alpha := 0.0
 	var aura_scale := VISUAL_AURA_IDLE_SCALE
@@ -3679,6 +3741,12 @@ func _resolve_afterimage_interval(fx_tier: String) -> float:
 
 func _resolve_visual_fx_tint() -> Color:
 	var player_color := Color(0.42, 0.72, 1.0, 1.0) if player_id == 1 else Color(1.0, 0.64, 0.34, 1.0)
+	var attack_accent := _resolve_attack_fx_accent()
+	if attack_accent != Color.TRANSPARENT:
+		var accent_mix := 0.22 if attack_state == "special" else 0.54
+		if attack_state == "ultimate":
+			accent_mix = 0.68
+		return player_color.lerp(attack_accent, accent_mix)
 	var fx_tier := _resolve_visual_fx_tier()
 	match fx_tier:
 		"ultimate":
@@ -3691,6 +3759,11 @@ func _resolve_visual_fx_tint() -> Color:
 			if guard_counter_time > 0.0:
 				return Color(0.88, 1.0, 0.78, 1.0)
 			return player_color
+
+func _resolve_attack_fx_accent() -> Color:
+	if ATTACK_FX_ACCENT_BY_KIND.has(attack_state):
+		return ATTACK_FX_ACCENT_BY_KIND[attack_state] as Color
+	return Color.TRANSPARENT
 
 func _resolve_afterimage_tint(fx_tier: String) -> Color:
 	var tint := _resolve_visual_fx_tint()
