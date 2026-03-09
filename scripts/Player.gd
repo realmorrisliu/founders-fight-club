@@ -174,6 +174,265 @@ const SIGNATURE_VARIANT_KEYWORDS := {
 	"slash": ["rush", "kick", "ram", "roll", "crash", "flash"],
 	"halo": ["one more thing", "reality distortion", "autoplay", "string"]
 }
+const CHARACTER_SIGNATURE_VISUAL_OVERRIDES := {
+	"mark_zuck": {
+		"signature_a": {
+			"family": "glyph",
+			"variant": "threads",
+			"accent": Color(0.48, 0.94, 1.0, 1.0),
+			"support_family": "ring",
+			"support_variant": "meta_halo",
+			"support_offset": Vector2(0.0, 12.0),
+			"support_scale": Vector2(0.70, 0.46),
+			"texture_scale": Vector2(1.10, 0.72),
+			"ground_variant": "threads"
+		},
+		"signature_b": {
+			"family": "rift",
+			"variant": "mirror",
+			"accent": Color(0.76, 0.96, 1.0, 1.0),
+			"support_family": "streak",
+			"support_variant": "scan",
+			"support_offset": Vector2(8.0, -4.0),
+			"support_scale": Vector2(0.78, 0.74),
+			"alpha_multiplier": 1.06,
+			"ground_variant": "mirror"
+		},
+		"signature_c": {
+			"family": "streak",
+			"variant": "threads",
+			"accent": Color(0.58, 0.92, 1.0, 1.0),
+			"support_family": "glyph",
+			"support_variant": "threads",
+			"support_offset": Vector2(10.0, 16.0),
+			"support_scale": Vector2(0.84, 0.54),
+			"texture_scale": Vector2(1.06, 0.86)
+		},
+		"ultimate": {
+			"family": "ring",
+			"variant": "meta_halo",
+			"accent": Color(0.62, 0.94, 1.0, 1.0),
+			"support_family": "rift",
+			"support_variant": "mirror",
+			"support_offset": Vector2(0.0, -2.0),
+			"support_scale": Vector2(0.80, 0.80),
+			"texture_scale": Vector2(1.08, 1.02),
+			"ground_variant": "threads"
+		}
+	},
+	"sam_altmyn": {
+		"signature_a": {
+			"family": "streak",
+			"variant": "gpt_wave",
+			"accent": Color(1.0, 0.78, 0.34, 1.0),
+			"support_family": "ring",
+			"support_variant": "prompt",
+			"support_offset": Vector2(2.0, -2.0),
+			"support_scale": Vector2(0.70, 0.64),
+			"texture_scale": Vector2(1.10, 0.88)
+		},
+		"signature_b": {
+			"family": "glyph",
+			"variant": "cutscene",
+			"accent": Color(0.58, 0.94, 1.0, 1.0),
+			"support_family": "rift",
+			"support_variant": "frame",
+			"support_offset": Vector2(0.0, -10.0),
+			"support_scale": Vector2(0.92, 0.92),
+			"texture_scale": Vector2(1.12, 0.76),
+			"ground_variant": "cutscene"
+		},
+		"signature_c": {
+			"family": "streak",
+			"variant": "storyboard",
+			"accent": Color(0.92, 0.84, 0.50, 1.0),
+			"support_family": "glyph",
+			"support_variant": "frame",
+			"support_offset": Vector2(8.0, 10.0),
+			"support_scale": Vector2(0.72, 0.58),
+			"texture_scale": Vector2(1.04, 0.84)
+		},
+		"ultimate": {
+			"family": "ring",
+			"variant": "cutscene_halo",
+			"accent": Color(1.0, 0.84, 0.44, 1.0),
+			"support_family": "glyph",
+			"support_variant": "cutscene",
+			"support_offset": Vector2(0.0, 0.0),
+			"support_scale": Vector2(0.88, 0.74),
+			"texture_scale": Vector2(1.08, 1.00)
+		}
+	},
+	"peter_thyell": {
+		"signature_a": {
+			"family": "ring",
+			"variant": "board",
+			"accent": Color(1.0, 0.88, 0.48, 1.0),
+			"support_family": "glyph",
+			"support_variant": "scan",
+			"support_offset": Vector2(0.0, 10.0),
+			"support_scale": Vector2(0.80, 0.58)
+		},
+		"signature_b": {
+			"family": "slash",
+			"variant": "coup",
+			"accent": Color(0.96, 0.86, 0.54, 1.0),
+			"support_family": "glyph",
+			"support_variant": "board",
+			"support_offset": Vector2(8.0, 16.0),
+			"support_scale": Vector2(0.84, 0.50),
+			"ground_variant": "board",
+			"landing_variant": "coup",
+			"texture_scale": Vector2(1.10, 0.94)
+		},
+		"signature_c": {
+			"family": "streak",
+			"variant": "scan",
+			"accent": Color(0.62, 0.98, 1.0, 1.0),
+			"support_family": "glyph",
+			"support_variant": "scan",
+			"support_offset": Vector2(10.0, 12.0),
+			"support_scale": Vector2(0.86, 0.52)
+		},
+		"ultimate": {
+			"family": "glyph",
+			"variant": "lock",
+			"accent": Color(1.0, 0.92, 0.50, 1.0),
+			"support_family": "ring",
+			"support_variant": "board",
+			"support_offset": Vector2(0.0, -2.0),
+			"support_scale": Vector2(0.82, 0.78),
+			"ground_variant": "lock"
+		}
+	},
+	"zef_bezos": {
+		"signature_a": {
+			"family": "streak",
+			"variant": "drone",
+			"accent": Color(1.0, 0.74, 0.28, 1.0),
+			"support_family": "ring",
+			"support_variant": "prime",
+			"support_offset": Vector2(2.0, 0.0),
+			"support_scale": Vector2(0.72, 0.66),
+			"texture_scale": Vector2(1.14, 0.90)
+		},
+		"signature_b": {
+			"family": "pillar",
+			"variant": "launch",
+			"accent": Color(1.0, 0.78, 0.34, 1.0),
+			"support_family": "ring",
+			"support_variant": "prime",
+			"support_offset": Vector2(0.0, 18.0),
+			"support_scale": Vector2(0.68, 0.48),
+			"texture_scale": Vector2(1.00, 1.12),
+			"ground_variant": "launch",
+			"landing_variant": "launch"
+		},
+		"signature_c": {
+			"family": "glyph",
+			"variant": "checkout",
+			"accent": Color(0.58, 1.0, 0.68, 1.0),
+			"support_family": "glyph",
+			"support_variant": "scan",
+			"support_offset": Vector2(0.0, 0.0),
+			"support_scale": Vector2(0.94, 0.62),
+			"ground_variant": "checkout"
+		},
+		"ultimate": {
+			"family": "streak",
+			"variant": "prime_lance",
+			"accent": Color(1.0, 0.84, 0.36, 1.0),
+			"support_family": "ring",
+			"support_variant": "prime",
+			"support_offset": Vector2(4.0, -2.0),
+			"support_scale": Vector2(0.70, 0.68),
+			"texture_scale": Vector2(1.18, 0.92)
+		}
+	},
+	"bill_geytz": {
+		"signature_a": {
+			"family": "streak",
+			"variant": "azure",
+			"accent": Color(0.50, 0.88, 1.0, 1.0),
+			"support_family": "glyph",
+			"support_variant": "scan",
+			"support_offset": Vector2(8.0, 8.0),
+			"support_scale": Vector2(0.84, 0.52)
+		},
+		"signature_b": {
+			"family": "streak",
+			"variant": "azure_flood",
+			"accent": Color(0.48, 0.86, 1.0, 1.0),
+			"support_family": "ring",
+			"support_variant": "patch",
+			"support_offset": Vector2(4.0, 4.0),
+			"support_scale": Vector2(0.68, 0.62),
+			"texture_scale": Vector2(1.14, 0.94),
+			"ground_variant": "flood"
+		},
+		"signature_c": {
+			"family": "ring",
+			"variant": "patch",
+			"accent": Color(0.72, 0.94, 1.0, 1.0),
+			"support_family": "glyph",
+			"support_variant": "patch",
+			"support_offset": Vector2(0.0, 12.0),
+			"support_scale": Vector2(0.76, 0.56)
+		},
+		"ultimate": {
+			"family": "ring",
+			"variant": "blue_screen",
+			"accent": Color(0.66, 0.90, 1.0, 1.0),
+			"support_family": "glyph",
+			"support_variant": "frame",
+			"support_offset": Vector2(0.0, 0.0),
+			"support_scale": Vector2(0.92, 0.72),
+			"ground_variant": "crash"
+		}
+	},
+	"sundar_pichoy": {
+		"signature_a": {
+			"family": "streak",
+			"variant": "gemini",
+			"accent": Color(0.90, 1.0, 0.56, 1.0),
+			"support_family": "ring",
+			"support_variant": "gemini",
+			"support_offset": Vector2(0.0, 6.0),
+			"support_scale": Vector2(0.68, 0.62)
+		},
+		"signature_b": {
+			"family": "slash",
+			"variant": "chrome",
+			"accent": Color(0.84, 0.94, 1.0, 1.0),
+			"support_family": "streak",
+			"support_variant": "scan",
+			"support_offset": Vector2(10.0, 0.0),
+			"support_scale": Vector2(0.88, 0.70),
+			"ground_variant": "chrome",
+			"landing_variant": "chrome",
+			"texture_scale": Vector2(1.10, 0.90)
+		},
+		"signature_c": {
+			"family": "streak",
+			"variant": "gemini_split",
+			"accent": Color(0.72, 1.0, 0.66, 1.0),
+			"support_family": "rift",
+			"support_variant": "split",
+			"support_offset": Vector2(8.0, 0.0),
+			"support_scale": Vector2(0.70, 0.72),
+			"texture_scale": Vector2(1.08, 0.86)
+		},
+		"ultimate": {
+			"family": "ring",
+			"variant": "chrome_halo",
+			"accent": Color(0.96, 1.0, 0.72, 1.0),
+			"support_family": "streak",
+			"support_variant": "scan",
+			"support_offset": Vector2(0.0, -2.0),
+			"support_scale": Vector2(0.78, 0.72)
+		}
+	}
+}
 const AFTERIMAGE_DASH_INTERVAL := 0.080
 const AFTERIMAGE_SPECIAL_INTERVAL := 0.060
 const AFTERIMAGE_SIGNATURE_INTERVAL := 0.045
@@ -2141,8 +2400,9 @@ func _resolve_signature_visual_context(attack_kind: String, effect_override: Dic
 	var accent := _resolve_attack_fx_accent_for_kind(attack_kind)
 	if accent == Color.TRANSPARENT:
 		accent = _resolve_visual_fx_tint()
-	return {
+	var context := {
 		"kind": attack_kind,
+		"character_id": get_character_id(),
 		"display_name": _resolve_signature_visual_name(attack_kind),
 		"effect_type": effect_type,
 		"effect": effect,
@@ -2151,6 +2411,24 @@ func _resolve_signature_visual_context(attack_kind: String, effect_override: Dic
 		"variant": variant,
 		"accent": accent
 	}
+	_apply_character_signature_visual_override(context)
+	return context
+
+func _apply_character_signature_visual_override(context: Dictionary) -> void:
+	var character_id := str(context.get("character_id", ""))
+	var attack_kind := str(context.get("kind", ""))
+	if character_id == "" or attack_kind == "":
+		return
+	var by_character_value: Variant = CHARACTER_SIGNATURE_VISUAL_OVERRIDES.get(character_id, {})
+	if typeof(by_character_value) != TYPE_DICTIONARY:
+		return
+	var by_character := by_character_value as Dictionary
+	var override_value: Variant = by_character.get(attack_kind, {})
+	if typeof(override_value) != TYPE_DICTIONARY:
+		return
+	var override_dict := override_value as Dictionary
+	for key in override_dict.keys():
+		context[str(key)] = override_dict[key]
 
 func _resolve_signature_visual_name(attack_kind: String) -> String:
 	match attack_kind:
@@ -2271,9 +2549,16 @@ func _build_signature_visual_spawns(
 	if drift.length() < 8.0:
 		drift = Vector2(88.0 * direction, -12.0)
 	var alpha_scale := 1.0 if stage in ["active", "projectile", "summon", "dash", "rising", "teleport_end", "buff"] else 0.76
+	alpha_scale *= clampf(float(context.get("alpha_multiplier", 1.0)), 0.58, 1.34)
 	var size_x := maxi(56, int(round((entity_size.x if entity_size.x > 0.0 else float(SIGNATURE_TRAIL_TEXTURE_SIZE.x)) * intensity)))
 	var size_y := maxi(34, int(round((entity_size.y if entity_size.y > 0.0 else float(SIGNATURE_TRAIL_TEXTURE_SIZE.y)) * (0.88 + 0.12 * intensity))))
-	var texture_size := Vector2i(size_x, size_y)
+	var texture_scale := context.get("texture_scale", Vector2.ONE) as Vector2
+	texture_scale.x = clampf(texture_scale.x, 0.56, 1.32)
+	texture_scale.y = clampf(texture_scale.y, 0.56, 1.32)
+	var texture_size := Vector2i(
+		maxi(48, int(round(float(size_x) * texture_scale.x))),
+		maxi(28, int(round(float(size_y) * texture_scale.y)))
+	)
 	var duration := 0.18
 	match stage:
 		"active", "projectile", "summon", "dash", "rising", "teleport_end":
@@ -2289,9 +2574,12 @@ func _build_signature_visual_spawns(
 		"streak":
 			var offsets := [0.0]
 			var angles := [0.0]
-			if variant in ["fan", "wave", "scan"]:
+			if variant in ["fan", "wave", "scan", "gpt_wave", "azure_flood", "gemini", "gemini_split", "drone"]:
 				offsets = [-10.0, 0.0, 10.0]
 				angles = [-0.18, 0.0, 0.18]
+			elif variant in ["threads", "storyboard", "prime_lance"]:
+				offsets = [-6.0, 6.0]
+				angles = [-0.06, 0.06]
 			elif variant == "bolt":
 				offsets = [-5.0, 5.0]
 				angles = [-0.08, 0.08]
@@ -2434,7 +2722,80 @@ func _build_signature_visual_spawns(
 				0.50 * alpha_scale,
 				0.0
 			))
+	var support_spawn := _build_signature_support_visual_spawn(context, origin, texture_size, accent, duration, alpha_scale, direction, drift)
+	if not support_spawn.is_empty():
+		spawns.append(support_spawn)
 	return spawns
+
+func _build_signature_support_visual_spawn(
+	context: Dictionary,
+	origin: Vector2,
+	texture_size: Vector2i,
+	accent: Color,
+	duration: float,
+	alpha_scale: float,
+	direction: float,
+	drift: Vector2
+) -> Dictionary:
+	var support_family := str(context.get("support_family", ""))
+	var support_variant := str(context.get("support_variant", ""))
+	if support_family == "" or support_variant == "":
+		return {}
+	var support_offset := context.get("support_offset", Vector2.ZERO) as Vector2
+	support_offset.x *= direction
+	var support_scale := context.get("support_scale", Vector2(0.74, 0.66)) as Vector2
+	support_scale.x = clampf(support_scale.x, 0.42, 1.08)
+	support_scale.y = clampf(support_scale.y, 0.42, 1.08)
+	var support_texture_size := Vector2i(
+		maxi(24, int(round(float(texture_size.x) * (0.56 + support_scale.x * 0.30)))),
+		maxi(20, int(round(float(texture_size.y) * (0.54 + support_scale.y * 0.28))))
+	)
+	var scale_from := Vector2(0.56, 0.50)
+	var scale_to := Vector2(0.92, 0.84)
+	var rotation := 0.0
+	var support_drift := drift * 0.05
+	match support_family:
+		"streak":
+			scale_from = Vector2(0.66, 0.56)
+			scale_to = Vector2(1.00, 0.88)
+			rotation = deg_to_rad(8.0 * direction)
+			support_drift = drift * 0.08
+		"slash":
+			scale_from = Vector2(0.62, 0.54)
+			scale_to = Vector2(0.96, 0.86)
+			rotation = deg_to_rad(-14.0 * direction)
+			support_drift = drift * 0.06
+		"rift":
+			scale_from = Vector2(0.64, 0.64)
+			scale_to = Vector2(0.98, 0.92)
+			support_drift = Vector2.ZERO
+		"pillar":
+			scale_from = Vector2(0.52, 0.62)
+			scale_to = Vector2(0.84, 0.96)
+			support_drift = Vector2(8.0 * direction, -16.0)
+		"glyph":
+			scale_from = Vector2(0.72, 0.46)
+			scale_to = Vector2(0.98, 0.62)
+			support_drift = Vector2.ZERO
+		"ring":
+			scale_from = Vector2(0.62, 0.58)
+			scale_to = Vector2(0.98, 0.92)
+			support_drift = Vector2.ZERO
+	return _make_transient_visual_descriptor(
+		support_family,
+		support_variant,
+		origin + support_offset,
+		accent.lightened(0.14),
+		duration * 0.92,
+		support_texture_size,
+		scale_from * support_scale,
+		scale_to * support_scale,
+		rotation,
+		support_drift,
+		0.26 * alpha_scale,
+		0.0,
+		TRANSIENT_VISUAL_Z_INDEX - 1
+	)
 
 func _make_transient_visual_descriptor(
 	family: String,
@@ -2497,6 +2858,8 @@ func _spawn_transient_visual_spawns(spawns: Array) -> void:
 		get_parent().add_child(sprite)
 		transient_visual_fx.append({
 			"node": sprite,
+			"family": str(descriptor.get("family", "streak")),
+			"variant": str(descriptor.get("variant", "bolt")),
 			"duration": float(descriptor.get("duration", 0.18)),
 			"life": float(descriptor.get("duration", 0.18)),
 			"position": sprite.global_position,
@@ -2573,11 +2936,30 @@ func _spawn_ground_scrape_fx(attack_kind: String, intensity: float) -> void:
 	var color := _resolve_attack_fx_accent_for_kind(attack_kind)
 	if color == Color.TRANSPARENT:
 		color = Color(0.82, 0.88, 0.96, 1.0) if player_id == 1 else Color(1.0, 0.82, 0.70, 1.0)
+	var variant := "skid"
+	var support_context: Dictionary = {}
+	if attack_kind != "":
+		support_context = _resolve_signature_visual_context(attack_kind)
+		if not support_context.is_empty():
+			var context_color := support_context.get("accent", color) as Color
+			if context_color != Color.TRANSPARENT:
+				color = context_color
+			var variant_override := str(support_context.get("ground_variant", "")).strip_edges()
+			if variant_override != "":
+				variant = variant_override
+			else:
+				match str(support_context.get("family", "")):
+					"glyph":
+						variant = str(support_context.get("variant", "skid"))
+					"pillar":
+						variant = "launch"
+					"rift":
+						variant = "mirror"
 	var base_position := global_position + Vector2(-10.0 * facing, 24.0)
 	var spawns: Array[Dictionary] = [
 		_make_transient_visual_descriptor(
 			"ground",
-			"skid",
+			variant,
 			base_position,
 			color,
 			0.18,
@@ -2591,6 +2973,19 @@ func _spawn_ground_scrape_fx(attack_kind: String, intensity: float) -> void:
 			TRANSIENT_VISUAL_Z_INDEX - 1
 		)
 	]
+	var direction := 1.0 if facing >= 0 else -1.0
+	var support_spawn := _build_signature_support_visual_spawn(
+		support_context,
+		base_position,
+		GROUND_TRACE_TEXTURE_SIZE,
+		color,
+		0.16,
+		0.72,
+		direction,
+		Vector2(-26.0 * direction, 0.0)
+	)
+	if not support_spawn.is_empty():
+		spawns.append(support_spawn)
 	_spawn_transient_visual_spawns(spawns)
 
 func _emit_landing_trace(landing_speed: float, landed_while_fast_fall: bool, attack_kind: String) -> void:
@@ -2602,10 +2997,26 @@ func _emit_landing_trace(landing_speed: float, landed_while_fast_fall: bool, att
 		color = Color(0.94, 0.92, 0.84, 1.0)
 	var impact_scale := clampf(landing_speed / 420.0, 0.78, 1.34)
 	var position := global_position + Vector2(0.0, 24.0)
+	var landing_context: Dictionary = {}
+	var impact_variant := "impact"
+	var skid_variant := "skid"
+	if attack_kind != "":
+		landing_context = _resolve_signature_visual_context(attack_kind)
+		if not landing_context.is_empty():
+			var context_color := landing_context.get("accent", color) as Color
+			if context_color != Color.TRANSPARENT:
+				color = context_color
+			var landing_override := str(landing_context.get("landing_variant", "")).strip_edges()
+			var ground_override := str(landing_context.get("ground_variant", "")).strip_edges()
+			if landing_override != "":
+				impact_variant = landing_override
+			elif ground_override != "":
+				impact_variant = ground_override
+			skid_variant = ground_override if ground_override != "" else skid_variant
 	var spawns: Array[Dictionary] = [
 		_make_transient_visual_descriptor(
 			"ground",
-			"impact",
+			impact_variant,
 			position,
 			color,
 			0.22,
@@ -2620,11 +3031,10 @@ func _emit_landing_trace(landing_speed: float, landed_while_fast_fall: bool, att
 		)
 	]
 	if attack_kind != "":
-		var context := _resolve_signature_visual_context(attack_kind)
-		if str(context.get("family", "")) == "pillar":
+		if str(landing_context.get("family", "")) == "pillar":
 			spawns.append(_make_transient_visual_descriptor(
 				"pillar",
-				str(context.get("variant", "comet")),
+				str(landing_context.get("variant", "comet")),
 				position + Vector2(0.0, -22.0),
 				color,
 				0.20,
@@ -2636,10 +3046,22 @@ func _emit_landing_trace(landing_speed: float, landed_while_fast_fall: bool, att
 				0.24,
 				0.0
 			))
+		var support_spawn := _build_signature_support_visual_spawn(
+			landing_context,
+			position,
+			Vector2i(int(round(GROUND_TRACE_TEXTURE_SIZE.x * 1.08)), int(round(GROUND_TRACE_TEXTURE_SIZE.y * 1.05))),
+			color,
+			0.18,
+			0.86,
+			1.0 if facing >= 0 else -1.0,
+			Vector2.ZERO
+		)
+		if not support_spawn.is_empty():
+			spawns.append(support_spawn)
 	elif landing_speed >= LANDING_TRACE_SPEED_THRESHOLD * 1.18:
 		spawns.append(_make_transient_visual_descriptor(
 			"ground",
-			"skid",
+			skid_variant,
 			position,
 			color.darkened(0.14),
 			0.16,
@@ -2702,6 +3124,52 @@ func _sample_signature_fx_alpha(family: String, variant: String, uv: Vector2) ->
 func _sample_streak_fx_alpha(variant: String, uv: Vector2) -> float:
 	var taper := pow(maxf(0.0, 1.0 - absf(uv.x)), 0.52)
 	match variant:
+		"threads":
+			var thread := 0.0
+			for offset in [-0.40, -0.14, 0.12, 0.36]:
+				var weave := sin((uv.x + 1.0) * PI * (1.3 + absf(offset))) * 0.05
+				thread = maxf(thread, clampf((0.07 - absf(uv.y - offset * 0.22 - weave)) / 0.07, 0.0, 1.0))
+			return thread * taper
+		"gpt_wave":
+			var wave_primary := sin((uv.x + 1.0) * PI * 1.55) * 0.16
+			var wave_echo := sin((uv.x + 1.0) * PI * 3.2) * 0.07
+			var beam_primary := clampf((0.16 - absf(uv.y - wave_primary)) / 0.16, 0.0, 1.0)
+			var beam_echo := clampf((0.10 - absf(uv.y - wave_primary * 0.46 - wave_echo)) / 0.10, 0.0, 1.0)
+			return maxf(beam_primary, beam_echo * 0.82) * taper
+		"storyboard":
+			var panel_band := clampf((0.16 - absf(uv.y)) / 0.16, 0.0, 1.0)
+			var panel_divider := clampf((0.05 - absf(fposmod((uv.x + 1.0) * 1.6, 1.0) - 0.5)) / 0.05, 0.0, 1.0)
+			return maxf(panel_band * taper, panel_divider * clampf((0.72 - absf(uv.y)) / 0.72, 0.0, 1.0) * 0.86)
+		"drone":
+			var lane := 0.0
+			for offset in [-0.26, 0.0, 0.26]:
+				var beam := clampf((0.10 - absf(uv.y - offset * (0.64 - absf(uv.x) * 0.18))) / 0.10, 0.0, 1.0)
+				var pod := clampf((0.18 - (uv - Vector2(0.34, offset * 0.54)).length()) / 0.18, 0.0, 1.0)
+				lane = maxf(lane, maxf(beam, pod * 0.92))
+			return lane * taper
+		"prime_lance":
+			var spear := clampf((0.13 - absf(uv.y)) / 0.13, 0.0, 1.0) * taper
+			var tip := clampf((0.22 - (uv - Vector2(0.54, 0.0)).length()) / 0.22, 0.0, 1.0)
+			return maxf(spear, tip)
+		"azure":
+			var step_wave: float = round((sin((uv.x + 1.0) * PI * 1.4) * 0.18) * 8.0) / 8.0
+			return clampf((0.17 - absf(uv.y - step_wave)) / 0.17, 0.0, 1.0) * taper
+		"azure_flood":
+			var wide_wave := sin((uv.x + 1.0) * PI * 1.1) * 0.12
+			var crest := clampf((0.24 - absf(uv.y - wide_wave)) / 0.24, 0.0, 1.0)
+			var undertow := clampf((0.12 - absf(uv.y + 0.18 - wide_wave * 0.6)) / 0.12, 0.0, 1.0)
+			return maxf(crest, undertow * 0.78) * taper
+		"gemini":
+			var twin := 0.0
+			for offset in [-0.18, 0.18]:
+				twin = maxf(twin, clampf((0.12 - absf(uv.y - offset)) / 0.12, 0.0, 1.0))
+			return twin * taper
+		"gemini_split":
+			var split := 0.0
+			for offset in [-1.0, 1.0]:
+				var target_y: float = offset * (0.10 + maxf(0.0, uv.x + 0.2) * 0.24)
+				split = maxf(split, clampf((0.11 - absf(uv.y - target_y)) / 0.11, 0.0, 1.0))
+			return split * taper
 		"fan":
 			var beam := 0.0
 			for offset in [-0.34, 0.0, 0.34]:
@@ -2722,6 +3190,14 @@ func _sample_streak_fx_alpha(variant: String, uv: Vector2) -> float:
 func _sample_slash_fx_alpha(variant: String, uv: Vector2) -> float:
 	var band_primary := clampf((0.18 - absf(uv.y + uv.x * 0.34)) / 0.18, 0.0, 1.0) * pow(maxf(0.0, 1.0 - absf(uv.x)), 0.58)
 	var band_secondary := clampf((0.10 - absf(uv.y + uv.x * 0.20 - 0.18)) / 0.10, 0.0, 1.0) * 0.42
+	if variant == "coup":
+		var cut_primary := clampf((0.16 - absf(uv.y + uv.x * 0.44)) / 0.16, 0.0, 1.0)
+		var cut_cross := clampf((0.08 - absf(uv.y - uv.x * 0.26 + 0.10)) / 0.08, 0.0, 1.0) * 0.76
+		return maxf(cut_primary, cut_cross) * pow(maxf(0.0, 1.0 - absf(uv.x)), 0.52)
+	if variant == "chrome":
+		var mirrored := clampf((0.12 - absf(uv.y + uv.x * 0.28 - 0.12)) / 0.12, 0.0, 1.0)
+		var highlight := clampf((0.08 - absf(uv.y - uv.x * 0.34 + 0.06)) / 0.08, 0.0, 1.0)
+		return maxf(band_primary * 0.84, maxf(mirrored, highlight * 0.92))
 	if variant == "ribbon":
 		return maxf(band_primary * 0.82, band_secondary)
 	if variant == "comet":
@@ -2730,6 +3206,11 @@ func _sample_slash_fx_alpha(variant: String, uv: Vector2) -> float:
 	return maxf(band_primary, band_secondary * 0.6)
 
 func _sample_rift_fx_alpha(variant: String, uv: Vector2) -> float:
+	if variant == "mirror":
+		var mirror_ring := clampf((0.11 - absf(uv.length() - 0.46)) / 0.11, 0.0, 1.0)
+		var seam := clampf((0.08 - absf(uv.x)) / 0.08, 0.0, 1.0) * clampf((0.78 - absf(uv.y)) / 0.78, 0.0, 1.0)
+		var echo := clampf((0.10 - absf(absf(uv.x) - 0.28)) / 0.10, 0.0, 1.0) * clampf((0.68 - absf(uv.y)) / 0.68, 0.0, 1.0)
+		return maxf(mirror_ring * 0.82, maxf(seam, echo * 0.74))
 	if variant == "frame":
 		var frame_distance := absf(maxf(absf(uv.x) * 0.92, absf(uv.y) * 1.10) - 0.52)
 		return clampf((0.12 - frame_distance) / 0.12, 0.0, 1.0)
@@ -2742,6 +3223,10 @@ func _sample_pillar_fx_alpha(variant: String, uv: Vector2) -> float:
 	var y_t := clampf((uv.y + 1.0) * 0.5, 0.0, 1.0)
 	var width := lerpf(0.42, 0.10, y_t)
 	var beam := clampf((width - absf(uv.x)) / width, 0.0, 1.0) * clampf((0.94 - absf(uv.y)) / 0.94, 0.0, 1.0)
+	if variant == "launch":
+		var exhaust := clampf((0.22 - (uv - Vector2(0.0, 0.62)).length()) / 0.22, 0.0, 1.0)
+		var fins := clampf((0.08 - absf(absf(uv.x) - 0.18)) / 0.08, 0.0, 1.0) * clampf((0.34 - absf(uv.y - 0.34)) / 0.34, 0.0, 1.0)
+		return maxf(beam, maxf(exhaust, fins * 0.76))
 	if variant == "comet":
 		var flare := clampf((0.26 - (uv - Vector2(0.0, -0.60)).length()) / 0.26, 0.0, 1.0)
 		return maxf(beam, flare)
@@ -2751,6 +3236,30 @@ func _sample_glyph_fx_alpha(variant: String, uv: Vector2) -> float:
 	var frame_distance := absf(maxf(absf(uv.x), absf(uv.y) * 1.8) - 0.56)
 	var frame := clampf((0.11 - frame_distance) / 0.11, 0.0, 1.0)
 	var floor_line := clampf((0.10 - absf(uv.y - 0.34)) / 0.10, 0.0, 1.0) * clampf((0.88 - absf(uv.x)) / 0.88, 0.0, 1.0)
+	if variant == "threads":
+		var columns := clampf((0.04 - absf(fposmod((uv.x + 1.0) * 2.0, 1.0) - 0.5)) / 0.04, 0.0, 1.0)
+		var baseline := clampf((0.08 - absf(uv.y - 0.24)) / 0.08, 0.0, 1.0)
+		return maxf(columns * clampf((0.74 - absf(uv.y)) / 0.74, 0.0, 1.0), baseline)
+	if variant == "cutscene":
+		var top_bar := clampf((0.10 - absf(uv.y + 0.44)) / 0.10, 0.0, 1.0)
+		var bottom_bar := clampf((0.10 - absf(uv.y - 0.44)) / 0.10, 0.0, 1.0)
+		return maxf(frame * 0.72, maxf(top_bar, bottom_bar) * 0.92)
+	if variant == "board":
+		var box := clampf((0.10 - absf(maxf(absf(uv.x) * 0.82, absf(uv.y) * 1.5) - 0.48)) / 0.10, 0.0, 1.0)
+		var split := clampf((0.08 - absf(uv.x)) / 0.08, 0.0, 1.0) * clampf((0.66 - absf(uv.y)) / 0.66, 0.0, 1.0)
+		return maxf(box, split * 0.74)
+	if variant == "lock":
+		var shackle := clampf((0.10 - absf(Vector2(uv.x, uv.y + 0.18).length() - 0.24)) / 0.10, 0.0, 1.0) * clampf((0.22 - absf(uv.y + 0.12)) / 0.22, 0.0, 1.0)
+		var body := clampf((0.10 - absf(maxf(absf(uv.x) * 0.82, absf(uv.y - 0.18) * 1.46) - 0.34)) / 0.10, 0.0, 1.0)
+		return maxf(shackle, body)
+	if variant == "checkout":
+		var gate := clampf((0.10 - absf(absf(uv.x) - 0.42)) / 0.10, 0.0, 1.0) * clampf((0.74 - absf(uv.y)) / 0.74, 0.0, 1.0)
+		var barcode := clampf((0.04 - absf(fposmod((uv.x + 1.0) * 3.8, 1.0) - 0.5)) / 0.04, 0.0, 1.0) * clampf((0.26 - absf(uv.y - 0.26)) / 0.26, 0.0, 1.0)
+		return maxf(gate, barcode * 0.82)
+	if variant == "patch":
+		var cross_h := clampf((0.08 - absf(uv.y)) / 0.08, 0.0, 1.0) * clampf((0.42 - absf(uv.x)) / 0.42, 0.0, 1.0)
+		var cross_v := clampf((0.08 - absf(uv.x)) / 0.08, 0.0, 1.0) * clampf((0.42 - absf(uv.y)) / 0.42, 0.0, 1.0)
+		return maxf(cross_h, cross_v)
 	if variant == "frame":
 		return maxf(frame, floor_line * 0.82)
 	if variant == "scan":
@@ -2761,6 +3270,40 @@ func _sample_glyph_fx_alpha(variant: String, uv: Vector2) -> float:
 func _sample_ring_fx_alpha(variant: String, uv: Vector2) -> float:
 	var ring_distance := absf(uv.length() - 0.44)
 	var ring := clampf((0.12 - ring_distance) / 0.12, 0.0, 1.0)
+	if variant == "meta_halo":
+		var nodes := 0.0
+		for point in [Vector2(-0.34, 0.0), Vector2(0.34, 0.0)]:
+			nodes = maxf(nodes, clampf((0.14 - (uv - point).length()) / 0.14, 0.0, 1.0))
+		return maxf(ring, nodes * 0.74)
+	if variant == "prompt":
+		var tail := clampf((0.10 - absf(uv.x + 0.08)) / 0.10, 0.0, 1.0) * clampf((0.18 - absf(uv.y - 0.40)) / 0.18, 0.0, 1.0)
+		return maxf(ring, tail)
+	if variant == "cutscene_halo":
+		var bars := maxf(
+			clampf((0.08 - absf(uv.y + 0.44)) / 0.08, 0.0, 1.0),
+			clampf((0.08 - absf(uv.y - 0.44)) / 0.08, 0.0, 1.0)
+		)
+		return maxf(ring, bars * 0.82)
+	if variant == "board":
+		var split := clampf((0.08 - absf(uv.x)) / 0.08, 0.0, 1.0) * clampf((0.84 - absf(uv.y)) / 0.84, 0.0, 1.0)
+		return maxf(ring, split * 0.64)
+	if variant == "prime":
+		var ticks := clampf((0.05 - absf(absf(uv.x) - 0.42)) / 0.05, 0.0, 1.0) * clampf((0.20 - absf(uv.y)) / 0.20, 0.0, 1.0)
+		return maxf(ring, ticks * 0.92)
+	if variant == "patch":
+		var plus_h := clampf((0.07 - absf(uv.y)) / 0.07, 0.0, 1.0) * clampf((0.32 - absf(uv.x)) / 0.32, 0.0, 1.0)
+		var plus_v := clampf((0.07 - absf(uv.x)) / 0.07, 0.0, 1.0) * clampf((0.32 - absf(uv.y)) / 0.32, 0.0, 1.0)
+		return maxf(ring, maxf(plus_h, plus_v) * 0.84)
+	if variant == "blue_screen":
+		var square_ring := clampf((0.10 - absf(maxf(absf(uv.x), absf(uv.y)) - 0.44)) / 0.10, 0.0, 1.0)
+		var scanline := clampf((0.04 - absf(fposmod((uv.y + 1.0) * 4.2, 1.0) - 0.5)) / 0.04, 0.0, 1.0) * clampf((0.64 - absf(uv.x)) / 0.64, 0.0, 1.0)
+		return maxf(square_ring, scanline * 0.72)
+	if variant == "gemini":
+		var outer := clampf((0.08 - absf(uv.length() - 0.52)) / 0.08, 0.0, 1.0)
+		return maxf(ring, outer * 0.84)
+	if variant == "chrome_halo":
+		var highlight := clampf((0.08 - absf(uv.y + uv.x * 0.20)) / 0.08, 0.0, 1.0) * clampf((0.72 - absf(uv.x)) / 0.72, 0.0, 1.0)
+		return maxf(ring, highlight * 0.84)
 	if variant == "halo":
 		var crest := clampf((0.08 - absf(uv.x)) / 0.08, 0.0, 1.0) * clampf((0.84 - absf(uv.y)) / 0.84, 0.0, 1.0)
 		return maxf(ring, crest * 0.42)
@@ -2772,6 +3315,50 @@ func _sample_ground_fx_alpha(variant: String, uv: Vector2) -> float:
 		var ring := clampf((0.16 - absf(flattened.length() - 0.50)) / 0.16, 0.0, 1.0)
 		var core := clampf((0.18 - absf(uv.y + 0.02)) / 0.18, 0.0, 1.0) * clampf((0.90 - absf(uv.x)) / 0.90, 0.0, 1.0) * 0.34
 		return maxf(ring, core)
+	if variant == "threads":
+		var strands := 0.0
+		for offset in [-0.34, -0.10, 0.14, 0.38]:
+			strands = maxf(strands, clampf((0.07 - absf(uv.y - 0.24 * absf(uv.x) - offset * 0.06)) / 0.07, 0.0, 1.0))
+		return strands * pow(maxf(0.0, 1.0 - absf(uv.x)), 0.54)
+	if variant == "mirror":
+		var mirrored := clampf((0.12 - absf(uv.y - 0.20 * absf(uv.x))) / 0.12, 0.0, 1.0)
+		var seam := clampf((0.08 - absf(uv.x)) / 0.08, 0.0, 1.0) * clampf((0.22 - absf(uv.y)) / 0.22, 0.0, 1.0)
+		return maxf(mirrored, seam * 0.78)
+	if variant == "cutscene":
+		var bars := maxf(
+			clampf((0.08 - absf(uv.y + 0.26)) / 0.08, 0.0, 1.0),
+			clampf((0.08 - absf(uv.y - 0.04)) / 0.08, 0.0, 1.0)
+		)
+		return bars * pow(maxf(0.0, 1.0 - absf(uv.x)), 0.58)
+	if variant == "board":
+		var frame := clampf((0.10 - absf(maxf(absf(uv.x) * 0.86, absf(uv.y) * 1.7) - 0.48)) / 0.10, 0.0, 1.0)
+		return frame
+	if variant == "lock":
+		var arc := clampf((0.10 - absf(Vector2(uv.x, uv.y + 0.08).length() - 0.30)) / 0.10, 0.0, 1.0) * clampf((0.20 - absf(uv.y + 0.10)) / 0.20, 0.0, 1.0)
+		var body := clampf((0.10 - absf(maxf(absf(uv.x) * 0.84, absf(uv.y - 0.12) * 1.5) - 0.34)) / 0.10, 0.0, 1.0)
+		return maxf(arc, body)
+	if variant == "checkout":
+		var posts := clampf((0.08 - absf(absf(uv.x) - 0.42)) / 0.08, 0.0, 1.0) * clampf((0.38 - absf(uv.y)) / 0.38, 0.0, 1.0)
+		var barcode := clampf((0.04 - absf(fposmod((uv.x + 1.0) * 4.0, 1.0) - 0.5)) / 0.04, 0.0, 1.0) * clampf((0.18 - absf(uv.y - 0.14)) / 0.18, 0.0, 1.0)
+		return maxf(posts, barcode * 0.82)
+	if variant == "launch":
+		var exhaust := clampf((0.18 - absf(uv.x)) / 0.18, 0.0, 1.0) * clampf((0.70 - absf(uv.y + 0.06)) / 0.70, 0.0, 1.0)
+		var flare := clampf((0.14 - absf(uv.y - 0.20 * absf(uv.x))) / 0.14, 0.0, 1.0)
+		return maxf(exhaust, flare * 0.78)
+	if variant == "flood":
+		var puddle := clampf((0.28 - absf(uv.y + 0.02)) / 0.28, 0.0, 1.0) * pow(maxf(0.0, 1.0 - absf(uv.x)), 0.44)
+		var ripple := clampf((0.10 - absf(Vector2(uv.x * 0.74, uv.y + 0.04).length() - 0.36)) / 0.10, 0.0, 1.0)
+		return maxf(puddle, ripple * 0.64)
+	if variant == "crash":
+		var crack := clampf((0.07 - absf(uv.y + uv.x * 0.36)) / 0.07, 0.0, 1.0)
+		var burst := clampf((0.10 - absf(Vector2(uv.x * 0.82, uv.y * 1.6).length() - 0.40)) / 0.10, 0.0, 1.0)
+		return maxf(crack, burst * 0.82)
+	if variant == "chrome":
+		var dual := maxf(
+			clampf((0.08 - absf(uv.y - 0.18 * absf(uv.x) - 0.10)) / 0.08, 0.0, 1.0),
+			clampf((0.08 - absf(uv.y + 0.18 * absf(uv.x) + 0.02)) / 0.08, 0.0, 1.0)
+		)
+		return dual * pow(maxf(0.0, 1.0 - absf(uv.x)), 0.54)
 	var smear := clampf((0.16 - absf(uv.y - 0.24 * absf(uv.x))) / 0.16, 0.0, 1.0)
 	return smear * pow(maxf(0.0, 1.0 - absf(uv.x)), 0.48)
 

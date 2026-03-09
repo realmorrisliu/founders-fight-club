@@ -87,6 +87,7 @@ func _run_smoke_suite() -> void:
 	await _test_character_visual_readability_tinting()
 	await _test_player_visual_fx_pipeline()
 	await _test_signature_visual_identity_pipeline()
+	await _test_signature_showcase_autoplay_scene()
 	await _test_double_ko_resolution()
 	await _test_player_damage_and_block_flow()
 	await _test_throw_tech_and_ai_defense_windows()
@@ -1851,32 +1852,77 @@ func _test_signature_visual_identity_pipeline() -> void:
 	var host := setup.get("host") as Node2D
 	if p1 == null or host == null:
 		return
+	var mark_table := load("res://assets/data/characters/MarkZuckAttackTable.tres")
 	var sam_table := load("res://assets/data/characters/SamAltmynAttackTable.tres")
+	var peter_table := load("res://assets/data/characters/PeterThyellAttackTable.tres")
 	var zef_table := load("res://assets/data/characters/ZefBezosAttackTable.tres")
-	_assert_true(sam_table is Resource and zef_table is Resource, "signature visual identity test loads authored character tables")
-	if sam_table is not Resource or zef_table is not Resource:
+	var bill_table := load("res://assets/data/characters/BillGeytzAttackTable.tres")
+	var sundar_table := load("res://assets/data/characters/SundarPichoyAttackTable.tres")
+	_assert_true(
+		mark_table is Resource and sam_table is Resource and peter_table is Resource and zef_table is Resource and bill_table is Resource and sundar_table is Resource,
+		"signature visual identity test loads story character tables"
+	)
+	if mark_table is not Resource or sam_table is not Resource or peter_table is not Resource or zef_table is not Resource or bill_table is not Resource or sundar_table is not Resource:
 		host.queue_free()
 		await process_frame
 		return
-	p1.set("attack_table_resource", sam_table)
 	p1.set("use_external_attack_table", true)
+	p1.set("attack_table_resource", mark_table)
+	p1.call("_setup_attack_data")
+	var mark_signature_a := p1.call("_resolve_signature_visual_context", "signature_a") as Dictionary
+	var mark_signature_b := p1.call("_resolve_signature_visual_context", "signature_b") as Dictionary
+	_assert_true(str(mark_signature_a.get("variant", "")) == "threads", "Mark signature A resolves the threads trail override")
+	_assert_true(str(mark_signature_b.get("variant", "")) == "mirror", "Mark signature B resolves the mirrored rift override")
+	p1.set("attack_table_resource", sam_table)
 	p1.call("_setup_attack_data")
 	var sam_signature_a := p1.call("_resolve_signature_visual_context", "signature_a") as Dictionary
 	var sam_signature_b := p1.call("_resolve_signature_visual_context", "signature_b") as Dictionary
 	var sam_ultimate := p1.call("_resolve_signature_visual_context", "ultimate") as Dictionary
-	_assert_true(str(sam_signature_a.get("variant", "")) == "wave", "GPT Burst resolves a wave-style signature trail variant")
-	_assert_true(str(sam_signature_b.get("family", "")) == "glyph", "trap-style signatures resolve a ground glyph trail family")
-	_assert_true(str(sam_ultimate.get("family", "")) == "ring", "buff-style ultimates resolve a ring trail family")
+	_assert_true(str(sam_signature_a.get("variant", "")) == "gpt_wave", "GPT Burst resolves the authored GPT wave trail variant")
+	_assert_true(str(sam_signature_b.get("variant", "")) == "cutscene", "trap-style signatures resolve the cutscene glyph variant")
+	_assert_true(str(sam_ultimate.get("variant", "")) == "cutscene_halo", "buff-style ultimates resolve the cinematic halo ring variant")
+	p1.set("attack_table_resource", peter_table)
+	p1.call("_setup_attack_data")
+	var peter_signature_b := p1.call("_resolve_signature_visual_context", "signature_b") as Dictionary
+	_assert_true(str(peter_signature_b.get("variant", "")) == "coup", "Peter signature B resolves the coup slash override")
 	p1.set("attack_table_resource", zef_table)
 	p1.call("_setup_attack_data")
 	var zef_signature_a := p1.call("_resolve_signature_visual_context", "signature_a") as Dictionary
-	_assert_true(str(zef_signature_a.get("variant", "")) == "fan", "Prime Drone Fleet resolves a fan-style signature trail variant")
+	var zef_signature_b := p1.call("_resolve_signature_visual_context", "signature_b") as Dictionary
+	_assert_true(str(zef_signature_a.get("variant", "")) == "drone", "Prime Drone Fleet resolves the drone-style summon trail variant")
+	_assert_true(str(zef_signature_b.get("landing_variant", "")) == "launch", "Zef rising signature carries launch landing traces")
+	p1.set("attack_table_resource", bill_table)
+	p1.call("_setup_attack_data")
+	var bill_signature_b := p1.call("_resolve_signature_visual_context", "signature_b") as Dictionary
+	_assert_true(str(bill_signature_b.get("variant", "")) == "azure_flood", "Bill signature B resolves the azure flood projectile variant")
+	p1.set("attack_table_resource", sundar_table)
+	p1.call("_setup_attack_data")
+	var sundar_signature_b := p1.call("_resolve_signature_visual_context", "signature_b") as Dictionary
+	_assert_true(str(sundar_signature_b.get("variant", "")) == "chrome", "Sundar signature B resolves the chrome rush slash variant")
 	p1.call("_clear_transient_visual_fx")
+	p1.set("attack_table_resource", peter_table)
+	p1.call("_setup_attack_data")
 	p1.call("_emit_landing_trace", 360.0, false, "signature_b")
 	var transient_fx := p1.get("transient_visual_fx") as Array
-	_assert_true(transient_fx.size() >= 1, "signature landing trace spawns transient world fx nodes")
+	_assert_true(transient_fx.size() >= 2, "signature landing trace spawns primary and support transient fx nodes")
+	var saw_coup := false
+	var saw_board := false
+	for fx_value in transient_fx:
+		if typeof(fx_value) != TYPE_DICTIONARY:
+			continue
+		var fx := fx_value as Dictionary
+		if str(fx.get("variant", "")) == "coup":
+			saw_coup = true
+		if str(fx.get("variant", "")) == "board":
+			saw_board = true
+	_assert_true(saw_coup, "landing trace keeps Peter's coup impact variant")
+	_assert_true(saw_board, "landing trace appends Peter's board support glyph")
 	host.queue_free()
 	await process_frame
+
+func _test_signature_showcase_autoplay_scene() -> void:
+	var packed := load("res://scenes/debug/SignatureShowcaseAutoplay.tscn")
+	_assert_true(packed is PackedScene, "signature showcase autoplay scene loads for deterministic visual review")
 
 func _test_double_ko_resolution() -> void:
 	var packed := load("res://scenes/Main.tscn")
