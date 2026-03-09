@@ -1,0 +1,19 @@
+character_id: larry_pagyr
+display_name: "Larry Pagyr"
+wave: "wave2"
+parody_target: "search-and-platform founder archetype"
+hook: "Map-control tactician who wins by information and spacing."
+silhouette_keys: ["clean_founder_blazer", "lens_motif_particles", "upright_composed_posture"]
+palette: ["#1A1A1A", "#3EA6FF", "#7BD66D"]
+must_have_props: ["floating query particle trail", "lens flare cue", "routing arc motif"]
+forbidden_props: ["exact Google logo", "exact Alphabet logo", "exact Search UI screenshot"]
+rival_hooks: ["bill_geytz", "sergey_brinn", "sundar_pichoy"]
+skills:
+  - name: "Search Index"
+    visual: "tracking poke with rerouting scan line"
+  - name: "Ad Auction"
+    visual: "resource-steal pulse with bid-ring flare"
+  - name: "Waymo Roll"
+    visual: "autonomous bumper crossing lane with sensor glow"
+  - name: "Alphabet Rain"
+    visual: "multi-vector projectile cascade from above"

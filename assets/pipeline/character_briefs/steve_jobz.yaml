@@ -1,0 +1,19 @@
+character_id: steve_jobz
+display_name: "Steve Jobz"
+wave: "boss"
+parody_target: "mythic hardware-founder legend archetype"
+hook: "Final-boss showman whose taste and timing distort the fight."
+silhouette_keys: ["iconic_mock_turtleneck", "glass_light_arc", "precise_stage_presence"]
+palette: ["#050505", "#F4F4F4", "#8DD7FF"]
+must_have_props: ["glass-light distortion", "clean keynote stage cue", "reality-warp arc"]
+forbidden_props: ["exact Apple logo", "photoreal likeness", "exact keynote slide UI"]
+rival_hooks: ["tim_cuke", "bill_geytz", "mark_zuck"]
+skills:
+  - name: "Keynote Cut"
+    visual: "precision opener with keynote spotlight slash"
+  - name: "Reality Distortion Arc"
+    visual: "curved overhead changing speed through glass-light warp"
+  - name: "One More Thing"
+    visual: "fake retreat into explosive re-entry flash"
+  - name: "Think Different"
+    visual: "phase shift field rewriting the move language"

@@ -1,0 +1,19 @@
+character_id: sergey_brinn
+display_name: "Sergey Brinn"
+wave: "wave2"
+parody_target: "moonshot inventor-founder archetype"
+hook: "Acrobatic chaos fighter who forces awkward angle fights."
+silhouette_keys: ["lab_goggle_shape", "spring_loaded_pose", "split_jacket_flare"]
+palette: ["#191919", "#7FD7FF", "#F6D24A"]
+must_have_props: ["lab-goggle cue", "glass-rift afterimage", "experimental launch column"]
+forbidden_props: ["exact Google logo", "exact X logo", "exact moonshot branding"]
+rival_hooks: ["sundar_pichoy", "sam_altmyn", "larry_pagyr"]
+skills:
+  - name: "X-Lab Leap"
+    visual: "leap strike with pillar-like launch exhaust"
+  - name: "Glass Blink"
+    visual: "short teleport feint through mirrored glass rift"
+  - name: "Moonshot Kick"
+    visual: "cross-up arc kick with comet tail"
+  - name: "Prototype Overflow"
+    visual: "rapid experimental chain with unstable finish burst"

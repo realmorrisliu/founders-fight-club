@@ -1,0 +1,19 @@
+character_id: jack_dorsee
+display_name: "Jack Dorsee"
+wave: "wave3"
+parody_target: "minimalist social-media founder archetype"
+hook: "Tempo breaker with awkward rhythm control and delayed pressure."
+silhouette_keys: ["monochrome_techwear", "long_beard_shape", "old_feed_blue_glow"]
+palette: ["#141414", "#5DAFFF", "#DDE6F5"]
+must_have_props: ["old-feed blue particle trail", "chain-link motif", "square swipe slash"]
+forbidden_props: ["exact X logo", "exact Twitter bird", "exact Square logo"]
+rival_hooks: ["elon_mvsk", "reed_hestings", "travis_kalanik"]
+skills:
+  - name: "Square Swipe"
+    visual: "fast linear slash with card-reader geometry"
+  - name: "Block Chain"
+    visual: "delayed multi-hit route through chain-link segments"
+  - name: "Tweet Storm Classic"
+    visual: "accelerating old-feed projectile wave"
+  - name: "Decentralized Knockout"
+    visual: "multi-phase strike with unstable timing windows"

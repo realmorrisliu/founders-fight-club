@@ -1,0 +1,18 @@
+stage_id: grand_arena
+stage_name: "Founders Grand Arena"
+hook: "Tech-founder fight night staged like a premium broadcast event, not a practice box."
+palette: ["#08111F", "#13345E", "#FF8A3D", "#3CC7FF"]
+layers:
+  - "towering LED wall with scrolling market-ticker energy"
+  - "distant crowd glow and camera flashes"
+  - "structural octagon frame and light rails"
+  - "rim-lit center lane with reflective floor breakup"
+must_have_props:
+  - "full-bleed background architecture"
+  - "center-stage hero lane"
+  - "warm floor highlights against cool back-wall light"
+  - "depth fog and haze around upper lighting rigs"
+forbidden_props:
+  - "gray side gutters"
+  - "blank matte edges"
+  - "flat practice-room walls"

@@ -1,0 +1,19 @@
+character_id: tim_cuke
+display_name: "Tim Cuke"
+wave: "wave2"
+parody_target: "minimalist hardware CEO archetype"
+hook: "Precision punish specialist with elegant spacing traps."
+silhouette_keys: ["minimal_black_top", "clean_white_arc", "needle_precise_stance"]
+palette: ["#111111", "#F4F4F4", "#7AC7FF"]
+must_have_props: ["white arc slash", "device-edge geometry cue", "high-polish glass light"]
+forbidden_props: ["exact Apple logo", "exact iPhone silhouette", "exact product UI"]
+rival_hooks: ["bill_geytz", "steve_jobz", "satya_nadello"]
+skills:
+  - name: "iPhone Arc"
+    visual: "clean tip-range arc slash with glass gleam"
+  - name: "Airdrop Snap"
+    visual: "position-swap flash with soft packet burst"
+  - name: "M-Series Burst"
+    visual: "short power-mode flare with chip-like energy bars"
+  - name: "Ecosystem Lock"
+    visual: "constraining ring field with layered device-edge frames"

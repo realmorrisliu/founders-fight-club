@@ -1,0 +1,19 @@
+character_id: reed_hestings
+display_name: "Reed Hestings"
+wave: "wave3"
+parody_target: "streaming-platform founder archetype"
+hook: "Setplay planner who wins through long, disciplined sequences."
+silhouette_keys: ["calm_blazer_shape", "red_stream_trails", "timeline_ui_marks"]
+palette: ["#161616", "#E53935", "#F0F0F0"]
+must_have_props: ["streaming red trail", "timeline motif", "buffer extension glow"]
+forbidden_props: ["exact Netflix logo", "exact UI screenshots", "exact streaming thumbnails"]
+rival_hooks: ["jack_dorsee", "travis_kalanik", "mark_zuck"]
+skills:
+  - name: "Auto-Play String"
+    visual: "looping pressure route with streaming red tracker"
+  - name: "Binge Buffer"
+    visual: "buffer-extension field with timeline ticks"
+  - name: "Skip Intro Kick"
+    visual: "instant engage kick with sharp skip cue"
+  - name: "Streaming Collapse"
+    visual: "sustained offensive sequence with escalating red tempo"

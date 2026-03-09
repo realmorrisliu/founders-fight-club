@@ -1,0 +1,19 @@
+character_id: travis_kalanik
+display_name: "Travis Kalanik"
+wave: "wave3"
+parody_target: "ride-share founder archetype"
+hook: "Violent pace-control bruiser who steals lane space by force."
+silhouette_keys: ["forward_aggressive_lean", "black_car_streak", "broad_jacket_shape"]
+palette: ["#121212", "#00D0FF", "#FF6A3D"]
+must_have_props: ["surge meter aura", "black-car streak motif", "market-takeover lane slash"]
+forbidden_props: ["exact Uber logo", "exact app UI", "exact black-car product imagery"]
+rival_hooks: ["reed_hestings", "jack_dorsee", "elon_mvsk"]
+skills:
+  - name: "Surge Pricing"
+    visual: "visible damage-buff aura with rising meter bars"
+  - name: "Ride Share Rush"
+    visual: "two-part shoulder charge with lane streaks"
+  - name: "Black Car Crash"
+    visual: "armored dash framed by black-car light trails"
+  - name: "City Takeover"
+    visual: "multi-lane assault ending in wall-splat slam"

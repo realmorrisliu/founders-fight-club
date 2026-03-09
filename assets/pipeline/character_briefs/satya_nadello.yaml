@@ -1,0 +1,19 @@
+character_id: satya_nadello
+display_name: "Satya Nadello"
+wave: "wave2"
+parody_target: "enterprise cloud CEO archetype"
+hook: "Smooth defensive converter who turns calm structure into offense."
+silhouette_keys: ["executive_coat_line", "cloud_ring_shield", "measured_guard_pose"]
+palette: ["#1E1E1E", "#5AA6FF", "#9AD8FF"]
+must_have_props: ["cloud-ring shield motif", "forked echo trail", "enterprise stack aura"]
+forbidden_props: ["exact Microsoft logo", "exact Azure logo", "exact GitHub logo"]
+rival_hooks: ["bill_geytz", "sam_altmyn", "tim_cuke"]
+skills:
+  - name: "Cloud Pivot"
+    visual: "defensive stance inside a rotating cloud shield ring"
+  - name: "GitHub Fork"
+    visual: "mirrored delayed strike echo"
+  - name: "Teams Mute"
+    visual: "silencing pulse with soft waveform clamp"
+  - name: "Enterprise Stack"
+    visual: "layered buff rings and calm executive glow"

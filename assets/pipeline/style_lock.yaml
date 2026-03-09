@@ -1,0 +1,18 @@
+project: "Founders Fight Club"
+visual_target: "A hybrid of platform-fighter fun and premium modern 2D fighter spectacle."
+render_style: "Stylized 2D game art, satirical-comedic, bold outlines, graphic shape language, rich lighting, no photorealism."
+combat_readability: "Characters and effects must read instantly during chaos; silhouette and pose clarity matter more than micro-detail."
+stage_rule: "Stages must feel like full-window event venues with no gutters, no gray voids, and no boxed-in central playfield."
+sprite_rule: "Sprite reference art must stay orthographic-feeling, side-view ready, and proportionally stable across key poses."
+ui_rule: "UI art should feel like a premium tournament broadcast package, not a debug overlay."
+must_have_global:
+  - "bold silhouette hierarchy"
+  - "showtime lighting with warm/cool contrast"
+  - "graphic materials and color blocking"
+  - "motion accents that support gameplay read"
+avoid_global:
+  - "photoreal public-figure likenesses"
+  - "exact real-world trademarks or logos"
+  - "empty matte side borders"
+  - "muddy values"
+  - "generic mobile-game fantasy armor"

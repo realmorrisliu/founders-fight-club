@@ -8,12 +8,11 @@ calls provider image APIs, saves outputs, and optionally writes back manifest st
 from __future__ import annotations
 
 import argparse
-import ast
 import base64
 import csv
 import json
+import mimetypes
 import os
-import re
 import sys
 import time
 import urllib.error
@@ -24,15 +23,17 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-
-STYLE_LOCK_TEXT = (
-	"2D fighting game character art, satirical-comedic, stylized cartoon, "
-	"bold outlines, high contrast colors, clean silhouette, game-ready, no photorealism."
-)
+from asset_prompt_utils import build_prompt, get_output_bucket, load_style_lock, load_subject_brief
 
 MODEL_TOKEN_MAP: dict[str, tuple[str, str]] = {
 	"nano2": ("google", "gemini-3.1-flash-image-preview"),
 	"pro": ("google", "gemini-3-pro-image-preview"),
+	"gemini31flash": ("google", "gemini-3.1-flash-image-preview"),
+	"gemini31flashimage": ("google", "gemini-3.1-flash-image-preview"),
+	"gemini3pro": ("google", "gemini-3-pro-image-preview"),
+	"gemini3proimage": ("google", "gemini-3-pro-image-preview"),
+	"gemini31pro": ("google", "gemini-3-pro-image-preview"),
+	"geminiproimage": ("google", "gemini-3-pro-image-preview"),
 	"gpt15": ("openai", "gpt-image-1.5-2025-12-16"),
 	"doubao40": ("volcengine", "doubao-seedream-4.0"),
 	"doubao45": ("volcengine", "doubao-seedream-4.5"),
@@ -55,6 +56,20 @@ class GeneratedAsset:
 	mime_type: str
 
 
+GEMINI_SUPPORTED_ASPECT_RATIOS = [
+	"1:1",
+	"2:3",
+	"3:2",
+	"3:4",
+	"4:3",
+	"4:5",
+	"5:4",
+	"9:16",
+	"16:9",
+	"21:9",
+]
+
+
 def _build_parser() -> argparse.ArgumentParser:
 	parser = argparse.ArgumentParser(
 		description=(
@@ -73,6 +88,16 @@ def _build_parser() -> argparse.ArgumentParser:
 		help="Directory containing character brief YAML files",
 	)
 	parser.add_argument(
+		"--stage-brief-dir",
+		default="assets/pipeline/stage_briefs",
+		help="Directory containing stage brief YAML files",
+	)
+	parser.add_argument(
+		"--style-lock",
+		default="assets/pipeline/style_lock.yaml",
+		help="Path to style lock YAML",
+	)
+	parser.add_argument(
 		"--output-dir",
 		default="assets/generated",
 		help="Directory to write generated images/metadata",
@@ -86,6 +111,11 @@ def _build_parser() -> argparse.ArgumentParser:
 		"--characters",
 		default="",
 		help="Optional comma-separated character_id filter",
+	)
+	parser.add_argument(
+		"--stages",
+		default="",
+		help="Optional comma-separated stage_id filter",
 	)
 	parser.add_argument(
 		"--asset-types",
@@ -149,6 +179,106 @@ def _normalize_list_arg(raw: str) -> set[str]:
 	return set(items)
 
 
+def _split_manifest_paths(raw: str) -> list[str]:
+	if not raw.strip():
+		return []
+	normalized = raw.replace(";", "|").replace(",", "|")
+	return [item.strip() for item in normalized.split("|") if item.strip()]
+
+
+def _resolve_reference_path(raw_path: str, output_dir: Path) -> Path:
+	if raw_path.startswith("asset:"):
+		asset_id = raw_path.split(":", 1)[1].strip()
+		if not asset_id:
+			raise FileNotFoundError(f"Invalid asset reference: {raw_path!r}")
+		candidates = sorted(output_dir.glob(f"**/{asset_id}.*"))
+		candidates = [candidate for candidate in candidates if candidate.suffix.lower() != ".json"]
+		if not candidates:
+			raise FileNotFoundError(f"Asset reference not found under {output_dir}: {raw_path}")
+		return candidates[0]
+
+	path = Path(raw_path)
+	if not path.is_absolute():
+		path = Path.cwd() / path
+	return path
+
+
+def _guess_mime_type(path: Path) -> str:
+	mime_type, _ = mimetypes.guess_type(path.as_posix())
+	if mime_type:
+		return mime_type
+	return "image/png"
+
+
+def _load_reference_images(row: dict[str, str], output_dir: Path) -> tuple[list[dict[str, Any]], list[str]]:
+	parts: list[dict[str, Any]] = []
+	resolved_paths: list[str] = []
+	edit_source_path = str(row.get("edit_source_path", "")).strip()
+	reference_paths = _split_manifest_paths(str(row.get("reference_paths", "")).strip())
+
+	for raw_path in [edit_source_path] + reference_paths:
+		if not raw_path:
+			continue
+		path = _resolve_reference_path(raw_path, output_dir)
+		if not path.exists():
+			raise FileNotFoundError(f"Reference image not found: {path}")
+		parts.append(
+			{
+				"inlineData": {
+					"mimeType": _guess_mime_type(path),
+					"data": base64.b64encode(path.read_bytes()).decode("utf-8"),
+				}
+			}
+		)
+		resolved_paths.append(path.as_posix())
+
+	return parts, resolved_paths
+
+
+def _infer_aspect_ratio(width: int, height: int) -> str:
+	if width <= 0 or height <= 0:
+		return "1:1"
+	target = float(width) / float(height)
+	best_ratio = "1:1"
+	best_delta = 999.0
+	for candidate in GEMINI_SUPPORTED_ASPECT_RATIOS:
+		left, right = candidate.split(":")
+		value = float(left) / float(right)
+		delta = abs(value - target)
+		if delta < best_delta:
+			best_delta = delta
+			best_ratio = candidate
+	return best_ratio
+
+
+def _infer_image_size(width: int, height: int) -> str:
+	max_dim = max(width, height)
+	if max_dim <= 768:
+		return "1K"
+	if max_dim <= 1536:
+		return "2K"
+	return "4K"
+
+
+def _build_google_generation_config(row: dict[str, str], width: int, height: int) -> dict[str, Any]:
+	aspect_ratio = str(row.get("aspect_ratio", "")).strip() or _infer_aspect_ratio(width, height)
+	image_size = str(row.get("image_size", "")).strip() or _infer_image_size(width, height)
+	media_resolution = str(row.get("media_resolution", "")).strip() or "MEDIA_RESOLUTION_HIGH"
+
+	config: dict[str, Any] = {
+		"responseModalities": ["TEXT", "IMAGE"],
+		"mediaResolution": media_resolution,
+	}
+	image_config: dict[str, Any] = {}
+	if aspect_ratio:
+		image_config["aspectRatio"] = aspect_ratio
+	if image_size:
+		image_config["imageSize"] = image_size
+	if image_config:
+		config["imageConfig"] = image_config
+	return config
+
+
 def _load_manifest(path: Path) -> tuple[list[dict[str, str]], list[str]]:
 	if not path.exists():
 		raise FileNotFoundError(f"Manifest not found: {path}")
@@ -165,154 +295,6 @@ def _write_manifest(path: Path, rows: list[dict[str, str]], fieldnames: list[str
 		writer = csv.DictWriter(f, fieldnames=fieldnames)
 		writer.writeheader()
 		writer.writerows(rows)
-
-
-def _parse_inline_value(value: str) -> Any:
-	value = value.strip()
-	if not value:
-		return ""
-	if value.startswith('"') and value.endswith('"'):
-		return value[1:-1]
-	if value.startswith("'") and value.endswith("'"):
-		return value[1:-1]
-	if value.startswith("[") and value.endswith("]"):
-		try:
-			parsed = ast.literal_eval(value)
-			if isinstance(parsed, list):
-				return [str(x) for x in parsed]
-		except Exception:
-			pass
-	return value
-
-
-def _load_character_brief(path: Path) -> dict[str, Any]:
-	if not path.exists():
-		return {}
-
-	text = path.read_text(encoding="utf-8")
-
-	try:
-		import yaml  # type: ignore
-
-		loaded = yaml.safe_load(text)
-		if isinstance(loaded, dict):
-			return loaded
-	except Exception:
-		pass
-
-	data: dict[str, Any] = {}
-	current_list_key: str | None = None
-	for raw_line in text.splitlines():
-		line = raw_line.rstrip()
-		if not line.strip() or line.strip().startswith("#"):
-			continue
-		if line.lstrip().startswith("- ") and current_list_key:
-			value = line.strip()[2:].strip()
-			data.setdefault(current_list_key, [])
-			if isinstance(data[current_list_key], list):
-				data[current_list_key].append(_parse_inline_value(value))
-			continue
-
-		m = re.match(r"^([A-Za-z0-9_]+)\s*:\s*(.*)$", line.strip())
-		if not m:
-			continue
-		key = m.group(1)
-		value_raw = m.group(2)
-		if value_raw == "":
-			current_list_key = key
-			data.setdefault(key, [])
-		else:
-			current_list_key = None
-			data[key] = _parse_inline_value(value_raw)
-	return data
-
-
-def _humanize_slug(slug: str) -> str:
-	parts = [p for p in slug.split("_") if p]
-	return " ".join(p.capitalize() for p in parts)
-
-
-def _safe_list(brief: dict[str, Any], key: str) -> list[str]:
-	value = brief.get(key, [])
-	if isinstance(value, list):
-		return [str(v) for v in value]
-	return []
-
-
-def _extract_skill_name_from_asset_id(asset_id: str) -> str:
-	m = re.search(r"_skill_([a-z0-9_]+)$", asset_id)
-	if not m:
-		return "Signature Skill"
-	return _humanize_slug(m.group(1))
-
-
-def _build_prompt(row: dict[str, str], brief: dict[str, Any]) -> str:
-	asset_type = (row.get("asset_type") or "").strip()
-	asset_id = (row.get("asset_id") or "").strip()
-	display_name = str(brief.get("display_name") or row.get("character_id") or "Unknown Fighter")
-	hook = str(brief.get("hook") or "Distinct parody fighter identity")
-	props = _safe_list(brief, "must_have_props")
-	forbidden = _safe_list(brief, "forbidden_props")
-	palette = _safe_list(brief, "palette")
-
-	width = row.get("width", "1024").strip()
-	height = row.get("height", "1024").strip()
-	prop_text = ", ".join(props[:3]) if props else "signature prop cues"
-	forbidden_text = ", ".join(forbidden) if forbidden else "exact real-world logos, photoreal faces"
-	palette_text = ", ".join(palette[:3]) if palette else "high-contrast game palette"
-
-	base = [
-		f"[STYLE LOCK] {STYLE_LOCK_TEXT}",
-		f"[CHARACTER] {display_name}. {hook}.",
-		f"[PROPS] Keep visible cues: {prop_text}.",
-		f"[PALETTE] Target palette: {palette_text}.",
-	]
-
-	if asset_type == "portrait_select":
-		task = (
-			"Create a character-select portrait. Bust shot, 3/4 front angle, confident expression, "
-			"plain background, thumbnail-readable silhouette."
-		)
-	elif asset_type == "hero_splash":
-		task = (
-			"Create a hero splash art. Full-body dynamic pose, strong motion lines, minimal background, "
-			"promo-ready composition."
-		)
-	elif asset_type == "skill_icon":
-		skill_name = _extract_skill_name_from_asset_id(asset_id)
-		task = (
-			f'Create a clean gameplay skill icon for "{skill_name}". One central motif, no text, '
-			"high contrast, readable at 128x128."
-		)
-	elif asset_type == "dialogue_portrait":
-		expression = (row.get("expression") or "focused").strip()
-		task = (
-			f"Create a dialogue portrait for combat UI. Bust shot, expression={expression}, "
-			"consistent with roster style, minimal background."
-		)
-	elif asset_type == "rivalry_intro_card":
-		task = (
-			"Create a rivalry intro card image. Half-body cinematic standoff framing, comedic taunt energy, "
-			"dramatic but clean background."
-		)
-	elif asset_type == "event_keyart":
-		task = (
-			"Create a story event key art frame. Dynamic action moment, full-body emphasis, "
-			"social-media-friendly composition."
-		)
-	else:
-		task = (
-			f"Create game-ready art for asset_type={asset_type}. Keep silhouette clear and style consistent."
-		)
-
-	base.extend(
-		[
-			f"[TASK] {task}",
-			f"[OUTPUT] {width}x{height}.",
-			f"[NEGATIVE] {forbidden_text}, realistic gore, blurry hands, dense tiny details.",
-		]
-	)
-	return "\n".join(base)
 
 
 def _resolve_model_spec(route_value: str, stage: str) -> ModelSpec:
@@ -433,16 +415,28 @@ def _call_volcengine_generate(model: str, prompt: str, width: int, height: int, 
 	)
 
 
-def _call_google_generate(model: str, prompt: str, api_key: str) -> tuple[bytes, str, dict[str, Any]]:
+def _call_google_generate(
+	model: str,
+	prompt: str,
+	width: int,
+	height: int,
+	api_key: str,
+	row: dict[str, str],
+	output_dir: Path,
+) -> tuple[bytes, str, dict[str, Any]]:
 	base_url = f"https://generativelanguage.googleapis.com/v1beta/models/{urllib.parse.quote(model)}:generateContent"
 	url = f"{base_url}?key={urllib.parse.quote(api_key)}"
 	headers = {"Content-Type": "application/json"}
+	reference_parts, resolved_paths = _load_reference_images(row=row, output_dir=output_dir)
+	prompt_parts = reference_parts + [{"text": prompt}]
 	payload = {
-		"contents": [{"parts": [{"text": prompt}]}],
-		"generationConfig": {"responseModalities": ["TEXT", "IMAGE"]},
+		"contents": [{"parts": prompt_parts}],
+		"generationConfig": _build_google_generation_config(row=row, width=width, height=height),
 	}
 
 	response_json = _json_http_post(url=url, headers=headers, payload=payload)
+	if resolved_paths:
+		response_json["_resolved_reference_paths"] = resolved_paths
 	candidates = response_json.get("candidates") or []
 	for candidate in candidates:
 		content = candidate.get("content") or {}
@@ -479,19 +473,22 @@ def _write_asset_files(
 	output_dir: Path,
 	model_spec: ModelSpec,
 ) -> GeneratedAsset:
-	character_id = (row.get("character_id") or "unknown").strip()
+	character_id = (row.get("character_id") or "").strip()
+	stage_id = (row.get("stage_id") or "").strip()
 	asset_id = (row.get("asset_id") or "unnamed_asset").strip()
 	timestamp = datetime.now(timezone.utc).isoformat()
 	ext = _mime_to_extension(mime_type)
 
-	character_dir = output_dir / character_id
-	character_dir.mkdir(parents=True, exist_ok=True)
-	image_path = character_dir / f"{asset_id}.{ext}"
+	output_bucket = get_output_bucket(row)
+	subject_dir = output_dir / output_bucket
+	subject_dir.mkdir(parents=True, exist_ok=True)
+	image_path = subject_dir / f"{asset_id}.{ext}"
 	image_path.write_bytes(image_bytes)
 
 	metadata = {
 		"asset_id": asset_id,
 		"character_id": character_id,
+		"stage_id": stage_id,
 		"asset_type": row.get("asset_type"),
 		"width": row.get("width"),
 		"height": row.get("height"),
@@ -501,10 +498,15 @@ def _write_asset_files(
 		"generated_at_utc": timestamp,
 		"mime_type": mime_type,
 		"prompt": prompt,
+		"reference_paths": str(row.get("reference_paths", "")).strip(),
+		"edit_source_path": str(row.get("edit_source_path", "")).strip(),
+		"aspect_ratio": str(row.get("aspect_ratio", "")).strip(),
+		"image_size": str(row.get("image_size", "")).strip(),
+		"media_resolution": str(row.get("media_resolution", "")).strip(),
 		"source_manifest_status": row.get("status"),
 		"raw_response": response_json,
 	}
-	metadata_path = character_dir / f"{asset_id}.json"
+	metadata_path = subject_dir / f"{asset_id}.json"
 	metadata_path.write_text(json.dumps(metadata, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
 	return GeneratedAsset(
@@ -541,6 +543,8 @@ def _generate_with_provider(
 	width: int,
 	height: int,
 	api_key: str,
+	row: dict[str, str],
+	output_dir: Path,
 ) -> tuple[bytes, str, dict[str, Any]]:
 	if model_spec.provider == "openai":
 		return _call_openai_generate(
@@ -554,7 +558,11 @@ def _generate_with_provider(
 		return _call_google_generate(
 			model=model_spec.model,
 			prompt=prompt,
+			width=width,
+			height=height,
 			api_key=api_key,
+			row=row,
+			output_dir=output_dir,
 		)
 	if model_spec.provider == "volcengine":
 		return _call_volcengine_generate(
@@ -579,10 +587,13 @@ def main() -> int:
 
 	manifest_path = Path(args.manifest)
 	brief_dir = Path(args.brief_dir)
+	stage_brief_dir = Path(args.stage_brief_dir)
+	style_lock = load_style_lock(Path(args.style_lock))
 	output_dir = Path(args.output_dir)
 
 	status_filter = _normalize_list_arg(args.status)
 	character_filter = _normalize_list_arg(args.characters)
+	stage_filter = _normalize_list_arg(args.stages)
 	asset_type_filter = _normalize_list_arg(args.asset_types)
 	limit = max(0, int(args.limit))
 
@@ -600,12 +611,15 @@ def main() -> int:
 	for idx, row in enumerate(rows):
 		row_status = (row.get("status") or "").strip().lower()
 		character_id = (row.get("character_id") or "").strip().lower()
+		stage_id = (row.get("stage_id") or "").strip().lower()
 		asset_type = (row.get("asset_type") or "").strip().lower()
 		asset_id = (row.get("asset_id") or "").strip()
 
 		if status_filter and row_status not in status_filter:
 			continue
 		if character_filter and character_id not in character_filter:
+			continue
+		if stage_filter and stage_id not in stage_filter:
 			continue
 		if asset_type_filter and asset_type not in asset_type_filter:
 			continue
@@ -623,15 +637,19 @@ def main() -> int:
 				break
 			continue
 
-		brief_path = brief_dir / f"{character_id}.yaml"
-		brief = _load_character_brief(brief_path)
-		prompt = _build_prompt(row=row, brief=brief)
+		brief = load_subject_brief(
+			row=row,
+			character_brief_dir=brief_dir,
+			stage_brief_dir=stage_brief_dir,
+		)
+		prompt = build_prompt(row=row, brief=brief, style_lock=style_lock)
 
 		width = int((row.get("width") or "1024").strip())
 		height = int((row.get("height") or "1024").strip())
 
-		character_output_dir = output_dir / character_id
-		existing_candidates = list(character_output_dir.glob(f"{asset_id}.*"))
+		output_bucket = get_output_bucket(row)
+		subject_output_dir = output_dir / output_bucket
+		existing_candidates = list(subject_output_dir.glob(f"{asset_id}.*"))
 		if existing_candidates and not args.force:
 			skipped += 1
 			print(f"[SKIP] {asset_id}: output already exists ({existing_candidates[0].name})")
@@ -639,9 +657,17 @@ def main() -> int:
 
 		if args.verbose or args.dry_run:
 			print(
-				f"[PLAN] {asset_id} | {character_id} | {asset_type} | "
+				f"[PLAN] {asset_id} | {output_bucket} | {asset_type} | "
 				f"{model_spec.provider}:{model_spec.model} | {width}x{height}"
 			)
+			reference_paths = _split_manifest_paths(str(row.get("reference_paths", "")).strip())
+			edit_source_path = str(row.get("edit_source_path", "")).strip()
+			if reference_paths or edit_source_path:
+				print(
+					f"       refs> edit={edit_source_path or '-'} "
+					f"extras={len(reference_paths)} aspect={row.get('aspect_ratio', '') or _infer_aspect_ratio(width, height)} "
+					f"size={row.get('image_size', '') or _infer_image_size(width, height)}"
+				)
 			if args.verbose:
 				preview = prompt.replace("\n", " ")[:220]
 				print(f"       prompt> {preview}...")
@@ -657,6 +683,8 @@ def main() -> int:
 				width=width,
 				height=height,
 				api_key=api_key,
+				row=row,
+				output_dir=output_dir,
 			)
 			generated = _write_asset_files(
 				row=row,
