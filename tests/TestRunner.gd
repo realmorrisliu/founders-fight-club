@@ -44,6 +44,7 @@ func _run_smoke_suite() -> void:
 	await _test_story_mode_sets_ai_opponent()
 	await _test_story_mode_round_progression_override()
 	await _test_story_mode_duel_rules_surface()
+	await _test_story_mode_camera_profile_surface()
 	await _test_main_scene_stage_bounds_sync()
 	await _test_arena_extra_platform_colliders()
 	await _test_main_scene_ledge_recovery_flow()
@@ -533,6 +534,28 @@ func _test_story_mode_duel_rules_surface() -> void:
 		story_node.queue_free()
 	await process_frame
 	SessionStateStore.clear_keys(PackedStringArray([SessionKeysStore.MATCH_MODE]))
+
+func _test_story_mode_camera_profile_surface() -> void:
+	var packed := load("res://scenes/Story.tscn")
+	_assert_true(packed is PackedScene, "story scene loads for camera profile surface test")
+	if packed is not PackedScene:
+		return
+	var story_node := (packed as PackedScene).instantiate()
+	get_root().add_child(story_node)
+	await process_frame
+	await process_frame
+	_assert_true(float(story_node.get("camera_zoom_near")) >= 1.30, "story mode starts from a tighter close-range camera")
+	_assert_true(float(story_node.get("camera_zoom_far")) >= 1.10, "story mode keeps duel framing tight even when fighters separate")
+	_assert_true(float(story_node.get("camera_horizontal_far_distance")) <= 280.0, "story mode uses tighter horizontal camera framing")
+	var arena_node := story_node.get_node_or_null("Arena")
+	_assert_true(arena_node != null and arena_node.has_method("set_presentation_state"), "story arena exposes camera-synced presentation shell")
+	var camera_value: Variant = story_node.get("camera")
+	_assert_true(camera_value is Camera2D, "story mode resolves runtime camera instance")
+	if camera_value is Camera2D:
+		_assert_true((camera_value as Camera2D).is_current(), "story mode camera becomes the active viewport camera")
+	if is_instance_valid(story_node):
+		story_node.queue_free()
+	await process_frame
 
 func _test_main_scene_stage_bounds_sync() -> void:
 	var packed := load("res://scenes/Main.tscn")
@@ -1703,7 +1726,7 @@ func _test_camera_zoom_response() -> void:
 		p2.position = Vector2(820, p2.position.y)
 		match_node.call("_update_camera", 1.0)
 		var far_zoom := float(camera_node.zoom.x)
-		_assert_true(far_zoom > near_zoom + 0.05, "camera zooms out when fighters are far apart")
+		_assert_true(far_zoom < near_zoom - 0.05, "camera widens framing when fighters are far apart")
 	if is_instance_valid(match_node):
 		match_node.queue_free()
 	await process_frame
@@ -1737,7 +1760,7 @@ func _test_camera_vertical_framing_response() -> void:
 		p2.position = Vector2(390.0, 520.0)
 		match_node.call("_update_camera", 1.0)
 		var vertical_spread_zoom := float(camera_node.zoom.x)
-		_assert_true(vertical_spread_zoom > base_zoom + 0.03, "camera zoom responds to vertical fighter separation")
+		_assert_true(vertical_spread_zoom < base_zoom - 0.03, "camera widens framing for large vertical fighter separation")
 	if is_instance_valid(match_node):
 		match_node.queue_free()
 	await process_frame

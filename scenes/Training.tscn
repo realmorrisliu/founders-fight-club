@@ -16,6 +16,13 @@ training_panel_enabled = true
 training_controls_enabled = true
 training_dummy_default_mode = "stand"
 training_detail_default_visible = false
+camera_zoom_near = 1.42
+camera_zoom_far = 1.18
+camera_zoom_min_limit = 1.08
+camera_horizontal_near_distance = 96.0
+camera_horizontal_far_distance = 260.0
+camera_vertical_near_distance = 28.0
+camera_vertical_far_distance = 132.0
 
 [node name="Arena" parent="." instance=ExtResource("2")]
 side_platforms_enabled = false

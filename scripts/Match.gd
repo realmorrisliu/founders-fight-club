@@ -65,14 +65,14 @@ const CAMERA_TRACK_X_SMOOTH_SPEED := 10.0
 const CAMERA_TRACK_Y_SMOOTH_SPEED := 7.6
 const CAMERA_EDGE_BIAS_DISTANCE := 44.0
 const CAMERA_EDGE_BIAS_WEIGHT := 0.12
-const CAMERA_HORIZONTAL_NEAR_DISTANCE := 64.0
-const CAMERA_HORIZONTAL_FAR_DISTANCE := 340.0
+const CAMERA_HORIZONTAL_NEAR_DISTANCE := 72.0
+const CAMERA_HORIZONTAL_FAR_DISTANCE := 360.0
 const CAMERA_VERTICAL_NEAR_DISTANCE := 40.0
 const CAMERA_VERTICAL_FAR_DISTANCE := 188.0
 const CAMERA_VERTICAL_ZOOM_WEIGHT := 0.98
 const CAMERA_VERTICAL_FOCUS_RANGE := 188.0
-const CAMERA_ZOOM_NEAR := 0.44
-const CAMERA_ZOOM_FAR := 0.62
+const CAMERA_ZOOM_NEAR := 1.08
+const CAMERA_ZOOM_FAR := 0.90
 const CAMERA_ZOOM_SMOOTH_SPEED := 8.2
 const CAMERA_PUNCH_BY_TIER := {
 	"light": {"duration": 0.080, "zoom": 0.020},
@@ -226,10 +226,18 @@ var sfx_player_pool_cursor := 0
 @export_range(0, 3, 1) var round_tuning_leader_lock_stock_gap := 2
 @export var round_tuning_force_ui_in_headless := false
 @export var onboarding_enabled := true
+@export_range(0.25, 2.50, 0.01) var camera_zoom_near := CAMERA_ZOOM_NEAR
+@export_range(0.25, 2.50, 0.01) var camera_zoom_far := CAMERA_ZOOM_FAR
+@export_range(0.25, 2.50, 0.01) var camera_zoom_min_limit := 0.82
+@export_range(16.0, 640.0, 1.0) var camera_horizontal_near_distance := CAMERA_HORIZONTAL_NEAR_DISTANCE
+@export_range(32.0, 960.0, 1.0) var camera_horizontal_far_distance := CAMERA_HORIZONTAL_FAR_DISTANCE
+@export_range(16.0, 480.0, 1.0) var camera_vertical_near_distance := CAMERA_VERTICAL_NEAR_DISTANCE
+@export_range(32.0, 640.0, 1.0) var camera_vertical_far_distance := CAMERA_VERTICAL_FAR_DISTANCE
 
 @onready var player_1 := $Player1
 @onready var player_2 := $Player2
 @onready var hud := $Hud
+@onready var arena_node := get_node_or_null("Arena")
 
 var camera: Camera2D
 var effects_layer: Node2D
@@ -425,7 +433,9 @@ func _process(delta: float) -> void:
 func _setup_camera() -> void:
 	camera = Camera2D.new()
 	add_child(camera)
-	camera.zoom = Vector2(CAMERA_ZOOM_NEAR, CAMERA_ZOOM_NEAR)
+	camera.enabled = true
+	var starting_zoom := clampf(camera_zoom_near, camera_zoom_min_limit, maxf(camera_zoom_near, camera_zoom_far))
+	camera.zoom = Vector2(starting_zoom, starting_zoom)
 	camera.position_smoothing_enabled = false
 	camera_track_x = (player_1.position.x + player_2.position.x) * 0.5 if player_1 and player_2 else (stage_left_x + stage_right_x) * 0.5
 	camera_track_y = CAMERA_TRACK_BASE_Y
@@ -439,6 +449,9 @@ func _setup_camera() -> void:
 		camera.limit_right = int(ceil(stage_right_x))
 		camera.limit_bottom = 500
 		camera.limit_top = -200
+	camera.position = Vector2(round(camera_track_x), round(camera_track_y))
+	camera.make_current()
+	_sync_arena_presentation()
 
 func _setup_walls() -> void:
 	if _uses_stock_rule():
@@ -607,22 +620,22 @@ func _update_camera(delta: float) -> void:
 		var distance_x: float = absf(player_1.position.x - player_2.position.x)
 		var distance_y: float = absf(player_1.position.y - player_2.position.y)
 		var zoom_t_horizontal: float = clampf(
-			(distance_x - CAMERA_HORIZONTAL_NEAR_DISTANCE) / maxf(1.0, CAMERA_HORIZONTAL_FAR_DISTANCE - CAMERA_HORIZONTAL_NEAR_DISTANCE),
+			(distance_x - camera_horizontal_near_distance) / maxf(1.0, camera_horizontal_far_distance - camera_horizontal_near_distance),
 			0.0,
 			1.0
 		)
 		var zoom_t_vertical: float = clampf(
-			(distance_y - CAMERA_VERTICAL_NEAR_DISTANCE) / maxf(1.0, CAMERA_VERTICAL_FAR_DISTANCE - CAMERA_VERTICAL_NEAR_DISTANCE),
+			(distance_y - camera_vertical_near_distance) / maxf(1.0, camera_vertical_far_distance - camera_vertical_near_distance),
 			0.0,
 			1.0
 		)
 		var zoom_t: float = maxf(zoom_t_horizontal, zoom_t_vertical * CAMERA_VERTICAL_ZOOM_WEIGHT)
-		var target_zoom: float = lerpf(CAMERA_ZOOM_NEAR, CAMERA_ZOOM_FAR, zoom_t)
+		var target_zoom: float = lerpf(camera_zoom_near, camera_zoom_far, zoom_t)
 		if camera_punch_time > 0.0:
 			camera_punch_time = maxf(0.0, camera_punch_time - delta)
 			var punch_progress := camera_punch_time / maxf(0.001, camera_punch_duration)
 			target_zoom -= sin(punch_progress * PI) * camera_punch_amount
-		target_zoom = maxf(0.42, target_zoom)
+		target_zoom = clampf(target_zoom, camera_zoom_min_limit, maxf(camera_zoom_near, camera_zoom_far))
 		var zoom_blend: float = clampf(delta * CAMERA_ZOOM_SMOOTH_SPEED, 0.0, 1.0)
 		var next_zoom: float = lerpf(camera.zoom.x, target_zoom, zoom_blend)
 		camera.zoom = Vector2(next_zoom, next_zoom)
@@ -648,6 +661,13 @@ func _update_camera(delta: float) -> void:
 			camera_pos.x = round(camera_pos.x + camera_rng.randf_range(-strength, strength))
 			camera_pos.y = round(camera_pos.y + camera_rng.randf_range(-strength, strength))
 		camera.position = camera_pos
+		_sync_arena_presentation()
+
+func _sync_arena_presentation() -> void:
+	if arena_node == null or camera == null:
+		return
+	if arena_node.has_method("set_presentation_state"):
+		arena_node.call("set_presentation_state", camera.position, camera.zoom.x, get_viewport_rect().size)
 
 func _update_screen_fx(delta: float) -> void:
 	if screen_flash == null:

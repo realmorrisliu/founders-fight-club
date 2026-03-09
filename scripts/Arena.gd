@@ -24,6 +24,7 @@ const STAGE_PULSE_SPEED := 0.88
 
 @onready var background := $Background
 @onready var floor_visual := $FloorVisual
+@onready var ground_collision := $Ground/CollisionShape2D as CollisionShape2D
 @onready var platform_left := $PlatformLeft as StaticBody2D
 @onready var platform_right := $PlatformRight as StaticBody2D
 
@@ -33,14 +34,12 @@ var crowd_band: Sprite2D
 var floor_rim: Sprite2D
 var front_fog: Sprite2D
 var top_vignette: Sprite2D
-var left_frame: Sprite2D
-var right_frame: Sprite2D
 var neon_rail: Sprite2D
-var backdrop_layer: CanvasLayer
-var backdrop_rect: TextureRect
 var additive_material: CanvasItemMaterial
 var stage_fx_time := 0.0
-var backdrop_viewport_size := Vector2i.ZERO
+var presentation_center := Vector2(450.0, 252.0)
+var presentation_zoom := 1.0
+var presentation_viewport_size := Vector2(1280.0, 720.0)
 
 func _ready() -> void:
 	if background:
@@ -55,11 +54,17 @@ func _ready() -> void:
 			FLOOR_PLACEHOLDER_SIZE,
 			Color(0.18, 0.19, 0.24, 1.0)
 		)
-	_fit_sprite(background, BACKGROUND_TARGET_POSITION, BACKGROUND_TARGET_SIZE)
-	_fit_sprite(floor_visual, FLOOR_TARGET_POSITION, FLOOR_TARGET_SIZE)
-	_ensure_window_backdrop()
+	_configure_base_stage_sprite(background, -30)
+	_configure_base_stage_sprite(floor_visual, -2)
 	_ensure_stage_dressing()
+	_sync_visual_shell()
 	_apply_side_platform_state()
+
+func set_presentation_state(camera_center: Vector2, camera_zoom: float, viewport_size: Vector2) -> void:
+	presentation_center = camera_center
+	presentation_zoom = maxf(0.01, camera_zoom)
+	presentation_viewport_size = viewport_size
+	_sync_visual_shell()
 
 func set_side_platforms_enabled(enabled: bool) -> void:
 	side_platforms_enabled = enabled
@@ -87,9 +92,17 @@ func _fit_sprite(sprite: Sprite2D, target_position: Vector2, target_size: Vector
 		target_size.y / texture_size.y
 	)
 
+func _configure_base_stage_sprite(sprite: Sprite2D, z_index: int) -> void:
+	if sprite == null:
+		return
+	sprite.visible = true
+	sprite.centered = false
+	sprite.z_as_relative = false
+	sprite.z_index = z_index
+	sprite.texture_filter = DRESSING_LINEAR_FILTER
+
 func _process(delta: float) -> void:
 	stage_fx_time += maxf(0.0, delta)
-	_refresh_window_backdrop_if_needed()
 	if cool_glow:
 		var alpha := 0.44 + sin(stage_fx_time * STAGE_PULSE_SPEED) * 0.05
 		cool_glow.modulate = Color(COOL_GLOW_COLOR.r, COOL_GLOW_COLOR.g, COOL_GLOW_COLOR.b, alpha)
@@ -107,26 +120,6 @@ func _ensure_stage_dressing() -> void:
 	if additive_material == null:
 		additive_material = CanvasItemMaterial.new()
 		additive_material.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
-	left_frame = _configure_dressing_sprite(
-		"LeftFrame",
-		_make_side_frame_texture(Vector2i(140, 900), true),
-		Vector2(-640.0, -220.0),
-		Vector2(140.0, 900.0),
-		false,
-		-11,
-		Color(1.0, 1.0, 1.0, 0.22),
-		false
-	)
-	right_frame = _configure_dressing_sprite(
-		"RightFrame",
-		_make_side_frame_texture(Vector2i(140, 900), false),
-		Vector2(1520.0, -220.0),
-		Vector2(140.0, 900.0),
-		false,
-		-11,
-		Color(1.0, 1.0, 1.0, 0.22),
-		false
-	)
 	cool_glow = _configure_dressing_sprite(
 		"BackdropGlow",
 		_make_radial_glow_texture(Vector2i(980, 640), Color(1.0, 1.0, 1.0, 1.0), 0.12, 0.52),
@@ -198,40 +191,46 @@ func _ensure_stage_dressing() -> void:
 		false
 	)
 
-func _ensure_window_backdrop() -> void:
-	backdrop_layer = get_node_or_null("BackdropLayer") as CanvasLayer
-	if backdrop_layer == null:
-		backdrop_layer = CanvasLayer.new()
-		backdrop_layer.name = "BackdropLayer"
-		backdrop_layer.layer = -100
-		add_child(backdrop_layer)
-	backdrop_rect = backdrop_layer.get_node_or_null("BackdropRect") as TextureRect
-	if backdrop_rect == null:
-		backdrop_rect = TextureRect.new()
-		backdrop_rect.name = "BackdropRect"
-		backdrop_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
-		backdrop_rect.offset_left = 0.0
-		backdrop_rect.offset_top = 0.0
-		backdrop_rect.offset_right = 0.0
-		backdrop_rect.offset_bottom = 0.0
-		backdrop_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		backdrop_rect.stretch_mode = TextureRect.STRETCH_SCALE
-		backdrop_rect.texture_filter = DRESSING_LINEAR_FILTER
-		backdrop_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		backdrop_layer.add_child(backdrop_rect)
-	backdrop_viewport_size = Vector2i.ZERO
-	_refresh_window_backdrop_if_needed()
+func _sync_visual_shell() -> void:
+	var viewport_size := presentation_viewport_size
+	if viewport_size.x <= 0.0 or viewport_size.y <= 0.0:
+		viewport_size = get_viewport_rect().size
+	if viewport_size.x <= 0.0 or viewport_size.y <= 0.0:
+		return
+	var world_view_size := viewport_size / maxf(0.01, presentation_zoom)
+	var bleed_x := maxf(world_view_size.x * 0.24, 220.0)
+	var top_bleed := world_view_size.y * 0.12
+	var bottom_bleed := world_view_size.y * 0.18
+	var top_left := presentation_center - world_view_size * 0.5
+	var floor_y := _resolve_floor_y()
+	var shell_width := maxf(world_view_size.x + bleed_x * 2.0, 1500.0)
+	var shell_left := presentation_center.x - shell_width * 0.5
+	var shell_top := top_left.y - top_bleed
+	var shell_background_height := (floor_y - shell_top) + bottom_bleed * 0.58
+	var floor_height := world_view_size.y * 0.56 + bottom_bleed
+	var floor_top := floor_y - floor_height * 0.12
+	var horizon_y := floor_y - world_view_size.y * 0.22
+	_position_sprite(background, Vector2(shell_left, shell_top), Vector2(shell_width, shell_background_height), false)
+	_position_sprite(floor_visual, Vector2(shell_left, floor_top), Vector2(shell_width, floor_height), false)
+	_position_sprite(crowd_band, Vector2(shell_left, horizon_y - world_view_size.y * 0.07), Vector2(shell_width, world_view_size.y * 0.16), false)
+	_position_sprite(floor_rim, Vector2(presentation_center.x, floor_y + world_view_size.y * 0.01), Vector2(world_view_size.x * 1.18, world_view_size.y * 0.14), true)
+	_position_sprite(neon_rail, Vector2(shell_left, floor_y - world_view_size.y * 0.012), Vector2(shell_width, world_view_size.y * 0.018), false)
+	_position_sprite(front_fog, Vector2(shell_left, floor_y - world_view_size.y * 0.12), Vector2(shell_width, world_view_size.y * 0.22), false)
+	_position_sprite(top_vignette, Vector2(shell_left, shell_top), Vector2(shell_width, world_view_size.y * 0.24), false)
+	_position_sprite(cool_glow, Vector2(presentation_center.x, horizon_y), Vector2(world_view_size.x * 0.96, world_view_size.y * 0.42), true)
+	_position_sprite(warm_glow, Vector2(presentation_center.x, floor_y - world_view_size.y * 0.08), Vector2(world_view_size.x * 0.72, world_view_size.y * 0.24), true)
 
-func _refresh_window_backdrop_if_needed() -> void:
-	if backdrop_rect == null:
+func _position_sprite(sprite: Sprite2D, position: Vector2, target_size: Vector2, centered: bool) -> void:
+	if sprite == null or sprite.texture == null:
 		return
-	var viewport_size := Vector2i(get_viewport_rect().size)
-	if viewport_size.x <= 0 or viewport_size.y <= 0:
-		return
-	if viewport_size == backdrop_viewport_size and backdrop_rect.texture != null:
-		return
-	backdrop_viewport_size = viewport_size
-	backdrop_rect.texture = _make_window_backdrop_texture(viewport_size)
+	sprite.centered = centered
+	_fit_sprite(sprite, position, target_size)
+
+func _resolve_floor_y() -> float:
+	if ground_collision == null or ground_collision.shape is not RectangleShape2D:
+		return 340.0
+	var rect := ground_collision.shape as RectangleShape2D
+	return ground_collision.global_position.y - rect.size.y * 0.5 * absf(ground_collision.global_scale.y)
 
 func _configure_dressing_sprite(
 	node_name: String,
@@ -291,49 +290,6 @@ func _make_radial_glow_texture(size: Vector2i, fill: Color, inner_radius: float,
 				alpha = 1.0 - (distance - inner_radius) / maxf(0.001, outer_radius - inner_radius)
 			var pixel := Color(fill.r, fill.g, fill.b, clampf(alpha, 0.0, 1.0))
 			image.set_pixel(x, y, pixel)
-	return ImageTexture.create_from_image(image)
-
-func _make_window_backdrop_texture(size: Vector2i) -> Texture2D:
-	var safe_size := Vector2i(maxi(1, size.x), maxi(1, size.y))
-	var image := Image.create(safe_size.x, safe_size.y, false, Image.FORMAT_RGBA8)
-	for y in range(safe_size.y):
-		var y_t := float(y) / maxf(1.0, float(safe_size.y - 1))
-		var base := Color(0.05, 0.09, 0.16, 1.0)
-		if y_t < 0.56:
-			base = base.lerp(Color(0.10, 0.18, 0.30, 1.0), y_t / 0.56)
-		else:
-			base = Color(0.10, 0.18, 0.30, 1.0).lerp(Color(0.30, 0.22, 0.18, 1.0), (y_t - 0.56) / 0.44)
-		for x in range(safe_size.x):
-			var x_t := float(x) / maxf(1.0, float(safe_size.x - 1))
-			var left_glow := clampf(1.0 - absf(x_t - 0.14) / 0.24, 0.0, 1.0)
-			var right_glow := clampf(1.0 - absf(x_t - 0.86) / 0.24, 0.0, 1.0)
-			var horizon_glow := clampf(1.0 - absf(y_t - 0.42) / 0.26, 0.0, 1.0)
-			var floor_warmth := clampf((y_t - 0.58) / 0.30, 0.0, 1.0)
-			var color := base
-			color = color.lerp(Color(0.18, 0.40, 0.64, 1.0), left_glow * horizon_glow * 0.42)
-			color = color.lerp(Color(0.54, 0.34, 0.22, 1.0), right_glow * horizon_glow * 0.34)
-			color = color.lerp(Color(0.42, 0.30, 0.20, 1.0), floor_warmth * 0.28)
-			if y % 2 == 0:
-				color = color.darkened(0.03)
-			image.set_pixel(x, y, color)
-	return ImageTexture.create_from_image(image)
-
-func _make_side_frame_texture(size: Vector2i, is_left: bool) -> Texture2D:
-	var safe_size := Vector2i(maxi(1, size.x), maxi(1, size.y))
-	var image := Image.create(safe_size.x, safe_size.y, false, Image.FORMAT_RGBA8)
-	for y in range(safe_size.y):
-		var y_t := float(y) / maxf(1.0, float(safe_size.y - 1))
-		for x in range(safe_size.x):
-			var x_t := float(x) / maxf(1.0, float(safe_size.x - 1))
-			var edge_t := 1.0 - x_t if is_left else x_t
-			var base := Color(0.02, 0.06, 0.11, 0.92)
-			var cyan_line := clampf((edge_t - 0.72) / 0.28, 0.0, 1.0)
-			var warm_line := clampf((0.24 - absf(y_t - 0.70)) / 0.24, 0.0, 1.0) * clampf((edge_t - 0.52) / 0.48, 0.0, 1.0)
-			base.r += 0.10 * cyan_line + 0.18 * warm_line
-			base.g += 0.18 * cyan_line + 0.08 * warm_line
-			base.b += 0.24 * cyan_line
-			base.a = 0.86 + 0.10 * cyan_line
-			image.set_pixel(x, y, base)
 	return ImageTexture.create_from_image(image)
 
 func _make_crowd_band_texture(size: Vector2i) -> Texture2D:
@@ -415,7 +371,7 @@ func _make_top_vignette_texture(size: Vector2i) -> Texture2D:
 		for x in range(safe_size.x):
 			var x_t := float(x) / maxf(1.0, float(safe_size.x - 1))
 			var side_weight := clampf(absf(x_t - 0.5) / 0.5, 0.0, 1.0)
-			var pixel := Color(1.0, 1.0, 1.0, alpha * (0.74 + side_weight * 0.22))
+			var pixel := Color(1.0, 1.0, 1.0, alpha * (0.64 + side_weight * 0.08))
 			image.set_pixel(x, y, pixel)
 	return ImageTexture.create_from_image(image)
 
