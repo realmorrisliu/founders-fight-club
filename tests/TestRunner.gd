@@ -1814,7 +1814,9 @@ func _test_training_toggle_keeps_dummy_non_ai() -> void:
 	await process_frame
 	await process_frame
 	var p2 := training_node.get_node_or_null("Player2")
+	var hud := training_node.get_node_or_null("Hud")
 	_assert_true(p2 != null, "training dummy ai toggle test resolves player2")
+	_assert_true(hud != null, "training dummy ai toggle test resolves hud")
 	if p2 != null:
 		_assert_true(not bool(p2.get("is_ai")), "training scene keeps dummy non-ai by default")
 		training_node.call("_on_hud_training_options_changed", {
@@ -1828,6 +1830,12 @@ func _test_training_toggle_keeps_dummy_non_ai() -> void:
 		_assert_true(not bool(p2.get("is_ai")), "switching training ruleset does not re-enable dummy ai")
 		_assert_true(str(training_node.get("ruleset_profile")) == "platform", "training ruleset toggle updates match ruleset")
 		_assert_true(str(p2.get("training_throw_tech_assist_mode")) == "button_assist", "training scene routes throw-tech assist mode to the dummy player")
+		if hud != null:
+			var tech_button := hud.get_node_or_null("TrainingPanel/TrainingTechButton") as Button
+			_assert_true(tech_button != null, "training hud exposes throw-tech assist button")
+			if tech_button != null:
+				var button_assist_label := str(hud.call("_resolve_throw_tech_assist_mode_label", "button_assist"))
+				_assert_true(tech_button.text.findn(button_assist_label) != -1, "training hud button surfaces button-assist state")
 		var arena_node := training_node.get_node_or_null("Arena")
 		if arena_node != null:
 			_assert_true(bool(arena_node.get("side_platforms_enabled")), "training ruleset toggle enables side platforms")
@@ -1842,6 +1850,41 @@ func _test_training_toggle_keeps_dummy_non_ai() -> void:
 		_assert_true(not bool(p2.get("is_ai")), "switching back to duel keeps dummy non-ai")
 		_assert_true(str(training_node.get("ruleset_profile")) == "duel", "training ruleset toggle can return to duel")
 		_assert_true(str(p2.get("training_throw_tech_assist_mode")) == "throw_only", "training scene can restore throw-only tech contract")
+		if hud != null:
+			var throw_only_button := hud.get_node_or_null("TrainingPanel/TrainingTechButton") as Button
+			if throw_only_button != null:
+				var throw_only_label := str(hud.call("_resolve_throw_tech_assist_mode_label", "throw_only"))
+				_assert_true(throw_only_button.text.findn(throw_only_label) != -1, "training hud button can restore throw-only label")
+			var assist_log := str(
+				hud.call("_resolve_training_log_line", {
+					"event_type": "throw_tech",
+					"attack_kind": "throw",
+					"block_type": "throw",
+					"throw_tech_source": "light",
+					"throw_tech_window_type": "assist",
+					"advantage_frames": 0,
+					"damage_total": 0,
+					"combo_damage": 0,
+					"hp_before": 100,
+					"hp_after": 100
+				})
+			)
+			var assist_label := str(hud.call("_tr_or_fallback", "HUD_TRAINING_LOG_ASSIST_SHORT", "Assist"))
+			_assert_true(assist_log.findn(assist_label) != -1, "training log line surfaces assist throw-tech metadata")
+			var whiff_log := str(
+				hud.call("_resolve_training_log_line", {
+					"event_type": "throw_whiff",
+					"attack_kind": "throw",
+					"block_type": "throw",
+					"advantage_frames": -12,
+					"damage_total": 0,
+					"combo_damage": 0,
+					"hp_before": 100,
+					"hp_after": 100
+				})
+			)
+			var whiff_label := str(hud.call("_resolve_training_event_label", "throw_whiff"))
+			_assert_true(whiff_log.findn(whiff_label) != -1, "training log line surfaces throw whiff events")
 	if is_instance_valid(training_node):
 		training_node.queue_free()
 	await process_frame
@@ -1857,9 +1900,14 @@ func _test_training_sandbox_resets_on_ko_and_ring_out() -> void:
 	await process_frame
 	var p1 := training_node.get_node_or_null("Player1") as CharacterBody2D
 	var p2 := training_node.get_node_or_null("Player2") as CharacterBody2D
+	var spawn_points: Variant = training_node.get("spawn_points")
 	_assert_true(p1 != null and p2 != null, "training sandbox reset test resolves both fighters")
 	if p1 != null and p2 != null:
-		var duel_respawn := p2.global_position
+		var duel_respawn := Vector2(570.0, 316.0)
+		if typeof(spawn_points) == TYPE_DICTIONARY:
+			var spawn_value: Variant = (spawn_points as Dictionary).get("p2", duel_respawn)
+			if spawn_value is Vector2:
+				duel_respawn = spawn_value
 		p2.call("apply_damage", 999, Vector2(180, -24), 0.14, "heavy", {})
 		await process_frame
 		await process_frame
@@ -1875,7 +1923,11 @@ func _test_training_sandbox_resets_on_ko_and_ring_out() -> void:
 		})
 		await process_frame
 		await process_frame
-		var platform_respawn := p1.global_position
+		var platform_respawn := Vector2(330.0, 316.0)
+		if typeof(spawn_points) == TYPE_DICTIONARY:
+			var platform_spawn_value: Variant = (spawn_points as Dictionary).get("p1", platform_respawn)
+			if platform_spawn_value is Vector2:
+				platform_respawn = platform_spawn_value
 		p1.position = Vector2(1400.0, 300.0)
 		p1.set("current_hp", 12)
 		await process_frame
@@ -2186,6 +2238,32 @@ func _test_throw_tech_and_ai_defense_windows() -> void:
 	_assert_true(landed_throw_recovery < 0.24, "landed throw keeps authored recovery instead of the whiff floor")
 
 	p2.set("is_ai", true)
+	p2.set("ai_style_profile", {
+		"throw_tech_chance": 1.0,
+		"block_chance": 0.32,
+		"throw_bias": 1.0
+	})
+	_reset_throw_tech_target_state(p2)
+	var ai_tech_result: Dictionary = p2.call("apply_damage", 10, Vector2(110, -16), 0.12, "throw", throw_meta)
+	_assert_true(bool(ai_tech_result.get("throw_teched", false)), "ai throw tech uses profile-aware chance when explicitly configured")
+	p2.call("set_training_throw_tech_options", true, "off")
+	_reset_throw_tech_target_state(p2)
+	var ai_training_off_result: Dictionary = p2.call("apply_damage", 10, Vector2(110, -16), 0.12, "throw", throw_meta)
+	_assert_true(not bool(ai_training_off_result.get("throw_teched", false)), "training throw-tech off mode also disables ai techs in sandbox")
+	p2.call("set_training_throw_tech_options", false, "throw_only")
+	p2.set("ai_style_profile", {
+		"block_chance": 0.20,
+		"throw_bias": 0.72,
+		"combo_pressure": 0.78
+	})
+	var low_ai_tech_chance := float(p2.call("_get_ai_throw_tech_chance"))
+	p2.set("ai_style_profile", {
+		"block_chance": 0.48,
+		"throw_bias": 1.24,
+		"combo_pressure": 0.40
+	})
+	var high_ai_tech_chance := float(p2.call("_get_ai_throw_tech_chance"))
+	_assert_true(high_ai_tech_chance > low_ai_tech_chance, "ai throw-tech helper scales with defensive profile strength")
 	p2.set("ai_block_time", 0.0)
 	p2.set("is_blocking", false)
 	p2.set("hitstun_time", 0.0)

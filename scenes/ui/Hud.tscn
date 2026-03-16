@@ -239,7 +239,7 @@ text = "Replay"
 offset_left = 20.0
 offset_top = 144.0
 offset_right = 356.0
-offset_bottom = 368.0
+offset_bottom = 392.0
 
 [node name="TrainingTitleLabel" type="Label" parent="TrainingPanel"]
 offset_left = 10.0
@@ -268,16 +268,23 @@ text = "Dummy: Stand"
 
 [node name="TrainingDetailButton" type="Button" parent="TrainingPanel"]
 offset_left = 160.0
+offset_top = 86.0
+offset_right = 326.0
+offset_bottom = 108.0
+text = "Adv Detail: Off"
+
+[node name="TrainingTechButton" type="Button" parent="TrainingPanel"]
+offset_left = 160.0
 offset_top = 60.0
 offset_right = 326.0
 offset_bottom = 82.0
-text = "Adv Detail: Off"
+text = "Tech: Throw Only"
 
 [node name="TrainingQuickHintLabel" type="Label" parent="TrainingPanel"]
 offset_left = 160.0
-offset_top = 90.0
+offset_top = 116.0
 offset_right = 326.0
-offset_bottom = 146.0
+offset_bottom = 160.0
 theme_override_colors/font_color = Color(0.78, 0.88, 0.98, 1)
 theme_override_colors/font_shadow_color = Color(0.05, 0.06, 0.1, 0.85)
 theme_override_constants/shadow_offset_x = 1
@@ -332,9 +339,9 @@ text = "Adv: +0f"
 
 [node name="TrainingDetailLabel" type="Label" parent="TrainingPanel"]
 offset_left = 10.0
-offset_top = 148.0
+offset_top = 166.0
 offset_right = 326.0
-offset_bottom = 194.0
+offset_bottom = 210.0
 theme_override_colors/font_color = Color(0.82, 0.89, 1, 1)
 theme_override_colors/font_shadow_color = Color(0.05, 0.06, 0.1, 0.9)
 theme_override_constants/shadow_offset_x = 1
@@ -345,9 +352,9 @@ text = "Detail hidden"
 
 [node name="TrainingLogTitleLabel" type="Label" parent="TrainingPanel"]
 offset_left = 10.0
-offset_top = 198.0
+offset_top = 214.0
 offset_right = 120.0
-offset_bottom = 216.0
+offset_bottom = 232.0
 theme_override_colors/font_color = Color(0.78, 0.92, 1, 1)
 theme_override_colors/font_shadow_color = Color(0.05, 0.06, 0.1, 0.9)
 theme_override_constants/shadow_offset_x = 1
@@ -356,9 +363,9 @@ text = "Log"
 
 [node name="TrainingLogLabel" type="Label" parent="TrainingPanel"]
 offset_left = 10.0
-offset_top = 220.0
+offset_top = 236.0
 offset_right = 326.0
-offset_bottom = 360.0
+offset_bottom = 384.0
 theme_override_colors/font_color = Color(0.94, 0.97, 1, 1)
 theme_override_colors/font_shadow_color = Color(0.05, 0.06, 0.1, 0.9)
 theme_override_constants/shadow_offset_x = 1
