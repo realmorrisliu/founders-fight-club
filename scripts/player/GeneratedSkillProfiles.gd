@@ -20,6 +20,30 @@ const PROFILE_BY_CHARACTER := {
 		"signature_c": {"damage_scale": 0.62, "cooldown": 2.2, "effect": {"type": "summon", "speed": 250.0, "duration": 1.15, "size": Vector2(30, 18), "spawn_delay": 0.1}},
 		"ultimate": {"damage_scale": 0.92, "cooldown": 8.2, "effect": {"type": "projectile", "speed": 410.0, "duration": 1.1, "size": Vector2(36, 20)}}
 	},
+	"elon_mvsk": {
+		"signature_a": {"damage_scale": 0.60, "cooldown": 1.3, "effect": {"type": "projectile", "speed": 360.0, "duration": 1.0, "size": Vector2(24, 16)}},
+		"signature_b": {"damage_scale": 0.62, "cooldown": 1.9, "control": {"slow_seconds": 0.55, "slow_factor": 0.72}},
+		"signature_c": {"damage_scale": 0.72, "cooldown": 2.2, "effect": {"type": "mobility", "mode": "dash", "speed": 340.0}},
+		"ultimate": {"damage_scale": 0.96, "cooldown": 7.8, "effect": {"type": "buff", "buff": {"duration": 4.4, "damage_multiplier": 1.18, "speed_multiplier": 1.06, "startup_multiplier": 0.86, "chip_bonus": 0.08}}}
+	},
+	"mark_zuck": {
+		"signature_a": {"damage_scale": 0.58, "cooldown": 1.5, "effect": {"type": "summon", "speed": 255.0, "duration": 1.2, "size": Vector2(30, 18), "spawn_delay": 0.04}},
+		"signature_b": {"damage_scale": 0.64, "cooldown": 1.8, "effect": {"type": "mobility", "mode": "teleport", "distance": 124.0}},
+		"signature_c": {"damage_scale": 0.68, "cooldown": 2.0, "block_type": "low", "control": {"root_seconds": 0.12, "slow_seconds": 0.45, "slow_factor": 0.76}},
+		"ultimate": {"damage_scale": 0.94, "cooldown": 8.0, "effect": {"type": "summon", "speed": 290.0, "duration": 1.25, "size": Vector2(36, 20), "spawn_delay": 0.08}}
+	},
+	"sam_altmyn": {
+		"signature_a": {"damage_scale": 0.62, "cooldown": 1.4, "effect": {"type": "summon", "speed": 245.0, "duration": 1.15, "size": Vector2(30, 18), "spawn_delay": 0.12}},
+		"signature_b": {"damage_scale": 0.54, "cooldown": 1.8, "effect": {"type": "buff", "buff": {"duration": 3.4, "damage_multiplier": 1.12, "speed_multiplier": 1.06, "startup_multiplier": 0.88}}},
+		"signature_c": {"damage_scale": 0.68, "cooldown": 1.9, "control": {"silence_seconds": 0.65}},
+		"ultimate": {"damage_scale": 0.90, "cooldown": 7.6, "effect": {"type": "buff", "buff": {"duration": 4.8, "damage_multiplier": 1.16, "speed_multiplier": 1.08, "startup_multiplier": 0.84, "chip_bonus": 0.08}}}
+	},
+	"peter_thyell": {
+		"signature_a": {"damage_scale": 0.60, "cooldown": 1.5, "effect": {"type": "trap", "duration": 1.4, "size": Vector2(36, 20), "spawn_delay": 0.08}, "control": {"slow_seconds": 0.72, "slow_factor": 0.60}},
+		"signature_b": {"damage_scale": 0.70, "cooldown": 2.0, "effect": {"type": "mobility", "mode": "teleport", "distance": 118.0}},
+		"signature_c": {"damage_scale": 0.70, "cooldown": 2.0, "block_type": "overhead", "control": {"silence_seconds": 0.55}},
+		"ultimate": {"damage_scale": 0.98, "cooldown": 8.1, "effect": {"type": "buff", "buff": {"duration": 4.0, "damage_multiplier": 1.20, "speed_multiplier": 1.04, "startup_multiplier": 0.84, "chip_bonus": 0.10}}}
+	},
 	"zef_bezos": {
 		"signature_a": {"damage_scale": 0.62, "cooldown": 1.4, "effect": {"type": "summon", "speed": 280.0, "duration": 1.1, "size": Vector2(28, 18), "spawn_delay": 0.06}},
 		"signature_b": {"damage_scale": 0.70, "cooldown": 1.9, "effect": {"type": "mobility", "mode": "rising", "rise_speed": 320.0, "forward_speed": 120.0}},

@@ -1,7 +1,7 @@
 # Onboarding and Menu Execution V1 (14-Point Delivery)
 
 ## Goals
-- 30-second promise: new players can move, jump, guard, attack, dodge, and use a special action within one short guided flow.
+- 30-second promise: new players can move, jump, guard, dodge, attack, throw, and use a special action within one short guided flow.
 - 3-minute promise: players can reliably enter `VS`, `Story`, or `Training` with readable loadout feedback.
 - 10-minute promise: telemetry can identify onboarding drop-off and menu entry behavior for the next tuning cycle.
 

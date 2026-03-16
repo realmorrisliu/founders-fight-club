@@ -135,7 +135,8 @@ var cached_training_info := {}
 var training_options := {
 	"enabled": true,
 	"dummy_mode": "stand",
-	"show_detail": false
+	"show_detail": false,
+	"ruleset_profile": "duel"
 }
 var training_panel_visible := true
 var training_controls_visible := true
@@ -231,6 +232,19 @@ func _layout_runtime_ui() -> void:
 	_set_control_rect(onboarding_progress_label, 12.0, 80.0, 120.0, 98.0)
 	_set_control_rect(onboarding_skip_button, 134.0, 78.0, 194.0, 104.0)
 	_set_control_rect(onboarding_replay_button, 200.0, 78.0, 258.0, 104.0)
+	_set_control_rect(training_panel, 20.0, 144.0, 356.0, 368.0)
+	_set_control_rect(training_title_label, 10.0, 8.0, 150.0, 28.0)
+	_set_control_rect(training_summary_label, 10.0, 30.0, 150.0, 52.0)
+	_set_control_rect(training_stun_label, 10.0, 54.0, 150.0, 74.0)
+	_set_control_rect(training_recovery_label, 10.0, 72.0, 150.0, 92.0)
+	_set_control_rect(training_advantage_label, 10.0, 92.0, 150.0, 112.0)
+	_set_control_rect(training_mode_button, 160.0, 8.0, 326.0, 30.0)
+	_set_control_rect(training_dummy_button, 160.0, 34.0, 326.0, 56.0)
+	_set_control_rect(training_detail_button, 160.0, 60.0, 326.0, 82.0)
+	_set_control_rect(training_quick_hint_label, 160.0, 90.0, 326.0, 146.0)
+	_set_control_rect(training_detail_label, 10.0, 148.0, 326.0, 194.0)
+	_set_control_rect(training_log_title_label, 10.0, 198.0, 120.0, 216.0)
+	_set_control_rect(training_log_label, 10.0, 220.0, 326.0, 360.0)
 	_set_control_rect(round_tuning_panel, 98.0, 102.0, 542.0, 318.0)
 	_set_control_rect(round_tuning_title_label, 18.0, 12.0, 426.0, 32.0)
 	_set_control_rect(round_tuning_hint_label, 18.0, 36.0, 426.0, 54.0)
@@ -295,6 +309,8 @@ func _apply_runtime_typography() -> void:
 	training_stun_label.add_theme_font_size_override("font_size", 10)
 	training_recovery_label.add_theme_font_size_override("font_size", 10)
 	training_advantage_label.add_theme_font_size_override("font_size", 10)
+	training_quick_hint_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	training_quick_hint_label.clip_text = false
 
 func _set_control_rect(control: Control, left: float, top: float, right: float, bottom: float) -> void:
 	if control == null:
@@ -328,12 +344,12 @@ func _apply_runtime_skin() -> void:
 		dialogue_style.corner_radius_bottom_left = 4
 		dialogue_style.corner_radius_bottom_right = 4
 		dialogue_panel.add_theme_stylebox_override("panel", dialogue_style)
-	if training_panel:
-		UiSkinStore.ensure_backdrop(
-			training_panel,
-			"BackdropTexture",
-			_load_ui_texture(TRAINING_PANEL_TEXTURE_PATH, Vector2i(336, 196), Color(0.10, 0.16, 0.28, 0.98))
-		)
+		if training_panel:
+			UiSkinStore.ensure_backdrop(
+				training_panel,
+				"BackdropTexture",
+				_load_ui_texture(TRAINING_PANEL_TEXTURE_PATH, Vector2i(336, 224), Color(0.10, 0.16, 0.28, 0.98))
+			)
 	if onboarding_panel:
 		UiSkinStore.ensure_backdrop(
 			onboarding_panel,
@@ -483,6 +499,8 @@ func set_training_options(options: Dictionary) -> void:
 		dummy_mode = "stand"
 	training_options["dummy_mode"] = dummy_mode
 	training_options["show_detail"] = bool(options.get("show_detail", training_options.get("show_detail", false)))
+	var ruleset_profile := str(options.get("ruleset_profile", training_options.get("ruleset_profile", "duel"))).strip_edges().to_lower()
+	training_options["ruleset_profile"] = "platform" if ruleset_profile == "platform" else "duel"
 	_refresh_training_panel()
 
 func add_training_log_entry(info: Dictionary) -> void:
@@ -929,11 +947,16 @@ func _refresh_training_panel() -> void:
 	_refresh_training_log_label()
 
 func _refresh_training_option_buttons() -> void:
-	var enabled_value := tr("HUD_TRAINING_OPTION_ON") if bool(training_options.get("enabled", true)) else tr("HUD_TRAINING_OPTION_OFF")
 	var detail_value := tr("HUD_TRAINING_OPTION_ON") if bool(training_options.get("show_detail", false)) else tr("HUD_TRAINING_OPTION_OFF")
 	var dummy_mode := str(training_options.get("dummy_mode", "stand"))
+	var ruleset_profile := str(training_options.get("ruleset_profile", "duel"))
+	var ruleset_label := _resolve_training_ruleset_label(ruleset_profile)
 	var dummy_label := _resolve_dummy_mode_label(dummy_mode)
-	training_mode_button.text = _format_string_value(tr("HUD_TRAINING_MODE_BUTTON"), "Training: %s", enabled_value)
+	training_mode_button.text = _format_string_value(
+		_tr_or_fallback("HUD_TRAINING_RULESET_BUTTON", "Drill: %s"),
+		"Drill: %s",
+		ruleset_label
+	)
 	training_dummy_button.text = _format_string_value(tr("HUD_TRAINING_DUMMY_BUTTON"), "Dummy: %s", dummy_label)
 	training_detail_button.text = _format_string_value(tr("HUD_TRAINING_DETAIL_BUTTON"), "Adv Detail: %s", detail_value)
 	training_mode_button.visible = training_controls_visible
@@ -1123,6 +1146,22 @@ func _resolve_dummy_mode_label(mode: String) -> String:
 		_:
 			return tr("HUD_TRAINING_DUMMY_STAND")
 
+func _resolve_training_ruleset_label(profile: String) -> String:
+	if str(profile).strip_edges().to_lower() == "platform":
+		return _tr_or_fallback("HUD_TRAINING_RULESET_PLATFORM", "Air & Edge")
+	return _tr_or_fallback("HUD_TRAINING_RULESET_DUEL", "Duel Lab")
+
+func _resolve_training_drill_focus_text(profile: String) -> String:
+	if str(profile).strip_edges().to_lower() == "platform":
+		return _tr_or_fallback(
+			"HUD_TRAINING_DRILL_FOCUS_PLATFORM",
+			"Drill: air jump, ledge escape, DI survival."
+		)
+	return _tr_or_fallback(
+		"HUD_TRAINING_DRILL_FOCUS_DUEL",
+		"Drill: guard break, dodge punish, throw tech."
+	)
+
 func _update_language_buttons() -> void:
 	var locale := TranslationServer.get_locale()
 	lang_en_button.disabled = locale.begins_with("en")
@@ -1138,7 +1177,8 @@ func _on_back_menu_pressed() -> void:
 	menu_requested.emit()
 
 func _on_training_mode_pressed() -> void:
-	training_options["enabled"] = not bool(training_options.get("enabled", true))
+	var current := str(training_options.get("ruleset_profile", "duel")).strip_edges().to_lower()
+	training_options["ruleset_profile"] = "platform" if current == "duel" else "duel"
 	_refresh_training_panel()
 	training_options_changed.emit(training_options.duplicate(true))
 
@@ -1475,12 +1515,19 @@ func _resolve_training_quick_hint_text() -> String:
 	if preset_value == "":
 		preset_value = GameSettingsStore.get_control_preset()
 	var preset := GameSettingsStore.normalize_control_preset(preset_value)
+	var ruleset_profile := str(training_options.get("ruleset_profile", "duel"))
 	if preset == GameSettingsStore.CONTROL_PRESET_CLASSIC:
-		return _tr_or_fallback(
-			"HUD_TRAINING_QUICK_HINT_CLASSIC",
-			"Classic: WASD Move (W Jump) | Back Guard | J/K/L/U Attack | I Dash | Ultimate: L+K"
-		)
-	return _tr_or_fallback(
-		"HUD_TRAINING_QUICK_HINT_MODERN",
-		"Modern: WASD Move | Space Jump | H Guard | J/K/I/U Attack | L Dash | Dodge: Guard + L | Ultimate: I+K"
-	)
+		return "%s\n%s" % [
+			_tr_or_fallback(
+				"HUD_TRAINING_QUICK_HINT_CLASSIC",
+				"Classic: WASD Move (W Jump) | Back Guard | J Light | K Heavy | L Special | U Throw | I Dash | Dodge: Back+I | Ultimate: L+K"
+			),
+			_resolve_training_drill_focus_text(ruleset_profile)
+		]
+	return "%s\n%s" % [
+		_tr_or_fallback(
+			"HUD_TRAINING_QUICK_HINT_MODERN",
+			"Modern: WASD Move | Space Jump | H Guard | J Light | K Heavy | I Special | U Throw | L Dash | Dodge: H+L | Ultimate: I+K"
+		),
+		_resolve_training_drill_focus_text(ruleset_profile)
+	]

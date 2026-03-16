@@ -1,18 +1,18 @@
 # MVP Design Doc
 
 ## High Concept
-2D pixel-art 1v1 fighter set in a Silicon Valley founders brawl. Single match, 60-second round, one prototype fighter, one arena.
+2D pixel-art 1v1 fighter set in a Silicon Valley founders brawl. Duel-first mainline: 60-second HP round, one prototype fighter, one arena. Stock and ring-out variants are experimental and stay off the default menu path.
 
 ## Core Loop
-- Select match (no character select yet) -> fight -> win/lose -> restart.
+- Select fighter -> choose mode -> fight -> win/lose -> restart.
 - Victory by KO (HP to zero) or by timeout with higher HP.
 
 ## Combat Pillars
 - Tight inputs with readable hit feedback.
 - Distinct move categories: light, heavy, special, throw.
 - Simple neutral game: spacing, punish, and basic combo routes.
-- Defense interaction: block into short counter-hit opportunities.
-- Training tooling: frame-advantage readout and dummy block behaviors for iteration.
+- Defense interaction: block, dodge, throw tech, and quick counter-hit opportunities.
+- Training tooling: frame-advantage readout, dummy block behaviors, and reset-friendly duel / air-edge drills.
 
 ## Inputs
 - Move (left/right), jump, block.

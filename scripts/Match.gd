@@ -11,6 +11,8 @@ const LoadoutResolverStore := preload("res://scripts/loadout/LoadoutResolver.gd"
 const ROUND_TIME_SECONDS := 60.0
 const WIN_RULE_HP_TIMER := "hp_timer"
 const WIN_RULE_STOCK := "stock"
+const RULESET_DUEL := "duel"
+const RULESET_PLATFORM := "platform"
 const DEFAULT_STAGE_LEFT_X := StageConfigStore.DEFAULT_LEFT_X
 const DEFAULT_STAGE_RIGHT_X := StageConfigStore.DEFAULT_RIGHT_X
 const DEFAULT_STAGE_FLOOR_Y := StageConfigStore.DEFAULT_FLOOR_Y
@@ -88,7 +90,8 @@ const ONBOARDING_ALLOWED_ENTRY_POINTS := ["guided_start", "training", "hud_repla
 const TRAINING_DEFAULT_OPTIONS := {
 	"enabled": true,
 	"dummy_mode": "stand",
-	"show_detail": false
+	"show_detail": false,
+	"ruleset_profile": RULESET_DUEL
 }
 const IMPACT_ANIMATION_TEXTURE_PATHS := {
 	"hit": [
@@ -193,8 +196,9 @@ const ONBOARDING_STEPS := [
 	{"id": "move", "key": "HUD_ONBOARDING_STEP_MOVE", "fallback": "Move left / right to continue."},
 	{"id": "jump", "key": "HUD_ONBOARDING_STEP_JUMP", "fallback": "Jump once to continue."},
 	{"id": "guard", "key": "HUD_ONBOARDING_STEP_GUARD", "fallback": "Hold guard once to continue."},
-	{"id": "attack", "key": "HUD_ONBOARDING_STEP_ATTACK", "fallback": "Use light or heavy attack once."},
 	{"id": "dodge", "key": "HUD_ONBOARDING_STEP_DODGE", "fallback": "Press Guard + Dash to dodge."},
+	{"id": "attack", "key": "HUD_ONBOARDING_STEP_ATTACK", "fallback": "Use light or heavy attack once."},
+	{"id": "throw", "key": "HUD_ONBOARDING_STEP_THROW", "fallback": "Use throw once."},
 	{"id": "special", "key": "HUD_ONBOARDING_STEP_SPECIAL", "fallback": "Use special or ultimate once."}
 ]
 
@@ -221,14 +225,15 @@ var sfx_player_pool: Array[AudioStreamPlayer] = []
 var sfx_player_pool_cursor := 0
 
 @export var round_timer_enabled := true
-@export_enum("hp_timer", "stock") var win_rule := WIN_RULE_STOCK
+@export_enum("hp_timer", "stock") var win_rule := WIN_RULE_HP_TIMER
+@export_enum("duel", "platform") var ruleset_profile := RULESET_DUEL
 @export_range(1, 7, 1) var stock_count := 3
 @export var training_scene_enabled := false
 @export var training_panel_enabled := false
 @export var training_controls_enabled := false
 @export_enum("stand", "force_block", "random_block") var training_dummy_default_mode := "stand"
 @export var training_detail_default_visible := false
-@export var round_tuning_enabled := true
+@export var round_tuning_enabled := false
 @export_range(0, 5, 1) var round_tuning_max_picks_per_player := 2
 @export_range(0, 3, 1) var round_tuning_leader_lock_stock_gap := 2
 @export var round_tuning_force_ui_in_headless := false
@@ -258,6 +263,7 @@ var screen_flash_color := Color(1.0, 1.0, 1.0, 0.0)
 var screen_flash_time := 0.0
 var screen_flash_duration := 0.0
 var sfx_streams := {}
+var walls_node: StaticBody2D
 var training_options := TRAINING_DEFAULT_OPTIONS.duplicate(true)
 var selected_character_ids := {"p1": "", "p2": ""}
 var selected_character_names := {"p1": "Player 1", "p2": "Player 2"}
@@ -307,9 +313,11 @@ func _ready() -> void:
 	if player_2:
 		spawn_points["p2"] = _resolve_spawn_point_for_player(player_2)
 	_reset_stocks()
+	_apply_ruleset_profile()
 	training_options["enabled"] = training_scene_enabled
 	training_options["dummy_mode"] = training_dummy_default_mode
 	training_options["show_detail"] = training_detail_default_visible
+	training_options["ruleset_profile"] = ruleset_profile
 	_setup_camera()
 	_setup_walls()
 	_setup_effects_layer()
@@ -416,15 +424,8 @@ func _process(delta: float) -> void:
 			_update_hud()
 			_update_camera(delta)
 			return
-		if round_timer_enabled:
-			if time_left <= 0.0:
-				time_left = 0.0
-				_end_match(_resolve_timeout())
-				return
-			time_left = maxf(0.0, time_left - delta)
-		_update_hud()
-		_update_camera(delta)
-		return
+	elif _uses_training_platform_sandbox():
+		_update_training_platform_ring_out_state()
 	if not round_timer_enabled:
 		_update_hud()
 		_update_camera(delta)
@@ -446,7 +447,18 @@ func _setup_camera() -> void:
 	camera.position_smoothing_enabled = false
 	camera_track_x = (player_1.position.x + player_2.position.x) * 0.5 if player_1 and player_2 else (stage_left_x + stage_right_x) * 0.5
 	camera_track_y = CAMERA_TRACK_BASE_Y
-	if _uses_stock_rule():
+	_refresh_camera_limits()
+	camera.position = Vector2(round(camera_track_x), round(camera_track_y))
+	camera.make_current()
+	_sync_arena_presentation()
+
+func _setup_walls() -> void:
+	_refresh_boundary_walls()
+
+func _refresh_camera_limits() -> void:
+	if camera == null:
+		return
+	if _uses_platform_ruleset():
 		camera.limit_left = int(floor(blast_zone_left_x))
 		camera.limit_right = int(ceil(blast_zone_right_x))
 		camera.limit_bottom = int(ceil(BLAST_ZONE_BOTTOM_Y))
@@ -456,29 +468,31 @@ func _setup_camera() -> void:
 		camera.limit_right = int(ceil(stage_right_x))
 		camera.limit_bottom = 500
 		camera.limit_top = -200
-	camera.position = Vector2(round(camera_track_x), round(camera_track_y))
-	camera.make_current()
-	_sync_arena_presentation()
 
-func _setup_walls() -> void:
-	if _uses_stock_rule():
+func _refresh_boundary_walls() -> void:
+	if walls_node != null and is_instance_valid(walls_node):
+		remove_child(walls_node)
+		walls_node.free()
+		walls_node = null
+	if _uses_platform_ruleset():
 		return
-	var walls = StaticBody2D.new()
-	add_child(walls)
+	walls_node = StaticBody2D.new()
+	walls_node.name = "BoundaryWalls"
+	add_child(walls_node)
 	
 	var left_shape = CollisionShape2D.new()
 	var left_rect = RectangleShape2D.new()
 	left_rect.size = Vector2(40, 1000)
 	left_shape.shape = left_rect
 	left_shape.position = Vector2(stage_left_x - 20.0, 300)
-	walls.add_child(left_shape)
+	walls_node.add_child(left_shape)
 	
 	var right_shape = CollisionShape2D.new()
 	var right_rect = RectangleShape2D.new()
 	right_rect.size = Vector2(40, 1000)
 	right_shape.shape = right_rect
 	right_shape.position = Vector2(stage_right_x + 20.0, 300)
-	walls.add_child(right_shape)
+	walls_node.add_child(right_shape)
 
 func _setup_effects_layer() -> void:
 	effects_layer = Node2D.new()
@@ -892,13 +906,55 @@ func _toggle_pause() -> void:
 	if hud and hud.has_method("set_pause_visible"):
 		hud.set_pause_visible(get_tree().paused)
 
+func _normalize_ruleset_profile(profile: String) -> String:
+	var normalized := profile.strip_edges().to_lower()
+	if normalized == RULESET_PLATFORM:
+		return RULESET_PLATFORM
+	return RULESET_DUEL
+
+func _uses_platform_ruleset() -> bool:
+	return ruleset_profile == RULESET_PLATFORM
+
+func _uses_training_sandbox() -> bool:
+	return training_scene_enabled
+
+func _uses_training_platform_sandbox() -> bool:
+	return _uses_training_sandbox() and _uses_platform_ruleset() and not _uses_stock_rule()
+
 func _uses_stock_rule() -> bool:
 	return win_rule == WIN_RULE_STOCK
+
+func _apply_ruleset_profile() -> void:
+	ruleset_profile = _normalize_ruleset_profile(ruleset_profile)
+	training_options["ruleset_profile"] = ruleset_profile
+	var side_platforms_enabled := _uses_platform_ruleset()
+	if arena_node:
+		if arena_node.has_method("set_side_platforms_enabled"):
+			arena_node.call("set_side_platforms_enabled", side_platforms_enabled)
+		else:
+			arena_node.set("side_platforms_enabled", side_platforms_enabled)
+	for fighter in [player_1, player_2]:
+		if fighter != null and fighter.has_method("set_ruleset_profile"):
+			fighter.call("set_ruleset_profile", ruleset_profile)
+	_refresh_camera_limits()
+	_refresh_boundary_walls()
+	if hud and hud.has_method("set_training_options"):
+		hud.set_training_options(training_options)
 
 func _reset_stocks() -> void:
 	var initial := maxi(1, stock_count)
 	stocks["p1"] = initial
 	stocks["p2"] = initial
+
+func _update_training_platform_ring_out_state() -> void:
+	var reset_keys: Array[String] = []
+	if player_1 and _is_outside_blast_zone(player_1.global_position):
+		reset_keys.append("p1")
+	if player_2 and _is_outside_blast_zone(player_2.global_position):
+		reset_keys.append("p2")
+	if reset_keys.is_empty():
+		return
+	_reset_training_sandbox_players(reset_keys)
 
 func _update_stock_ring_out_state() -> void:
 	var p1_out := player_1 and _is_outside_blast_zone(player_1.global_position)
@@ -1189,6 +1245,15 @@ func _respawn_player_by_key(player_key: String) -> void:
 		fighter.global_position = spawn
 		fighter.set("current_hp", 100)
 
+func _reset_training_sandbox_players(player_keys: Array[String]) -> void:
+	var seen := {}
+	for player_key_value in player_keys:
+		var player_key := str(player_key_value).strip_edges()
+		if player_key == "" or seen.has(player_key):
+			continue
+		seen[player_key] = true
+		_respawn_player_by_key(player_key)
+
 func _get_player_by_key(player_key: String) -> CharacterBody2D:
 	if player_key == "p1":
 		return player_1
@@ -1307,13 +1372,15 @@ func _is_onboarding_step_completed(step_id: String) -> bool:
 			return not player_1.is_on_floor() and player_1.velocity.y <= -24.0
 		"guard":
 			return bool(player_1.is_blocking)
+		"dodge":
+			return str(player_1.dodge_state) != "" or float(player_1.dodge_time) > 0.0
 		"attack":
 			return (
 				attack_state.begins_with("light")
 				or attack_state.begins_with("heavy")
 			)
-		"dodge":
-			return str(player_1.dodge_state) != "" or float(player_1.dodge_time) > 0.0
+		"throw":
+			return attack_state == "throw"
 		"special":
 			return (
 				attack_state == "special"
@@ -1352,6 +1419,20 @@ func _on_player_health_changed() -> void:
 
 func _on_player_defeated(loser_key: String) -> void:
 	if match_over:
+		return
+	if _uses_training_sandbox():
+		var p1_defeated: bool = player_1 != null and int(player_1.current_hp) <= 0
+		var p2_defeated: bool = player_2 != null and int(player_2.current_hp) <= 0
+		if not p1_defeated and not p2_defeated:
+			return
+		if p1_defeated and p2_defeated and loser_key != "p1":
+			return
+		var reset_keys: Array[String] = []
+		if p1_defeated:
+			reset_keys.append("p1")
+		if p2_defeated:
+			reset_keys.append("p2")
+		_reset_training_sandbox_players(reset_keys)
 		return
 	if _uses_stock_rule():
 		var p1_defeated: bool = player_1 != null and int(player_1.current_hp) <= 0
@@ -1745,6 +1826,17 @@ func _on_hud_training_options_changed(options: Dictionary) -> void:
 		dummy_mode = "stand"
 	training_options["dummy_mode"] = dummy_mode
 	training_options["show_detail"] = bool(options.get("show_detail", training_options.get("show_detail", false)))
+	var requested_ruleset := _normalize_ruleset_profile(str(options.get("ruleset_profile", training_options.get("ruleset_profile", ruleset_profile))))
+	training_options["ruleset_profile"] = requested_ruleset
+	if training_scene_enabled and requested_ruleset != ruleset_profile:
+		ruleset_profile = requested_ruleset
+		_apply_ruleset_profile()
+		_reset_training_sandbox_players(["p1", "p2"])
+		if hud:
+			if hud.has_method("set_training_data"):
+				hud.set_training_data({})
+			if hud.has_method("clear_training_log"):
+				hud.clear_training_log()
 	_apply_training_options()
 
 func _play_attack_sfx(prefix: String, attack_kind: String) -> void:

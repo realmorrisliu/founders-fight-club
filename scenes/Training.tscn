@@ -10,6 +10,7 @@
 [node name="Training" type="Node2D"]
 script = ExtResource("1")
 win_rule = "hp_timer"
+ruleset_profile = "duel"
 round_timer_enabled = false
 training_scene_enabled = true
 training_panel_enabled = true

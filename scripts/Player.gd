@@ -24,6 +24,8 @@ signal loadout_item_evolved(
 	elapsed_seconds: float
 )
 
+const RULESET_DUEL := "duel"
+const RULESET_PLATFORM := "platform"
 const MAX_HP := 100
 const MOVE_SPEED := 220.0
 const JUMP_VELOCITY := -380.0
@@ -79,6 +81,17 @@ const SPOT_DODGE_INVULN_SECONDS := 0.13
 const ROLL_DODGE_DURATION := 0.24
 const ROLL_DODGE_INVULN_SECONDS := 0.15
 const ROLL_DODGE_SPEED := 255.0
+const DUEL_DODGE_COOLDOWN_SECONDS := 0.34
+const DUEL_SPOT_DODGE_DURATION := 0.16
+const DUEL_SPOT_DODGE_INVULN_SECONDS := 0.10
+const DUEL_ROLL_DODGE_DURATION := 0.20
+const DUEL_ROLL_DODGE_INVULN_SECONDS := 0.12
+const DUEL_ROLL_DODGE_SPEED := 230.0
+const DUEL_AIR_DODGE_DURATION := 0.18
+const DUEL_AIR_DODGE_INVULN_SECONDS := 0.10
+const DUEL_AIR_DODGE_SPEED := 180.0
+const DUEL_AIR_DODGE_FALL_SPEED := 52.0
+const DUEL_AIR_DODGE_END_LAG_SECONDS := 0.24
 const AIR_DODGE_DURATION := 0.24
 const AIR_DODGE_INVULN_SECONDS := 0.16
 const AIR_DODGE_SPEED := 220.0
@@ -620,6 +633,7 @@ var dodge_direction := 1
 var air_dodge_end_lag_time := 0.0
 var air_dodge_available := true
 var air_jumps_remaining := MAX_AIR_JUMPS
+var ruleset_profile := RULESET_PLATFORM
 var control_preset := GameSettingsStore.CONTROL_PRESET_MODERN
 var local_input_prefix := "p1"
 var local_gamepad_device := 0
@@ -668,6 +682,73 @@ func _ready() -> void:
 	platform_drop_through_time = 0.0
 	air_dodge_end_lag_time = 0.0
 	_update_platform_collision_mask()
+
+func set_ruleset_profile(profile: String) -> void:
+	var normalized := str(profile).strip_edges().to_lower()
+	if normalized != RULESET_DUEL and normalized != RULESET_PLATFORM:
+		normalized = RULESET_DUEL
+	if ruleset_profile == normalized:
+		return
+	ruleset_profile = normalized
+	if _uses_duel_ruleset():
+		_clear_platform_ruleset_state()
+	shield_meter = SHIELD_MAX
+	shield_regen_delay = 0.0
+	shield_break_time = 0.0
+	shield_broken = false
+	_reset_air_mobility_resources()
+	_update_platform_collision_mask()
+	_refresh_ai_style_profile()
+
+func _uses_duel_ruleset() -> bool:
+	return ruleset_profile == RULESET_DUEL
+
+func _uses_guard_meter() -> bool:
+	return true
+
+func _allows_ground_defensive_dodge() -> bool:
+	return true
+
+func _allows_air_dodge() -> bool:
+	return true
+
+func _allows_ledge_actions() -> bool:
+	return not _uses_duel_ruleset()
+
+func _allows_platform_drop_through() -> bool:
+	return not _uses_duel_ruleset()
+
+func _allows_air_jumps() -> bool:
+	return not _uses_duel_ruleset()
+
+func _uses_directional_influence() -> bool:
+	return true
+
+func _get_initial_air_jump_count() -> int:
+	return MAX_AIR_JUMPS if _allows_air_jumps() else 0
+
+func _reset_air_mobility_resources() -> void:
+	air_dodge_available = _allows_air_dodge()
+	air_jumps_remaining = _get_initial_air_jump_count()
+
+func _clear_platform_ruleset_state() -> void:
+	if is_ledge_hanging:
+		_end_ledge_hang()
+	else:
+		_release_occupied_ledge()
+	is_ledge_hanging = false
+	ledge_side = 0
+	ledge_hold_time = 0.0
+	ledge_regrab_lock_time = 0.0
+	dodge_state = ""
+	dodge_time = 0.0
+	dodge_cooldown_time = 0.0
+	air_dodge_end_lag_time = 0.0
+	platform_drop_through_time = 0.0
+	shield_break_time = 0.0
+	shield_broken = false
+	shield_regen_delay = 0.0
+	shield_meter = SHIELD_MAX
 
 func _exit_tree() -> void:
 	_release_occupied_ledge()
@@ -847,10 +928,12 @@ func _process_player_input(delta: float) -> void:
 			_buffer_attack(buffered_kind)
 
 func _update_platform_collision_mask() -> void:
-	var enable_platform_layer := platform_drop_through_time <= 0.0
+	var enable_platform_layer := _allows_platform_drop_through() and platform_drop_through_time <= 0.0
 	set_collision_mask_value(PLATFORM_COLLISION_LAYER_BIT, enable_platform_layer)
 
 func _try_start_platform_drop_through() -> bool:
+	if not _allows_platform_drop_through():
+		return false
 	if not _is_action_just_pressed("jump"):
 		return false
 	if not _is_action_pressed("move_down"):
@@ -871,6 +954,8 @@ func _is_on_drop_through_platform() -> bool:
 	return global_position.y < stage_floor_y - PLATFORM_DROP_FLOOR_Y_MARGIN
 
 func _try_enter_ledge_hang() -> void:
+	if not _allows_ledge_actions():
+		return
 	if is_ledge_hanging:
 		return
 	if ledge_regrab_lock_time > 0.0:
@@ -936,8 +1021,7 @@ func _start_ledge_hang(side: int) -> void:
 	_clear_attack_buffer()
 	jump_cut_available = false
 	landing_lag_time = 0.0
-	air_dodge_available = true
-	air_jumps_remaining = MAX_AIR_JUMPS
+	_reset_air_mobility_resources()
 	facing_locked = true
 	facing_locked_direction = -ledge_side
 	global_position = _get_ledge_anchor_position(ledge_side)
@@ -990,7 +1074,7 @@ func _launch_from_ledge() -> void:
 	velocity.x = -float(side) * LEDGE_JUMP_HORIZONTAL_SPEED * _get_move_speed_multiplier()
 	jump_cut_available = false
 	wake_invuln_time = maxf(wake_invuln_time, 0.10)
-	air_jumps_remaining = MAX_AIR_JUMPS
+	air_jumps_remaining = _get_initial_air_jump_count()
 
 func _roll_getup_from_ledge() -> void:
 	var side := ledge_side
@@ -1007,7 +1091,7 @@ func _attack_getup_from_ledge() -> void:
 	global_position = Vector2(edge_x - float(side) * LEDGE_ATTACK_GETUP_INSET_X, stage_floor_y - 2.0)
 	velocity = Vector2.ZERO
 	coyote_time = COYOTE_TIME_SECONDS
-	air_jumps_remaining = MAX_AIR_JUMPS
+	air_jumps_remaining = _get_initial_air_jump_count()
 	_start_attack("light")
 
 func _drop_from_ledge(apply_horizontal_push: bool) -> void:
@@ -1061,13 +1145,11 @@ func _update_jump_mobility_timers(delta: float) -> void:
 		coyote_time = COYOTE_TIME_SECONDS
 		fast_fall_active = false
 		jump_cut_available = false
-		air_dodge_available = true
-		air_jumps_remaining = MAX_AIR_JUMPS
+		_reset_air_mobility_resources()
 	if is_ledge_hanging:
 		fast_fall_active = false
 		jump_cut_available = false
-		air_dodge_available = true
-		air_jumps_remaining = MAX_AIR_JUMPS
+		_reset_air_mobility_resources()
 	if is_ai:
 		return
 	if _is_action_just_pressed("jump"):
@@ -1077,6 +1159,8 @@ func _try_start_defensive_dodge(horizontal_axis: float, vertical_axis: float) ->
 	if not _can_start_dodge():
 		return false
 	if is_on_floor():
+		if not _allows_ground_defensive_dodge():
+			return false
 		var guarding := _is_block_input_pressed() or is_blocking
 		if not guarding:
 			return false
@@ -1112,15 +1196,19 @@ func _can_start_dodge() -> bool:
 	if _is_rooted():
 		return false
 	if is_on_floor():
+		if not _allows_ground_defensive_dodge():
+			return false
 		return dodge_cooldown_time <= 0.0
+	if not _allows_air_dodge():
+		return false
 	return air_dodge_available
 
 func _start_spot_dodge() -> void:
 	dodge_state = "spot"
-	dodge_time = SPOT_DODGE_DURATION
+	dodge_time = _get_spot_dodge_duration()
 	dodge_direction = facing
-	dodge_cooldown_time = maxf(dodge_cooldown_time, DODGE_COOLDOWN_SECONDS)
-	wake_invuln_time = maxf(wake_invuln_time, SPOT_DODGE_INVULN_SECONDS)
+	dodge_cooldown_time = maxf(dodge_cooldown_time, _get_dodge_cooldown_seconds())
+	wake_invuln_time = maxf(wake_invuln_time, _get_spot_dodge_invuln_seconds())
 	is_blocking = false
 	facing_locked = true
 	facing_locked_direction = facing
@@ -1134,32 +1222,34 @@ func _start_roll_dodge(direction: int) -> void:
 	if resolved_direction == 0:
 		resolved_direction = facing
 	dodge_state = "roll"
-	dodge_time = ROLL_DODGE_DURATION
+	dodge_time = _get_roll_dodge_duration()
 	dodge_direction = 1 if resolved_direction >= 0 else -1
-	dodge_cooldown_time = maxf(dodge_cooldown_time, DODGE_COOLDOWN_SECONDS)
-	wake_invuln_time = maxf(wake_invuln_time, ROLL_DODGE_INVULN_SECONDS)
+	dodge_cooldown_time = maxf(dodge_cooldown_time, _get_dodge_cooldown_seconds())
+	wake_invuln_time = maxf(wake_invuln_time, _get_roll_dodge_invuln_seconds())
 	is_blocking = false
 	facing_locked = true
 	facing_locked_direction = dodge_direction
-	velocity.x = float(dodge_direction) * ROLL_DODGE_SPEED * _get_move_speed_multiplier()
+	velocity.x = float(dodge_direction) * _get_roll_dodge_speed() * _get_move_speed_multiplier()
 	velocity.y = 0.0
 	_clear_attack_buffer()
 
 func _start_air_dodge(horizontal_axis: float, vertical_axis: float) -> bool:
+	if not _allows_air_dodge():
+		return false
 	if not air_dodge_available:
 		return false
 	air_dodge_available = false
 	air_dodge_end_lag_time = 0.0
 	dodge_state = "air"
-	dodge_time = AIR_DODGE_DURATION
+	dodge_time = _get_air_dodge_duration()
 	dodge_cooldown_time = maxf(dodge_cooldown_time, 0.08)
-	wake_invuln_time = maxf(wake_invuln_time, AIR_DODGE_INVULN_SECONDS)
+	wake_invuln_time = maxf(wake_invuln_time, _get_air_dodge_invuln_seconds())
 	is_blocking = false
 	var direction := Vector2(horizontal_axis, vertical_axis)
 	if direction.length() < 0.2:
 		direction = Vector2(float(facing), 0.0)
 	direction = direction.normalized()
-	velocity = direction * AIR_DODGE_SPEED
+	velocity = direction * _get_air_dodge_speed()
 	dodge_direction = 1 if direction.x >= 0.0 else -1
 	facing_locked = true
 	facing_locked_direction = dodge_direction
@@ -1173,15 +1263,16 @@ func _update_dodge_motion(delta: float) -> void:
 			if is_on_floor():
 				velocity.y = 0.0
 		"roll":
-			var roll_speed := ROLL_DODGE_SPEED * _get_move_speed_multiplier()
+			var roll_speed := _get_roll_dodge_speed() * _get_move_speed_multiplier()
 			var target_speed := float(dodge_direction) * roll_speed
 			if dodge_time <= 0.08:
 				target_speed *= 0.42
 			velocity.x = move_toward(velocity.x, target_speed, roll_speed * delta * 8.0)
 			velocity.y = 0.0
 		"air":
-			velocity.y = move_toward(velocity.y, AIR_DODGE_FALL_SPEED, gravity * delta * 0.45)
-			velocity.x = move_toward(velocity.x, 0.0, AIR_DODGE_SPEED * delta * 1.8)
+			var air_dodge_speed := _get_air_dodge_speed()
+			velocity.y = move_toward(velocity.y, _get_air_dodge_fall_speed(), gravity * delta * 0.45)
+			velocity.x = move_toward(velocity.x, 0.0, air_dodge_speed * delta * 1.8)
 		_:
 			pass
 
@@ -1190,7 +1281,7 @@ func _end_dodge_state() -> void:
 		return
 	if dodge_state == "air":
 		velocity.x *= 0.55
-		air_dodge_end_lag_time = AIR_DODGE_END_LAG_SECONDS
+		air_dodge_end_lag_time = _get_air_dodge_end_lag_seconds()
 	dodge_state = ""
 	dodge_time = 0.0
 	facing_locked = false
@@ -1331,6 +1422,8 @@ func _can_execute_jump() -> bool:
 		return true
 	if coyote_time > 0.0:
 		return true
+	if not _allows_air_jumps():
+		return false
 	return air_jumps_remaining > 0
 
 func _sync_control_preset() -> void:
@@ -1886,9 +1979,58 @@ func _refresh_ai_style_profile() -> void:
 		var overrides := override_value as Dictionary
 		for key in overrides.keys():
 			ai_style_profile[str(key)] = overrides[key]
+	if _uses_duel_ruleset():
+		ai_style_profile["preferred_range"] = maxf(42.0, float(ai_style_profile.get("preferred_range", 56.0)) - 10.0)
+		ai_style_profile["chase_range"] = maxf(
+			float(ai_style_profile.get("preferred_range", 56.0)) + 20.0,
+			float(ai_style_profile.get("chase_range", 108.0)) - 12.0
+		)
+		ai_style_profile["retreat_range"] = maxf(12.0, float(ai_style_profile.get("retreat_range", 20.0)) - 4.0)
+		ai_style_profile["retreat_chance"] = clampf(float(ai_style_profile.get("retreat_chance", 0.24)) * 0.65, 0.08, 0.28)
+		ai_style_profile["block_chance"] = clampf(float(ai_style_profile.get("block_chance", 0.35)) * 0.82, 0.16, 0.34)
+		ai_style_profile["block_hold_time"] = clampf(float(ai_style_profile.get("block_hold_time", 0.18)) - 0.03, 0.10, 0.22)
+		ai_style_profile["signature_bias"] = clampf(float(ai_style_profile.get("signature_bias", 1.0)) * 0.90, 0.70, 1.35)
+		ai_style_profile["special_bias"] = clampf(float(ai_style_profile.get("special_bias", 1.0)) * 0.92, 0.76, 1.24)
+		ai_style_profile["heavy_bias"] = clampf(float(ai_style_profile.get("heavy_bias", 1.0)) * 1.10, 0.80, 1.36)
+		ai_style_profile["throw_bias"] = clampf(float(ai_style_profile.get("throw_bias", 1.0)) * 1.18, 0.72, 1.34)
+		ai_style_profile["dash_in_chance"] = clampf(float(ai_style_profile.get("dash_in_chance", 0.08)) + 0.04, 0.06, 0.24)
+		ai_style_profile["combo_pressure"] = clampf(float(ai_style_profile.get("combo_pressure", 0.52)) + 0.06, 0.42, 0.82)
 
 func _get_ai_profile_number(key: String, fallback: float) -> float:
 	return float(ai_style_profile.get(key, fallback))
+
+func _get_dodge_cooldown_seconds() -> float:
+	return DUEL_DODGE_COOLDOWN_SECONDS if _uses_duel_ruleset() else DODGE_COOLDOWN_SECONDS
+
+func _get_spot_dodge_duration() -> float:
+	return DUEL_SPOT_DODGE_DURATION if _uses_duel_ruleset() else SPOT_DODGE_DURATION
+
+func _get_spot_dodge_invuln_seconds() -> float:
+	return DUEL_SPOT_DODGE_INVULN_SECONDS if _uses_duel_ruleset() else SPOT_DODGE_INVULN_SECONDS
+
+func _get_roll_dodge_duration() -> float:
+	return DUEL_ROLL_DODGE_DURATION if _uses_duel_ruleset() else ROLL_DODGE_DURATION
+
+func _get_roll_dodge_invuln_seconds() -> float:
+	return DUEL_ROLL_DODGE_INVULN_SECONDS if _uses_duel_ruleset() else ROLL_DODGE_INVULN_SECONDS
+
+func _get_roll_dodge_speed() -> float:
+	return DUEL_ROLL_DODGE_SPEED if _uses_duel_ruleset() else ROLL_DODGE_SPEED
+
+func _get_air_dodge_duration() -> float:
+	return DUEL_AIR_DODGE_DURATION if _uses_duel_ruleset() else AIR_DODGE_DURATION
+
+func _get_air_dodge_invuln_seconds() -> float:
+	return DUEL_AIR_DODGE_INVULN_SECONDS if _uses_duel_ruleset() else AIR_DODGE_INVULN_SECONDS
+
+func _get_air_dodge_speed() -> float:
+	return DUEL_AIR_DODGE_SPEED if _uses_duel_ruleset() else AIR_DODGE_SPEED
+
+func _get_air_dodge_fall_speed() -> float:
+	return DUEL_AIR_DODGE_FALL_SPEED if _uses_duel_ruleset() else AIR_DODGE_FALL_SPEED
+
+func _get_air_dodge_end_lag_seconds() -> float:
+	return DUEL_AIR_DODGE_END_LAG_SECONDS if _uses_duel_ruleset() else AIR_DODGE_END_LAG_SECONDS
 
 func _update_attack(delta: float) -> void:
 	if attack_state == "":
@@ -4107,9 +4249,9 @@ func _can_enter_block() -> bool:
 		return false
 	if shield_break_time > 0.0 or shield_broken:
 		return false
-	if dodge_time > 0.0:
-		return false
 	if shield_meter < SHIELD_BLOCK_MIN_REQUIRED:
+		return false
+	if dodge_time > 0.0:
 		return false
 	if attack_state != "" or is_dashing:
 		return false
@@ -4460,6 +4602,8 @@ func _apply_knockback_growth(base_knockback: Vector2, hp_before_hit: int) -> Vec
 	return base_knockback * growth_scale
 
 func _apply_directional_influence(base_knockback: Vector2, attack_meta: Dictionary) -> Vector2:
+	if not _uses_directional_influence():
+		return base_knockback
 	if base_knockback.length() < DI_MIN_KNOCKBACK_SPEED:
 		return base_knockback
 	var di_input := _resolve_directional_influence_input(base_knockback, attack_meta)
@@ -4739,8 +4883,7 @@ func force_respawn(spawn_position: Vector2, facing_direction: int = 1) -> void:
 	dodge_cooldown_time = 0.0
 	dodge_direction = facing
 	air_dodge_end_lag_time = 0.0
-	air_dodge_available = true
-	air_jumps_remaining = MAX_AIR_JUMPS
+	_reset_air_mobility_resources()
 	platform_drop_through_time = 0.0
 	_update_platform_collision_mask()
 	_free_skill_entity_nodes(skill_entities)

@@ -91,7 +91,7 @@ offset_right = 310.0
 offset_bottom = 210.0
 theme_override_colors/font_color = Color(0.88, 0.93, 1, 1)
 horizontal_alignment = 1
-text = "Build Preset"
+text = "Gameplan Preset"
 
 [node name="P1ProfileLabel" type="Label" parent="CenterPanel"]
 offset_left = 50.0
@@ -393,18 +393,18 @@ offset_bottom = 102.0
 theme_override_colors/font_color = Color(0.82, 0.9, 1, 1)
 horizontal_alignment = 1
 autowrap_mode = 2
-text = "Classic: up to jump, back to block. Modern: dedicated block button."
+text = "Modern (recommended): dedicated block button. Classic: up to jump, back to block."
 
 [node name="ClassicButton" type="Button" parent="FirstLaunchControlOverlay/Panel"]
-offset_left = 48.0
+offset_left = 234.0
 offset_top = 132.0
-offset_right = 196.0
+offset_right = 382.0
 offset_bottom = 172.0
 text = "Classic"
 
 [node name="ModernButton" type="Button" parent="FirstLaunchControlOverlay/Panel"]
-offset_left = 234.0
+offset_left = 48.0
 offset_top = 132.0
-offset_right = 382.0
+offset_right = 196.0
 offset_bottom = 172.0
 text = "Modern"

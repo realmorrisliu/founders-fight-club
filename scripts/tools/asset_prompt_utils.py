@@ -11,7 +11,7 @@ from typing import Any
 
 DEFAULT_STYLE_LOCK = {
 	"project": "Founders Fight Club",
-	"visual_target": "A playful platform-fighter spirit packaged with premium modern 2D fighter spectacle.",
+	"visual_target": "A sharp duel-first 2D fighter presentation with satirical showmanship and tournament-ready clarity.",
 	"render_style": "Stylized 2D game art, satirical-comedic, bold outlines, graphic shapes, no photorealism.",
 	"combat_readability": "Prioritize strong silhouettes, high contrast, and thumbnail readability before detail density.",
 	"stage_rule": "Stage art must feel full-bleed and showtime-ready, never like a test room or boxed-in backdrop.",

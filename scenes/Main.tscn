@@ -9,19 +9,28 @@
 
 [node name="Main" type="Node2D"]
 script = ExtResource("1")
-win_rule = "stock"
-stock_count = 3
+win_rule = "hp_timer"
+ruleset_profile = "duel"
+round_tuning_enabled = false
+camera_zoom_near = 1.42
+camera_zoom_far = 1.18
+camera_zoom_min_limit = 1.08
+camera_horizontal_near_distance = 96.0
+camera_horizontal_far_distance = 260.0
+camera_vertical_near_distance = 28.0
+camera_vertical_far_distance = 132.0
 
 [node name="Arena" parent="." instance=ExtResource("2")]
+side_platforms_enabled = false
 
 [node name="Player1" parent="." instance=ExtResource("3")]
-position = Vector2(300, 300)
+position = Vector2(330, 300)
 player_id = 1
 attack_table_resource = ExtResource("5")
 opponent_path = NodePath("../Player2")
 
 [node name="Player2" parent="." instance=ExtResource("3")]
-position = Vector2(600, 300)
+position = Vector2(570, 300)
 player_id = 2
 attack_table_resource = ExtResource("6")
 opponent_path = NodePath("../Player1")

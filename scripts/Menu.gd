@@ -51,7 +51,7 @@ const MENU_ROUTE_CARD_CONFIG := [
 		"title_key": "MENU_SUMMARY_ROUTE_GUIDED",
 		"title_fallback": "Guided",
 		"desc_key": "MENU_SUMMARY_ROUTE_GUIDED_HINT",
-		"desc_fallback": "Best first run. Replays move, jump, guard, dodge, and special.",
+		"desc_fallback": "Best first run. Replays move, jump, guard, dodge, throw, and special.",
 		"best_key": "MENU_ROUTE_PREVIEW_GUIDED_BEST",
 		"best_fallback": "First session",
 		"next_key": "MENU_ROUTE_PREVIEW_GUIDED_NEXT",
@@ -724,7 +724,7 @@ func _refresh_text() -> void:
 	)
 	p1_character_label.text = _resolve_menu_text("MENU_P1_CHARACTER", "P1 Character")
 	p2_character_label.text = _resolve_menu_text("MENU_P2_CHARACTER_VS_ONLY", "Opponent Setup")
-	p1_loadout_label.text = _resolve_menu_text("MENU_LOADOUT_LABEL", "Build Preset")
+	p1_loadout_label.text = _resolve_menu_text("MENU_LOADOUT_LABEL", "Gameplan Preset")
 	p1_profile_label.text = _resolve_menu_text("MENU_PROFILE_LOADING", "Loading profile...")
 	p2_profile_label.text = _resolve_menu_text("MENU_PROFILE_LOADING", "Loading profile...")
 	mode_step_label.text = _resolve_menu_text("MENU_MODE_STEP_LABEL", "Then Choose a Mode")
@@ -1395,7 +1395,9 @@ func _refresh_advanced_setup_visibility() -> void:
 	if mode_step_label is CanvasItem:
 		(mode_step_label as CanvasItem).visible = not show_advanced
 	if p1_loadout_label is CanvasItem:
-		(p1_loadout_label as CanvasItem).visible = true
+		(p1_loadout_label as CanvasItem).visible = show_advanced
+	if p1_loadout_option is CanvasItem:
+		(p1_loadout_option as CanvasItem).visible = show_advanced
 	for node in [
 		p2_character_label,
 		p2_character_option,
@@ -1429,6 +1431,8 @@ func _refresh_advanced_setup_visibility() -> void:
 		(lang_label as CanvasItem).visible = false
 	if p2_character_option:
 		p2_character_option.disabled = not main_menu_interactive or not show_advanced
+	if p1_loadout_option:
+		p1_loadout_option.disabled = not main_menu_interactive or not show_advanced
 	if p2_loadout_option:
 		p2_loadout_option.disabled = not main_menu_interactive or not show_advanced
 	if control_style_button:
@@ -1473,13 +1477,13 @@ func _apply_focus_layout() -> void:
 	_set_control_rect(guided_hint_label, 42.0, 200.0, 318.0, 228.0)
 	_set_control_rect(p1_character_label, 50.0, 244.0, 310.0, 262.0)
 	_set_control_rect(p1_character_option, 50.0, 270.0, 310.0, 302.0)
-	_set_control_rect(p1_loadout_label, 50.0, 316.0, 310.0, 334.0)
-	_set_control_rect(p1_loadout_option, 50.0, 342.0, 310.0, 374.0)
-	_set_control_rect(p1_profile_label, 50.0, 388.0, 310.0, 428.0)
-	_set_control_rect(mode_step_label, 50.0, 450.0, 310.0, 468.0)
-	_set_control_rect(story_button, 50.0, 480.0, 310.0, 516.0)
-	_set_control_rect(versus_button, 50.0, 528.0, 310.0, 564.0)
-	_set_control_rect(training_button, 50.0, 576.0, 310.0, 612.0)
+	_set_control_rect(p1_loadout_label, 50.0, 0.0, 310.0, 0.0)
+	_set_control_rect(p1_loadout_option, 50.0, 0.0, 310.0, 0.0)
+	_set_control_rect(p1_profile_label, 50.0, 320.0, 310.0, 372.0)
+	_set_control_rect(mode_step_label, 50.0, 396.0, 310.0, 414.0)
+	_set_control_rect(story_button, 50.0, 426.0, 310.0, 462.0)
+	_set_control_rect(versus_button, 50.0, 474.0, 310.0, 510.0)
+	_set_control_rect(training_button, 50.0, 522.0, 310.0, 558.0)
 
 func _set_control_rect(control: Control, left: float, top: float, right: float, bottom: float) -> void:
 	if control == null:

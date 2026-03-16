@@ -9,6 +9,7 @@ const LoadoutResolverStore := preload("res://scripts/loadout/LoadoutResolver.gd"
 const EvolutionEngineStore := preload("res://scripts/loadout/EvolutionEngine.gd")
 const RoundTuningEngineStore := preload("res://scripts/loadout/RoundTuningEngine.gd")
 const AttackTableStore := preload("res://scripts/resources/AttackTable.gd")
+const GeneratedSkillProfilesStore := preload("res://scripts/player/GeneratedSkillProfiles.gd")
 const REQUIRED_BASE_ATTACKS := ["light", "heavy", "special", "throw"]
 const SUITE_SMOKE := "smoke"
 const SUITE_FULL := "full"
@@ -78,12 +79,14 @@ func _run_smoke_suite() -> void:
 	await _test_short_hop_jump_cut()
 	await _test_aerial_landing_lag_and_auto_cancel()
 	await _test_shield_resource_and_break_flow()
+	await _test_duel_ruleset_defense_profile()
 	await _test_defensive_dodge_layer()
 	await _test_double_jump_and_ledge_getup_options()
 	await _test_hitstop_overlap_recovery()
 	await _test_camera_zoom_response()
 	await _test_camera_vertical_framing_response()
 	await _test_training_toggle_keeps_dummy_non_ai()
+	await _test_training_sandbox_resets_on_ko_and_ring_out()
 	await _test_character_visual_readability_tinting()
 	await _test_player_visual_fx_pipeline()
 	await _test_signature_visual_identity_pipeline()
@@ -274,20 +277,13 @@ func _test_main_scene_runtime_match_flow() -> void:
 	var result_label := match_node.get_node_or_null("Hud/ResultLabel")
 	_assert_true(p1 != null and p2 != null, "runtime match flow test resolves both fighters")
 	_assert_true(result_label is Label, "runtime match flow test resolves HUD result label")
+	_assert_true(str(match_node.get("win_rule")) == "hp_timer", "runtime match flow defaults Main to duel win rule")
 	if p2 != null:
 		p2.set("is_ai", false)
-		var initial_stocks := int((match_node.get("stocks") as Dictionary).get("p2", 0))
-		_assert_true(initial_stocks >= 1, "runtime match flow starts with stock count")
 		p2.call("apply_damage", 999, Vector2(180, -24), 0.14, "heavy", {})
 		await process_frame
 		await process_frame
-		var remaining_after_first_ko := int((match_node.get("stocks") as Dictionary).get("p2", 0))
-		_assert_true(remaining_after_first_ko == initial_stocks - 1, "stock mode consumes one stock after KO")
-		for _idx in range(maxi(0, remaining_after_first_ko)):
-			p2.position = Vector2(1300.0, p2.position.y)
-			await process_frame
-			await process_frame
-		_assert_true(bool(match_node.get("match_over")), "runtime match flow ends match after stocks are exhausted")
+		_assert_true(bool(match_node.get("match_over")), "duel mode ends match immediately after KO")
 		_assert_true(str(match_node.get("match_result_key")) == "p1_win", "runtime match flow resolves KO winner as p1")
 	if result_label is Label:
 		_assert_true((result_label as Label).text.strip_edges() != "", "runtime match flow shows result text on HUD")
@@ -301,6 +297,9 @@ func _test_main_scene_stock_ring_out_flow() -> void:
 	if packed is not PackedScene:
 		return
 	var match_node := (packed as PackedScene).instantiate()
+	match_node.set("win_rule", "stock")
+	match_node.set("ruleset_profile", "platform")
+	match_node.set("round_tuning_enabled", false)
 	get_root().add_child(match_node)
 	await process_frame
 	await process_frame
@@ -627,6 +626,8 @@ func _test_main_scene_ledge_recovery_flow() -> void:
 	if packed is not PackedScene:
 		return
 	var match_node := (packed as PackedScene).instantiate()
+	match_node.set("win_rule", "stock")
+	match_node.set("ruleset_profile", "platform")
 	get_root().add_child(match_node)
 	await process_frame
 	await process_frame
@@ -750,7 +751,8 @@ func _test_training_quick_start_hint_renders() -> void:
 			_assert_true(en_hint != "" and en_hint != "HUD_TRAINING_QUICK_HINT", "quick-start hint renders English localized text")
 			_assert_true(zh_hint != "" and zh_hint != "HUD_TRAINING_QUICK_HINT", "quick-start hint renders Chinese localized text")
 			_assert_true(en_hint != zh_hint, "quick-start hint changes with locale switch")
-			_assert_true(en_hint.find("Guard + L") != -1, "quick-start hint explains modern dodge input chord")
+			_assert_true(en_hint.find("U Throw") != -1, "quick-start hint surfaces throw input in duel-first control copy")
+			_assert_true(en_hint.find("Dodge:") != -1, "quick-start hint surfaces dodge input alongside throw")
 	if is_instance_valid(training_node):
 		training_node.queue_free()
 	await process_frame
@@ -886,19 +888,36 @@ func _test_onboarding_progress_tracks_actual_player_state() -> void:
 			)
 
 			player_1.set("is_blocking", false)
-			training_node.set("onboarding_step_index", 4)
 			training_node.call("_refresh_onboarding_hud")
 			await process_frame
 			_assert_true(
-				(step_label as Label).text.findn("back") != -1 and (step_label as Label).text.findn("dash") != -1,
+				(step_label as Label).text.findn("dash") != -1,
 				"classic onboarding dodge copy explains back-plus-dash"
 			)
 
 			player_1.set("dodge_state", "roll")
+			player_1.set("dodge_time", 0.12)
 			training_node.call("_update_onboarding_progress")
 			_assert_true(
-				int(training_node.get("onboarding_step_index")) == 5,
+				int(training_node.get("onboarding_step_index")) == 4,
 				"dodge onboarding advances from actual dodge state"
+			)
+
+			player_1.set("dodge_state", "")
+			player_1.set("dodge_time", 0.0)
+			training_node.set("onboarding_step_index", 5)
+			training_node.call("_refresh_onboarding_hud")
+			await process_frame
+			_assert_true(
+				(step_label as Label).text.findn("throw") != -1,
+				"onboarding throw step remains after the defense lesson"
+			)
+
+			player_1.set("attack_state", "throw")
+			training_node.call("_update_onboarding_progress")
+			_assert_true(
+				int(training_node.get("onboarding_step_index")) == 6,
+				"throw onboarding advances from actual throw state"
 			)
 		if is_instance_valid(training_node):
 			training_node.queue_free()
@@ -925,6 +944,10 @@ func _test_control_preset_profiles() -> void:
 		await process_frame
 		_assert_true(_action_has_keyboard_key("jump", KEY_Z), "first-launch flow does not auto-apply modern jump mapping")
 		_assert_true(_action_has_keyboard_key("block", KEY_X), "first-launch flow does not auto-apply modern block mapping")
+		_assert_true(
+			str(menu_node.get("current_control_preset")) == GameSettingsStore.CONTROL_PRESET_MODERN,
+			"first-launch flow recommends modern controls by default"
+		)
 		if is_instance_valid(menu_node):
 			menu_node.queue_free()
 		await process_frame
@@ -1341,6 +1364,8 @@ func _test_loadout_wave1_tuning_profiles_present() -> void:
 			tuning_profiles.has(character_id),
 			"wave1 tuning profile exists for %s" % character_id
 		)
+		var runtime_profile := GeneratedSkillProfilesStore.get_profile(character_id)
+		_assert_true(not runtime_profile.is_empty(), "generated skill profile exists for %s" % character_id)
 	var elon_pool := LoadoutCatalogStore.get_character_pool("elon_mvsk")
 	var elon_items := elon_pool.get("item_by_id", {}) as Dictionary
 	var elon_hype := elon_items.get("elon_mvsk_item_hype_loop", {}) as Dictionary
@@ -1408,6 +1433,9 @@ func _test_round_tuning_intermission_flow() -> void:
 	if packed is not PackedScene:
 		return
 	var match_node := (packed as PackedScene).instantiate()
+	match_node.set("win_rule", "stock")
+	match_node.set("ruleset_profile", "platform")
+	match_node.set("round_tuning_enabled", true)
 	match_node.set("round_tuning_force_ui_in_headless", true)
 	get_root().add_child(match_node)
 	await process_frame
@@ -1489,6 +1517,9 @@ func _test_round_tuning_simultaneous_stock_fairness() -> void:
 	if packed is not PackedScene:
 		return
 	var match_node := (packed as PackedScene).instantiate()
+	match_node.set("win_rule", "stock")
+	match_node.set("ruleset_profile", "platform")
+	match_node.set("round_tuning_enabled", true)
 	match_node.set("round_tuning_force_ui_in_headless", true)
 	get_root().add_child(match_node)
 	await process_frame
@@ -1528,6 +1559,9 @@ func _test_round_tuning_pick_cap_per_player() -> void:
 	if packed is not PackedScene:
 		return
 	var match_node := (packed as PackedScene).instantiate()
+	match_node.set("win_rule", "stock")
+	match_node.set("ruleset_profile", "platform")
+	match_node.set("round_tuning_enabled", true)
 	match_node.set("round_tuning_force_ui_in_headless", true)
 	match_node.set("round_tuning_max_picks_per_player", 2)
 	match_node.set("stock_count", 4)
@@ -1566,6 +1600,9 @@ func _test_round_tuning_leader_lock_gap() -> void:
 	if packed is not PackedScene:
 		return
 	var match_node := (packed as PackedScene).instantiate()
+	match_node.set("win_rule", "stock")
+	match_node.set("ruleset_profile", "platform")
+	match_node.set("round_tuning_enabled", true)
 	match_node.set("round_tuning_leader_lock_stock_gap", 1)
 	get_root().add_child(match_node)
 	await process_frame
@@ -1781,19 +1818,68 @@ func _test_training_toggle_keeps_dummy_non_ai() -> void:
 	if p2 != null:
 		_assert_true(not bool(p2.get("is_ai")), "training scene keeps dummy non-ai by default")
 		training_node.call("_on_hud_training_options_changed", {
-			"enabled": false,
+			"enabled": true,
 			"dummy_mode": "stand",
-			"show_detail": false
+			"show_detail": false,
+			"ruleset_profile": "platform"
 		})
 		await process_frame
-		_assert_true(not bool(p2.get("is_ai")), "disabling training options does not re-enable dummy ai")
+		_assert_true(not bool(p2.get("is_ai")), "switching training ruleset does not re-enable dummy ai")
+		_assert_true(str(training_node.get("ruleset_profile")) == "platform", "training ruleset toggle updates match ruleset")
+		var arena_node := training_node.get_node_or_null("Arena")
+		if arena_node != null:
+			_assert_true(bool(arena_node.get("side_platforms_enabled")), "training ruleset toggle enables side platforms")
 		training_node.call("_on_hud_training_options_changed", {
 			"enabled": true,
 			"dummy_mode": "random_block",
-			"show_detail": true
+			"show_detail": true,
+			"ruleset_profile": "duel"
 		})
 		await process_frame
-		_assert_true(not bool(p2.get("is_ai")), "re-enabling training options keeps dummy non-ai")
+		_assert_true(not bool(p2.get("is_ai")), "switching back to duel keeps dummy non-ai")
+		_assert_true(str(training_node.get("ruleset_profile")) == "duel", "training ruleset toggle can return to duel")
+	if is_instance_valid(training_node):
+		training_node.queue_free()
+	await process_frame
+
+func _test_training_sandbox_resets_on_ko_and_ring_out() -> void:
+	var packed := load("res://scenes/Training.tscn")
+	_assert_true(packed is PackedScene, "training scene loads for sandbox reset test")
+	if packed is not PackedScene:
+		return
+	var training_node := (packed as PackedScene).instantiate()
+	get_root().add_child(training_node)
+	await process_frame
+	await process_frame
+	var p1 := training_node.get_node_or_null("Player1") as CharacterBody2D
+	var p2 := training_node.get_node_or_null("Player2") as CharacterBody2D
+	_assert_true(p1 != null and p2 != null, "training sandbox reset test resolves both fighters")
+	if p1 != null and p2 != null:
+		var duel_respawn := p2.global_position
+		p2.call("apply_damage", 999, Vector2(180, -24), 0.14, "heavy", {})
+		await process_frame
+		await process_frame
+		_assert_true(not bool(training_node.get("match_over")), "training duel KO reset keeps sandbox active")
+		_assert_true(p2.global_position.distance_to(duel_respawn) <= 4.0, "training duel KO reset respawns defender at drill spawn")
+		_assert_true(int(p2.get("current_hp")) == 100, "training duel KO reset restores health for the next rep")
+
+		training_node.call("_on_hud_training_options_changed", {
+			"enabled": true,
+			"dummy_mode": "stand",
+			"show_detail": false,
+			"ruleset_profile": "platform"
+		})
+		await process_frame
+		await process_frame
+		var platform_respawn := p1.global_position
+		p1.position = Vector2(1400.0, 300.0)
+		p1.set("current_hp", 12)
+		await process_frame
+		await process_frame
+		_assert_true(str(training_node.get("win_rule")) == "hp_timer", "platform drill keeps hp UI while sandboxing edge resets")
+		_assert_true(not bool(training_node.get("match_over")), "platform drill ring-out reset keeps training sandbox active")
+		_assert_true(p1.global_position.distance_to(platform_respawn) <= 4.0, "platform drill ring-out auto-respawns fighter")
+		_assert_true(int(p1.get("current_hp")) == 100, "platform drill ring-out reset restores health for the next rep")
 	if is_instance_valid(training_node):
 		training_node.queue_free()
 	await process_frame
@@ -2578,6 +2664,46 @@ func _test_shield_resource_and_break_flow() -> void:
 	p1.set("is_blocking", true)
 	p1.call("_update_shield_state", 0.50)
 	_assert_true(float(p1.get("shield_meter")) < 80.0, "holding block drains shield over time")
+
+	host.queue_free()
+	await process_frame
+
+func _test_duel_ruleset_defense_profile() -> void:
+	var setup: Dictionary = await _spawn_test_players()
+	var p1 := setup.get("p1") as CharacterBody2D
+	var host := setup.get("host") as Node2D
+	if p1 == null or host == null:
+		return
+
+	p1.call("set_ruleset_profile", "duel")
+	_assert_true(int(p1.get("air_jumps_remaining")) == 0, "duel ruleset removes extra air jump resource")
+	p1.set("air_dodge_available", true)
+	_assert_true(bool(p1.call("_start_air_dodge", 1.0, 0.0)), "duel ruleset keeps a trimmed air dodge escape")
+	_assert_true(float(p1.get("dodge_time")) <= 0.18, "duel air dodge stays shorter than platform air dodge")
+	p1.call("_end_dodge_state")
+	_assert_true(float(p1.get("air_dodge_end_lag_time")) >= 0.24, "duel air dodge pays heavier recovery")
+
+	p1.set("shield_meter", 80.0)
+	p1.set("shield_break_time", 0.0)
+	p1.set("shield_broken", false)
+	p1.set("is_blocking", true)
+	p1.call("_update_shield_state", 0.50)
+	_assert_true(float(p1.get("shield_meter")) < 80.0, "duel ruleset still drains shield while holding guard")
+
+	p1.set("is_blocking", false)
+	p1.set("shield_meter", 1.0)
+	_assert_true(not bool(p1.call("_can_enter_block")), "duel ruleset still requires shield resource to block")
+
+	p1.set("shield_meter", 40.0)
+	p1.call("_start_roll_dodge", -1)
+	_assert_true(str(p1.get("dodge_state")) == "roll", "duel ruleset keeps a grounded dodge option")
+	_assert_true(float(p1.get("dodge_time")) <= 0.20, "duel grounded dodge stays shorter than platform dodge")
+	var base_knockback := Vector2(180.0, -110.0)
+	var adjusted_knockback: Variant = p1.call("_apply_directional_influence", base_knockback, {"di_override": Vector2(-1.0, -0.35)})
+	if adjusted_knockback is Vector2:
+		var duel_di := adjusted_knockback as Vector2
+		_assert_true(duel_di.distance_to(base_knockback) > 0.1, "duel ruleset keeps directional influence trajectory control")
+		_assert_true(duel_di.length() < base_knockback.length(), "duel directional influence still supports survival routing")
 
 	host.queue_free()
 	await process_frame
