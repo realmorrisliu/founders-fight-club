@@ -45,9 +45,13 @@ const TECH_SLIDE_DURATION := 0.12
 const TECH_SLIDE_SPEED := 180.0
 const WAKE_INVULN_SECONDS := 0.18
 const RESPAWN_INVULN_SECONDS := 0.72
-const THROW_TECH_BUFFER_SECONDS := 0.10
+const THROW_TECH_DUEL_BUFFER_SECONDS := 0.08
+const THROW_TECH_ASSIST_BUFFER_SECONDS := 0.03
 const THROW_TECH_PUSHBACK := 70.0
 const THROW_TECH_AI_CHANCE := 0.20
+const THROW_TECH_ASSIST_OFF := "off"
+const THROW_TECH_ASSIST_THROW_ONLY := "throw_only"
+const THROW_TECH_ASSIST_BUTTON_ASSIST := "button_assist"
 const AI_BLOCK_REACTION_DISTANCE := 76.0
 const AI_BLOCK_STARTUP_REACTION_THRESHOLD := 0.62
 const TRAINING_RANDOM_BLOCK_CHANCE := 0.5
@@ -579,9 +583,13 @@ var ai_tech_decision_roll := false
 var ai_guard_mode := "high"
 var ai_style_profile: Dictionary = AI_PROFILE_DEFAULT.duplicate(true)
 var throw_tech_buffer_time := 0.0
+var throw_tech_input_source := ""
+var throw_tech_window_type := ""
 var last_training_info := {}
 var training_dummy_enabled := false
 var training_dummy_mode := "stand"
+var training_throw_tech_enabled := false
+var training_throw_tech_assist_mode := THROW_TECH_ASSIST_OFF
 var training_random_block_hold_time := 0.0
 var training_random_block_signature := ""
 var skill_cooldowns: Dictionary = {}
@@ -1216,6 +1224,7 @@ func _start_spot_dodge() -> void:
 	if is_on_floor():
 		velocity.y = 0.0
 	_clear_attack_buffer()
+	_clear_throw_tech_buffer()
 
 func _start_roll_dodge(direction: int) -> void:
 	var resolved_direction := direction
@@ -1232,6 +1241,7 @@ func _start_roll_dodge(direction: int) -> void:
 	velocity.x = float(dodge_direction) * _get_roll_dodge_speed() * _get_move_speed_multiplier()
 	velocity.y = 0.0
 	_clear_attack_buffer()
+	_clear_throw_tech_buffer()
 
 func _start_air_dodge(horizontal_axis: float, vertical_axis: float) -> bool:
 	if not _allows_air_dodge():
@@ -1254,6 +1264,7 @@ func _start_air_dodge(horizontal_axis: float, vertical_axis: float) -> bool:
 	facing_locked = true
 	facing_locked_direction = dodge_direction
 	_clear_attack_buffer()
+	_clear_throw_tech_buffer()
 	return true
 
 func _update_dodge_motion(delta: float) -> void:
@@ -1819,6 +1830,18 @@ func set_training_dummy_options(enabled: bool, mode: String) -> void:
 		training_random_block_hold_time = 0.0
 		training_random_block_signature = ""
 		is_blocking = false
+
+func set_training_throw_tech_options(enabled: bool, assist_mode: String) -> void:
+	training_throw_tech_enabled = enabled
+	var normalized := str(assist_mode).strip_edges().to_lower()
+	if normalized not in [
+		THROW_TECH_ASSIST_OFF,
+		THROW_TECH_ASSIST_THROW_ONLY,
+		THROW_TECH_ASSIST_BUTTON_ASSIST
+	]:
+		normalized = THROW_TECH_ASSIST_THROW_ONLY
+	training_throw_tech_assist_mode = normalized
+	_clear_throw_tech_buffer()
 
 func get_training_dummy_options() -> Dictionary:
 	return {
@@ -3718,21 +3741,55 @@ func _consume_ultimate_chord_buffer() -> void:
 	special_input_buffer_time = 0.0
 	heavy_input_buffer_time = 0.0
 
+func _clear_throw_tech_buffer() -> void:
+	throw_tech_buffer_time = 0.0
+	throw_tech_input_source = ""
+	throw_tech_window_type = ""
+
+func _resolve_throw_tech_input_source() -> String:
+	if _is_action_just_pressed("throw"):
+		return "throw"
+	if _allows_throw_tech_button_assist():
+		if _is_action_just_pressed("attack_light"):
+			return "light"
+		if _is_action_just_pressed("attack_heavy"):
+			return "heavy"
+	return ""
+
+func _allows_throw_tech_button_assist() -> bool:
+	return training_throw_tech_enabled and training_throw_tech_assist_mode == THROW_TECH_ASSIST_BUTTON_ASSIST
+
+func _is_throw_tech_disabled_in_training() -> bool:
+	return training_throw_tech_enabled and training_throw_tech_assist_mode == THROW_TECH_ASSIST_OFF
+
+func _resolve_throw_tech_buffer_seconds(input_source: String) -> float:
+	match input_source:
+		"throw":
+			if _is_throw_tech_disabled_in_training():
+				return 0.0
+			return THROW_TECH_DUEL_BUFFER_SECONDS
+		"light", "heavy":
+			if _allows_throw_tech_button_assist():
+				return THROW_TECH_ASSIST_BUFFER_SECONDS
+	return 0.0
+
+func _prime_throw_tech_buffer(input_source: String) -> void:
+	var buffer_seconds := _resolve_throw_tech_buffer_seconds(input_source)
+	if buffer_seconds <= 0.0:
+		return
+	throw_tech_buffer_time = buffer_seconds
+	throw_tech_input_source = input_source
+	throw_tech_window_type = "assist" if input_source in ["light", "heavy"] else "duel"
+
 func _update_throw_tech_buffer(delta: float) -> void:
 	throw_tech_buffer_time = maxf(0.0, throw_tech_buffer_time - delta)
+	if throw_tech_buffer_time <= 0.0:
+		_clear_throw_tech_buffer()
 	if is_ai:
 		return
-	if _is_throw_tech_input_pressed():
-		throw_tech_buffer_time = THROW_TECH_BUFFER_SECONDS
-
-func _is_throw_tech_input_pressed() -> bool:
-	if _is_action_just_pressed("throw"):
-		return true
-	if _is_action_just_pressed("attack_light"):
-		return true
-	if _is_action_just_pressed("attack_heavy"):
-		return true
-	return false
+	var input_source := _resolve_throw_tech_input_source()
+	if input_source != "":
+		_prime_throw_tech_buffer(input_source)
 
 func _request_attack(kind: String) -> void:
 	if kind == "":
@@ -4468,7 +4525,9 @@ func _record_training_exchange(
 		"chip_damage": int(hit_result.get("chip_damage", 0)),
 		"hp_before": int(hit_result.get("hp_before", 0)),
 		"hp_after": int(hit_result.get("hp_after", 0)),
-		"is_counter": is_counter_hit
+		"is_counter": is_counter_hit,
+		"throw_tech_source": str(hit_result.get("throw_tech_source", "")),
+		"throw_tech_window_type": str(hit_result.get("throw_tech_window_type", ""))
 	}
 
 func _can_throw_tech(attack_meta: Dictionary) -> bool:
@@ -4484,7 +4543,7 @@ func _can_throw_tech(attack_meta: Dictionary) -> bool:
 		return false
 	if is_ai:
 		return randf() < THROW_TECH_AI_CHANCE
-	return throw_tech_buffer_time > 0.0
+	return throw_tech_buffer_time > 0.0 and throw_tech_input_source != ""
 
 func _apply_throw_tech_defense(knockback: Vector2) -> void:
 	var push_direction := signf(knockback.x)
@@ -4497,7 +4556,7 @@ func _apply_throw_tech_defense(knockback: Vector2) -> void:
 	is_blocking = false
 	is_dashing = false
 	guard_counter_time = 0.0
-	throw_tech_buffer_time = 0.0
+	_clear_throw_tech_buffer()
 	ai_block_time = 0.0
 	health_changed.emit()
 
@@ -4521,6 +4580,7 @@ func _apply_block_impact(
 	hitstun_time = 0.0
 	guard_counter_time = GUARD_COUNTER_WINDOW_SECONDS
 	is_dashing = false
+	_clear_throw_tech_buffer()
 	attack_state = ""
 	attack_phase = ""
 	attack_recovery_override = -1.0
@@ -4574,6 +4634,7 @@ func _trigger_shield_break() -> void:
 	landing_lag_time = 0.0
 	is_dashing = false
 	guard_counter_time = 0.0
+	_clear_throw_tech_buffer()
 	_clear_attack_state()
 	_clear_attack_buffer()
 	velocity.x = -float(facing) * SHIELD_BREAK_PUSHBACK
@@ -4735,11 +4796,14 @@ func apply_damage(
 		return result
 
 	if attack_kind == "throw" and _can_throw_tech(attack_meta):
+		var tech_source := throw_tech_input_source
+		var tech_window_type := throw_tech_window_type
 		_apply_throw_tech_defense(knockback)
 		result["throw_teched"] = true
 		result["guard_mode"] = "throw_break"
+		result["throw_tech_source"] = tech_source
+		result["throw_tech_window_type"] = tech_window_type
 		result["hp_after"] = current_hp
-		throw_tech_buffer_time = 0.0
 		return result
 
 	var guard_mode := _get_guard_mode()
@@ -4764,6 +4828,7 @@ func apply_damage(
 	velocity = final_knockback
 	hitstun_time = maxf(0.0, hitstun_override)
 	blockstun_time = 0.0
+	_clear_throw_tech_buffer()
 	hit_reaction_animation = _resolve_hit_reaction_animation(final_knockback, hitstun_override)
 	is_dashing = false
 	is_blocking = false
@@ -4853,7 +4918,7 @@ func force_respawn(spawn_position: Vector2, facing_direction: int = 1) -> void:
 	getup_time = 0.0
 	guard_counter_time = 0.0
 	wake_invuln_time = WAKE_INVULN_SECONDS
-	throw_tech_buffer_time = 0.0
+	_clear_throw_tech_buffer()
 	ai_block_time = 0.0
 	ai_attack_cooldown = 0.0
 	ai_tech_decision_roll = false

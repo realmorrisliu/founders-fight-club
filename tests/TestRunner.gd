@@ -1821,11 +1821,13 @@ func _test_training_toggle_keeps_dummy_non_ai() -> void:
 			"enabled": true,
 			"dummy_mode": "stand",
 			"show_detail": false,
-			"ruleset_profile": "platform"
+			"ruleset_profile": "platform",
+			"throw_tech_assist_mode": "button_assist"
 		})
 		await process_frame
 		_assert_true(not bool(p2.get("is_ai")), "switching training ruleset does not re-enable dummy ai")
 		_assert_true(str(training_node.get("ruleset_profile")) == "platform", "training ruleset toggle updates match ruleset")
+		_assert_true(str(p2.get("training_throw_tech_assist_mode")) == "button_assist", "training scene routes throw-tech assist mode to the dummy player")
 		var arena_node := training_node.get_node_or_null("Arena")
 		if arena_node != null:
 			_assert_true(bool(arena_node.get("side_platforms_enabled")), "training ruleset toggle enables side platforms")
@@ -1833,11 +1835,13 @@ func _test_training_toggle_keeps_dummy_non_ai() -> void:
 			"enabled": true,
 			"dummy_mode": "random_block",
 			"show_detail": true,
-			"ruleset_profile": "duel"
+			"ruleset_profile": "duel",
+			"throw_tech_assist_mode": "throw_only"
 		})
 		await process_frame
 		_assert_true(not bool(p2.get("is_ai")), "switching back to duel keeps dummy non-ai")
 		_assert_true(str(training_node.get("ruleset_profile")) == "duel", "training ruleset toggle can return to duel")
+		_assert_true(str(p2.get("training_throw_tech_assist_mode")) == "throw_only", "training scene can restore throw-only tech contract")
 	if is_instance_valid(training_node):
 		training_node.queue_free()
 	await process_frame
@@ -2103,26 +2107,49 @@ func _test_throw_tech_and_ai_defense_windows() -> void:
 
 	p1.set("is_ai", false)
 	p2.set("is_ai", false)
-	p2.set("current_hp", 100)
-	p2.set("hitstun_time", 0.0)
-	p2.set("blockstun_time", 0.0)
-	p2.set("is_knocked_down", false)
-	p2.set("getup_time", 0.0)
-	p2.set("wake_invuln_time", 0.0)
+	_reset_throw_tech_target_state(p2)
 
 	var throw_meta := {
 		"throw_techable": true,
 		"block_type": "throw",
 		"air_blockable": false
 	}
-	p2.set("throw_tech_buffer_time", 0.08)
+
+	_reset_throw_tech_target_state(p2)
+	p2.call("_prime_throw_tech_buffer", "light")
+	var duel_light_result: Dictionary = p2.call("apply_damage", 10, Vector2(110, -16), 0.12, "throw", throw_meta)
+	_assert_true(not bool(duel_light_result.get("throw_teched", false)), "duel throw tech ignores light mashing")
+
+	_reset_throw_tech_target_state(p2)
+	p2.call("_prime_throw_tech_buffer", "heavy")
+	var duel_heavy_result: Dictionary = p2.call("apply_damage", 10, Vector2(110, -16), 0.12, "throw", throw_meta)
+	_assert_true(not bool(duel_heavy_result.get("throw_teched", false)), "duel throw tech ignores heavy mashing")
+
+	_reset_throw_tech_target_state(p2)
+	p2.call("_prime_throw_tech_buffer", "throw")
 	var tech_result: Dictionary = p2.call("apply_damage", 10, Vector2(110, -16), 0.12, "throw", throw_meta)
 	_assert_true(bool(tech_result.get("throw_teched", false)), "throw tech succeeds inside tighter input buffer window")
+	_assert_true(str(tech_result.get("throw_tech_source", "")) == "throw", "throw tech records throw input as its source")
 
-	p2.set("current_hp", 100)
-	p2.set("throw_tech_buffer_time", 0.0)
+	_reset_throw_tech_target_state(p2)
+	p2.call("_clear_throw_tech_buffer")
 	var no_tech_result: Dictionary = p2.call("apply_damage", 10, Vector2(110, -16), 0.12, "throw", throw_meta)
 	_assert_true(not bool(no_tech_result.get("throw_teched", false)), "throw tech fails when buffer is not primed")
+
+	_reset_throw_tech_target_state(p2)
+	p2.call("set_training_throw_tech_options", true, "button_assist")
+	p2.call("_prime_throw_tech_buffer", "light")
+	var assist_light_result: Dictionary = p2.call("apply_damage", 10, Vector2(110, -16), 0.12, "throw", throw_meta)
+	_assert_true(bool(assist_light_result.get("throw_teched", false)), "training button assist allows light input to tech throws")
+	_assert_true(str(assist_light_result.get("throw_tech_window_type", "")) == "assist", "training button assist records assist window metadata")
+
+	_reset_throw_tech_target_state(p2)
+	p2.call("set_training_throw_tech_options", true, "off")
+	p2.call("_prime_throw_tech_buffer", "throw")
+	var assist_off_result: Dictionary = p2.call("apply_damage", 10, Vector2(110, -16), 0.12, "throw", throw_meta)
+	_assert_true(not bool(assist_off_result.get("throw_teched", false)), "training can disable throw-tech buffering entirely")
+
+	p2.call("set_training_throw_tech_options", false, "throw_only")
 
 	p2.set("is_ai", true)
 	p2.set("ai_block_time", 0.0)
@@ -2859,6 +2886,19 @@ func _spawn_test_players() -> Dictionary:
 	await process_frame
 	await process_frame
 	return {"host": host, "p1": p1, "p2": p2}
+
+func _reset_throw_tech_target_state(player: CharacterBody2D) -> void:
+	if player == null:
+		return
+	player.set("current_hp", 100)
+	player.set("hitstun_time", 0.0)
+	player.set("blockstun_time", 0.0)
+	player.set("is_knocked_down", false)
+	player.set("knockdown_time", 0.0)
+	player.set("getup_time", 0.0)
+	player.set("wake_invuln_time", 0.0)
+	player.set("velocity", Vector2.ZERO)
+	player.call("_clear_throw_tech_buffer")
 
 func _make_attack_template(damage: int, block_type: String, throw_techable: bool = false) -> Dictionary:
 	return {
