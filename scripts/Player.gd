@@ -47,7 +47,7 @@ const WAKE_INVULN_SECONDS := 0.18
 const RESPAWN_INVULN_SECONDS := 0.72
 const THROW_TECH_DUEL_BUFFER_SECONDS := 0.08
 const THROW_TECH_ASSIST_BUFFER_SECONDS := 0.03
-const THROW_TECH_PUSHBACK := 70.0
+const THROW_TECH_PUSHBACK := 96.0
 const THROW_TECH_AI_CHANCE := 0.20
 const THROW_TECH_ASSIST_OFF := "off"
 const THROW_TECH_ASSIST_THROW_ONLY := "throw_only"
@@ -96,6 +96,8 @@ const DUEL_AIR_DODGE_INVULN_SECONDS := 0.10
 const DUEL_AIR_DODGE_SPEED := 180.0
 const DUEL_AIR_DODGE_FALL_SPEED := 52.0
 const DUEL_AIR_DODGE_END_LAG_SECONDS := 0.24
+const DUEL_THROW_WHIFF_RECOVERY_SECONDS := 0.28
+const DUEL_THROW_TECH_RECOVERY_SECONDS := 0.24
 const AIR_DODGE_DURATION := 0.24
 const AIR_DODGE_INVULN_SECONDS := 0.16
 const AIR_DODGE_SPEED := 220.0
@@ -2055,6 +2057,18 @@ func _get_air_dodge_fall_speed() -> float:
 func _get_air_dodge_end_lag_seconds() -> float:
 	return DUEL_AIR_DODGE_END_LAG_SECONDS if _uses_duel_ruleset() else AIR_DODGE_END_LAG_SECONDS
 
+func _resolve_attack_recovery_seconds(kind: String, attack_data: Dictionary) -> float:
+	var recovery := float(attack_data.get("recovery", 0.20))
+	if kind == "throw" and _uses_duel_ruleset():
+		return maxf(recovery, DUEL_THROW_WHIFF_RECOVERY_SECONDS)
+	return recovery
+
+func _resolve_attack_block_recovery_seconds(kind: String, attack_data: Dictionary) -> float:
+	var recovery := float(attack_data.get("block_recovery", attack_data.get("recovery", 0.20)))
+	if kind == "throw" and _uses_duel_ruleset():
+		return maxf(recovery, DUEL_THROW_TECH_RECOVERY_SECONDS)
+	return recovery
+
 func _update_attack(delta: float) -> void:
 	if attack_state == "":
 		return
@@ -3988,7 +4002,7 @@ func _start_attack(kind: String) -> void:
 	var data := _get_attack_data(kind)
 	attack_startup_duration = float(data.get("startup", 0.06)) * _get_startup_multiplier_for_attack(kind)
 	attack_active_duration = float(data.get("active", 0.10))
-	attack_recovery_duration = float(data.get("recovery", 0.20))
+	attack_recovery_duration = _resolve_attack_recovery_seconds(kind, data)
 	facing_locked = true
 	facing_locked_direction = facing
 	hit_targets.clear()
@@ -4462,9 +4476,10 @@ func _reset_combo_chain() -> void:
 func _on_attack_blocked(attack_data: Dictionary) -> void:
 	if attack_state == "":
 		return
+	var blocked_attack_kind := attack_state
 	attack_phase = "recovery"
 	attack_time = 0.0
-	attack_recovery_override = float(attack_data.get("block_recovery", attack_data.get("recovery", 0.20)))
+	attack_recovery_override = _resolve_attack_block_recovery_seconds(blocked_attack_kind, attack_data)
 	_set_hitbox_active(false)
 	velocity.x *= 0.3
 
