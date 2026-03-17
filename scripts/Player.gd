@@ -2102,7 +2102,7 @@ func _update_attack(delta: float) -> void:
 		if attack_kind == "throw" and not attack_confirmed_hit and not attack_confirmed_block:
 			if _uses_duel_ruleset():
 				attack_recovery_override = maxf(attack_recovery_duration, DUEL_THROW_WHIFF_RECOVERY_SECONDS)
-			_record_training_exchange("throw_whiff", attack_kind, data, {}, false, 0, 0, 0)
+			_record_training_exchange("throw_whiff", attack_kind, data, _build_training_neutral_hit_result(), false, 0, 0, 0)
 			throw_whiffed.emit(self)
 	elif attack_phase == "recovery" and attack_time >= recovery_duration:
 		_clear_attack_state()
@@ -4535,6 +4535,8 @@ func _record_training_exchange(
 	var recovery_seconds := _get_attack_recovery_remaining_seconds(attack_data)
 	var stun_frames := _seconds_to_frames(stun_seconds)
 	var recovery_frames := _seconds_to_frames(recovery_seconds)
+	var hp_before := int(hit_result.get("hp_before", current_hp))
+	var hp_after := int(hit_result.get("hp_after", current_hp))
 	last_training_info = {
 		"event_type": event_type,
 		"attack_kind": attack_kind,
@@ -4551,11 +4553,17 @@ func _record_training_exchange(
 		"damage_total": int(hit_result.get("damage_total", 0)),
 		"damage_taken": int(hit_result.get("damage_taken", 0)),
 		"chip_damage": int(hit_result.get("chip_damage", 0)),
-		"hp_before": int(hit_result.get("hp_before", 0)),
-		"hp_after": int(hit_result.get("hp_after", 0)),
+		"hp_before": hp_before,
+		"hp_after": hp_after,
 		"is_counter": is_counter_hit,
 		"throw_tech_source": str(hit_result.get("throw_tech_source", "")),
 		"throw_tech_window_type": str(hit_result.get("throw_tech_window_type", ""))
+	}
+
+func _build_training_neutral_hit_result() -> Dictionary:
+	return {
+		"hp_before": current_hp,
+		"hp_after": current_hp
 	}
 
 func _can_throw_tech(attack_meta: Dictionary) -> bool:
