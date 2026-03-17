@@ -3,73 +3,342 @@ class_name PlayerSignatureAttackBuilder
 
 const GeneratedSkillProfilesStore := preload("res://scripts/player/GeneratedSkillProfiles.gd")
 
-const SIGNATURE_TEMPLATE_DEFAULTS := {
-	"pressure": {
-		"startup": 0.08,
-		"active": 0.12,
-		"recovery": 0.20,
-		"block_recovery": 0.24,
-		"lunge_speed": 250.0,
-		"hitstun_bonus": 0.00,
-		"blockstun_bonus": 0.00,
-		"knockback_x_scale": 0.92,
-		"knockback_y_scale": 0.94
+const SIGNATURE_SKELETON_DEFAULTS := {
+	"pressure_check": {
+		"startup": 0.07,
+		"active": 0.11,
+		"recovery": 0.17,
+		"block_recovery": 0.19,
+		"damage": 10,
+		"hitstun": 0.15,
+		"blockstun": 0.12,
+		"cancel_on_hit": true,
+		"cancel_on_block": true,
+		"cancel_options": ["light", "heavy", "special"],
+		"block_type": "mid",
+		"air_blockable": true,
+		"lunge_speed": 210.0,
+		"knockback_ground": Vector2(150, -46),
+		"knockback_air": Vector2(128, -82),
+		"hitbox_size_ground": Vector2(30, 18),
+		"hitbox_size_air": Vector2(28, 16),
+		"hitbox_offset_ground": Vector2(24, -2),
+		"hitbox_offset_air": Vector2(22, -8)
 	},
-	"setplay": {
-		"startup": 0.12,
-		"active": 0.14,
-		"recovery": 0.32,
-		"block_recovery": 0.36,
-		"lunge_speed": 60.0,
-		"hitstun_bonus": 0.02,
-		"blockstun_bonus": 0.02,
-		"knockback_x_scale": 0.84,
-		"knockback_y_scale": 0.88
-	},
-	"approach": {
+	"projectile_check": {
 		"startup": 0.09,
-		"active": 0.12,
-		"recovery": 0.25,
-		"block_recovery": 0.30,
-		"lunge_speed": 360.0,
-		"hitstun_bonus": 0.01,
-		"blockstun_bonus": 0.00,
-		"knockback_x_scale": 1.02,
-		"knockback_y_scale": 0.94
+		"active": 0.10,
+		"recovery": 0.24,
+		"block_recovery": 0.27,
+		"damage": 9,
+		"hitstun": 0.14,
+		"blockstun": 0.11,
+		"cancel_on_hit": true,
+		"cancel_on_block": false,
+		"cancel_options": ["heavy"],
+		"block_type": "mid",
+		"air_blockable": true,
+		"lunge_speed": 70.0,
+		"knockback_ground": Vector2(132, -54),
+		"knockback_air": Vector2(120, -88),
+		"hitbox_size_ground": Vector2(24, 18),
+		"hitbox_size_air": Vector2(22, 16),
+		"hitbox_offset_ground": Vector2(20, -2),
+		"hitbox_offset_air": Vector2(18, -8)
 	},
-	"launcher": {
-		"startup": 0.12,
-		"active": 0.12,
-		"recovery": 0.30,
-		"block_recovery": 0.35,
-		"lunge_speed": 180.0,
-		"hitstun_bonus": 0.03,
-		"blockstun_bonus": 0.01,
-		"knockback_x_scale": 0.88,
-		"knockback_y_scale": 1.18,
-		"block_type": "overhead"
-	},
-	"install": {
+	"summon_check": {
 		"startup": 0.10,
 		"active": 0.10,
-		"recovery": 0.22,
-		"block_recovery": 0.28,
-		"lunge_speed": 0.0,
-		"hitstun_bonus": -0.02,
-		"blockstun_bonus": -0.01,
-		"knockback_x_scale": 0.78,
-		"knockback_y_scale": 0.82
+		"recovery": 0.25,
+		"block_recovery": 0.29,
+		"damage": 10,
+		"hitstun": 0.15,
+		"blockstun": 0.11,
+		"cancel_on_hit": false,
+		"cancel_on_block": false,
+		"cancel_options": [],
+		"block_type": "mid",
+		"air_blockable": true,
+		"lunge_speed": 120.0,
+		"knockback_ground": Vector2(140, -62),
+		"knockback_air": Vector2(128, -96),
+		"hitbox_size_ground": Vector2(28, 18),
+		"hitbox_size_air": Vector2(24, 16),
+		"hitbox_offset_ground": Vector2(22, -2),
+		"hitbox_offset_air": Vector2(20, -8)
 	},
-	"super": {
+	"control_poke": {
+		"startup": 0.08,
+		"active": 0.11,
+		"recovery": 0.22,
+		"block_recovery": 0.26,
+		"damage": 8,
+		"hitstun": 0.16,
+		"blockstun": 0.14,
+		"cancel_on_hit": true,
+		"cancel_on_block": true,
+		"cancel_options": ["light", "special"],
+		"block_type": "mid",
+		"air_blockable": true,
+		"lunge_speed": 120.0,
+		"knockback_ground": Vector2(118, -40),
+		"knockback_air": Vector2(106, -72),
+		"hitbox_size_ground": Vector2(32, 16),
+		"hitbox_size_air": Vector2(28, 14),
+		"hitbox_offset_ground": Vector2(22, 4),
+		"hitbox_offset_air": Vector2(20, 0)
+	},
+	"dash_burst": {
+		"startup": 0.10,
+		"active": 0.10,
+		"recovery": 0.24,
+		"block_recovery": 0.30,
+		"damage": 12,
+		"hitstun": 0.18,
+		"blockstun": 0.12,
+		"cancel_on_hit": false,
+		"cancel_on_block": false,
+		"cancel_options": [],
+		"block_type": "mid",
+		"air_blockable": true,
+		"lunge_speed": 360.0,
+		"knockback_ground": Vector2(182, -62),
+		"knockback_air": Vector2(158, -104),
+		"hitbox_size_ground": Vector2(34, 18),
+		"hitbox_size_air": Vector2(30, 16),
+		"hitbox_offset_ground": Vector2(26, -2),
+		"hitbox_offset_air": Vector2(24, -8)
+	},
+	"teleport_punish": {
+		"startup": 0.08,
+		"active": 0.09,
+		"recovery": 0.26,
+		"block_recovery": 0.30,
+		"damage": 12,
+		"hitstun": 0.17,
+		"blockstun": 0.12,
+		"cancel_on_hit": false,
+		"cancel_on_block": false,
+		"cancel_options": [],
+		"block_type": "overhead",
+		"air_blockable": true,
+		"lunge_speed": 0.0,
+		"knockback_ground": Vector2(168, -76),
+		"knockback_air": Vector2(150, -112),
+		"hitbox_size_ground": Vector2(30, 22),
+		"hitbox_size_air": Vector2(28, 20),
+		"hitbox_offset_ground": Vector2(18, -12),
+		"hitbox_offset_air": Vector2(16, -16)
+	},
+	"rising_launcher": {
+		"startup": 0.12,
+		"active": 0.12,
+		"recovery": 0.29,
+		"block_recovery": 0.34,
+		"damage": 11,
+		"hitstun": 0.22,
+		"blockstun": 0.13,
+		"cancel_on_hit": false,
+		"cancel_on_block": false,
+		"cancel_options": [],
+		"block_type": "overhead",
+		"air_blockable": true,
+		"lunge_speed": 180.0,
+		"knockback_ground": Vector2(140, -195),
+		"knockback_air": Vector2(130, -220),
+		"hitbox_size_ground": Vector2(28, 26),
+		"hitbox_size_air": Vector2(26, 24),
+		"hitbox_offset_ground": Vector2(20, -18),
+		"hitbox_offset_air": Vector2(18, -20)
+	},
+	"control_snare": {
+		"startup": 0.11,
+		"active": 0.14,
+		"recovery": 0.30,
+		"block_recovery": 0.36,
+		"damage": 9,
+		"hitstun": 0.20,
+		"blockstun": 0.16,
+		"cancel_on_hit": false,
+		"cancel_on_block": false,
+		"cancel_options": [],
+		"block_type": "low",
+		"air_blockable": true,
+		"lunge_speed": 60.0,
+		"knockback_ground": Vector2(110, -32),
+		"knockback_air": Vector2(104, -64),
+		"hitbox_size_ground": Vector2(36, 16),
+		"hitbox_size_air": Vector2(32, 14),
+		"hitbox_offset_ground": Vector2(26, 8),
+		"hitbox_offset_air": Vector2(22, 4)
+	},
+	"trap_seed": {
+		"startup": 0.12,
+		"active": 0.10,
+		"recovery": 0.32,
+		"block_recovery": 0.38,
+		"damage": 8,
+		"hitstun": 0.18,
+		"blockstun": 0.15,
+		"cancel_on_hit": false,
+		"cancel_on_block": false,
+		"cancel_options": [],
+		"block_type": "mid",
+		"air_blockable": true,
+		"lunge_speed": 40.0,
+		"knockback_ground": Vector2(120, -48),
+		"knockback_air": Vector2(112, -76),
+		"hitbox_size_ground": Vector2(24, 18),
+		"hitbox_size_air": Vector2(22, 16),
+		"hitbox_offset_ground": Vector2(20, -2),
+		"hitbox_offset_air": Vector2(18, -6)
+	},
+	"trap_setplay": {
+		"startup": 0.13,
+		"active": 0.15,
+		"recovery": 0.34,
+		"block_recovery": 0.40,
+		"damage": 9,
+		"hitstun": 0.20,
+		"blockstun": 0.16,
+		"cancel_on_hit": false,
+		"cancel_on_block": false,
+		"cancel_options": [],
+		"block_type": "low",
+		"air_blockable": true,
+		"lunge_speed": 20.0,
+		"knockback_ground": Vector2(126, -42),
+		"knockback_air": Vector2(118, -70),
+		"hitbox_size_ground": Vector2(34, 18),
+		"hitbox_size_air": Vector2(30, 16),
+		"hitbox_offset_ground": Vector2(24, 6),
+		"hitbox_offset_air": Vector2(22, 2)
+	},
+	"summon_screen": {
+		"startup": 0.11,
+		"active": 0.14,
+		"recovery": 0.31,
+		"block_recovery": 0.37,
+		"damage": 10,
+		"hitstun": 0.19,
+		"blockstun": 0.14,
+		"cancel_on_hit": false,
+		"cancel_on_block": false,
+		"cancel_options": [],
+		"block_type": "mid",
+		"air_blockable": true,
+		"lunge_speed": 30.0,
+		"knockback_ground": Vector2(138, -54),
+		"knockback_air": Vector2(126, -82),
+		"hitbox_size_ground": Vector2(32, 20),
+		"hitbox_size_air": Vector2(30, 18),
+		"hitbox_offset_ground": Vector2(24, -2),
+		"hitbox_offset_air": Vector2(22, -8)
+	},
+	"projectile_screen": {
+		"startup": 0.10,
+		"active": 0.14,
+		"recovery": 0.30,
+		"block_recovery": 0.36,
+		"damage": 10,
+		"hitstun": 0.18,
+		"blockstun": 0.15,
+		"cancel_on_hit": false,
+		"cancel_on_block": false,
+		"cancel_options": [],
+		"block_type": "mid",
+		"air_blockable": true,
+		"lunge_speed": 40.0,
+		"knockback_ground": Vector2(144, -56),
+		"knockback_air": Vector2(132, -84),
+		"hitbox_size_ground": Vector2(30, 20),
+		"hitbox_size_air": Vector2(28, 18),
+		"hitbox_offset_ground": Vector2(24, -4),
+		"hitbox_offset_air": Vector2(22, -10)
+	},
+	"install_pulse": {
+		"startup": 0.09,
+		"active": 0.10,
+		"recovery": 0.20,
+		"block_recovery": 0.25,
+		"damage": 7,
+		"hitstun": 0.12,
+		"blockstun": 0.10,
+		"cancel_on_hit": false,
+		"cancel_on_block": false,
+		"cancel_options": [],
+		"block_type": "mid",
+		"air_blockable": true,
+		"lunge_speed": 0.0,
+		"knockback_ground": Vector2(92, -28),
+		"knockback_air": Vector2(84, -56),
+		"hitbox_size_ground": Vector2(28, 18),
+		"hitbox_size_air": Vector2(24, 16),
+		"hitbox_offset_ground": Vector2(22, -2),
+		"hitbox_offset_air": Vector2(18, -8)
+	},
+	"super_burst": {
 		"startup": 0.13,
 		"active": 0.16,
 		"recovery": 0.34,
 		"block_recovery": 0.40,
+		"damage": 17,
+		"hitstun": 0.24,
+		"blockstun": 0.18,
+		"cancel_on_hit": false,
+		"cancel_on_block": false,
+		"cancel_options": [],
+		"block_type": "overhead",
+		"air_blockable": true,
 		"lunge_speed": 240.0,
-		"hitstun_bonus": 0.04,
-		"blockstun_bonus": 0.02,
-		"knockback_x_scale": 1.10,
-		"knockback_y_scale": 1.06
+		"knockback_ground": Vector2(240, -118),
+		"knockback_air": Vector2(210, -170),
+		"hitbox_size_ground": Vector2(38, 22),
+		"hitbox_size_air": Vector2(34, 20),
+		"hitbox_offset_ground": Vector2(30, -4),
+		"hitbox_offset_air": Vector2(28, -10)
+	},
+	"screen_control_super": {
+		"startup": 0.15,
+		"active": 0.18,
+		"recovery": 0.38,
+		"block_recovery": 0.44,
+		"damage": 16,
+		"hitstun": 0.24,
+		"blockstun": 0.19,
+		"cancel_on_hit": false,
+		"cancel_on_block": false,
+		"cancel_options": [],
+		"block_type": "mid",
+		"air_blockable": true,
+		"lunge_speed": 80.0,
+		"knockback_ground": Vector2(220, -96),
+		"knockback_air": Vector2(198, -150),
+		"hitbox_size_ground": Vector2(40, 24),
+		"hitbox_size_air": Vector2(36, 22),
+		"hitbox_offset_ground": Vector2(30, -4),
+		"hitbox_offset_air": Vector2(28, -10)
+	},
+	"install_overclock": {
+		"startup": 0.11,
+		"active": 0.12,
+		"recovery": 0.24,
+		"block_recovery": 0.30,
+		"damage": 9,
+		"hitstun": 0.14,
+		"blockstun": 0.11,
+		"cancel_on_hit": false,
+		"cancel_on_block": false,
+		"cancel_options": [],
+		"block_type": "mid",
+		"air_blockable": true,
+		"lunge_speed": 0.0,
+		"knockback_ground": Vector2(110, -36),
+		"knockback_air": Vector2(100, -62),
+		"hitbox_size_ground": Vector2(30, 18),
+		"hitbox_size_air": Vector2(26, 16),
+		"hitbox_offset_ground": Vector2(22, -4),
+		"hitbox_offset_air": Vector2(20, -8)
 	}
 }
 
@@ -86,17 +355,6 @@ static func inject_generated_signature_attacks(
 	if profile.is_empty():
 		return updated
 
-	var special_base := {}
-	var special_from_runtime: Variant = updated.get("special", {})
-	if typeof(special_from_runtime) == TYPE_DICTIONARY:
-		special_base = (special_from_runtime as Dictionary).duplicate(true)
-	if special_base.is_empty():
-		var fallback_special: Variant = base_attack_data.get("special", {})
-		if typeof(fallback_special) == TYPE_DICTIONARY:
-			special_base = (fallback_special as Dictionary).duplicate(true)
-	if special_base.is_empty():
-		return updated
-
 	for key_variant in signature_attack_keys:
 		var key := str(key_variant)
 		if updated.has(key):
@@ -104,57 +362,35 @@ static func inject_generated_signature_attacks(
 		var config_value: Variant = profile.get(key, {})
 		if typeof(config_value) != TYPE_DICTIONARY:
 			continue
-		updated[key] = build_generated_signature_attack_from_special(
+		updated[key] = build_generated_signature_attack(
 			key,
-			special_base,
 			config_value as Dictionary,
 			hitstun_seconds,
 			blockstun_seconds
 		)
 	return updated
 
-static func build_generated_signature_attack_from_special(
+static func build_generated_signature_attack(
 	kind: String,
-	special_base: Dictionary,
 	config: Dictionary,
 	hitstun_seconds: float,
 	blockstun_seconds: float
 ) -> Dictionary:
-	var entry := special_base.duplicate(true)
-	var default_startup := float(special_base.get("startup", 0.10))
-	var default_active := float(special_base.get("active", 0.15))
-	var default_recovery := float(special_base.get("recovery", 0.28))
-	var template_id := _resolve_signature_template_id(kind, config)
-	var template := _resolve_signature_template_defaults(template_id)
-	var damage_scale := float(config.get("damage_scale", 0.65))
-	var base_damage := int(special_base.get("damage", 14))
-	entry["startup"] = float(config.get("startup", float(template.get("startup", default_startup + (0.01 if kind != "signature_a" else -0.01)))))
-	entry["active"] = float(config.get("active", float(template.get("active", default_active))))
-	entry["recovery"] = float(config.get("recovery", float(template.get("recovery", default_recovery + (0.03 if kind == "ultimate" else 0.0)))))
-	entry["block_recovery"] = float(config.get("block_recovery", float(template.get("block_recovery", float(entry.get("recovery", default_recovery)) + 0.08))))
+	var skeleton_id := _resolve_signature_skeleton_id(kind, config)
+	var skeleton := _resolve_signature_skeleton_defaults(skeleton_id)
+	if skeleton.is_empty():
+		return {}
+	var entry := skeleton.duplicate(true)
+	var damage_scale := float(config.get("damage_scale", 1.0))
+	var base_damage := int(entry.get("damage", 10))
 	entry["damage"] = maxi(5, int(round(float(base_damage) * damage_scale)))
-	entry["hitstun"] = float(config.get(
-		"hitstun",
-		float(special_base.get("hitstun", hitstun_seconds))
-		+ float(template.get("hitstun_bonus", 0.0))
-		+ (0.02 if kind == "ultimate" else 0.0)
-	))
-	entry["blockstun"] = float(config.get(
-		"blockstun",
-		float(special_base.get("blockstun", blockstun_seconds))
-		+ float(template.get("blockstun_bonus", 0.0))
-		+ (0.02 if kind == "ultimate" else 0.0)
-	))
-	entry["cancel_on_hit"] = false
-	entry["cancel_on_block"] = false
-	entry["cancel_options"] = []
-	entry["cooldown"] = float(config.get("cooldown", 1.5 if kind != "ultimate" else 8.0))
-	if config.has("block_type"):
-		entry["block_type"] = str(config.get("block_type", "mid"))
-	elif template.has("block_type"):
-		entry["block_type"] = str(template.get("block_type", "mid"))
-	entry["lunge_speed"] = float(config.get("lunge_speed", float(template.get("lunge_speed", special_base.get("lunge_speed", 0.0)))))
-	_apply_knockback_profile(entry, template)
+	entry["hitstun"] = float(config.get("hitstun", float(entry.get("hitstun", hitstun_seconds))))
+	entry["blockstun"] = float(config.get("blockstun", float(entry.get("blockstun", blockstun_seconds))))
+	entry["cooldown"] = float(config.get("cooldown", 8.0 if kind == "ultimate" else 1.5))
+	entry["generated_role"] = str(config.get("role", "")).strip_edges().to_lower()
+	entry["generated_skeleton"] = skeleton_id
+	entry["generated_archetype"] = str(config.get("generated_archetype", "")).strip_edges().to_lower()
+	_apply_explicit_config_overrides(entry, config)
 	if config.has("effect"):
 		var effect_value: Variant = config.get("effect", {})
 		if typeof(effect_value) == TYPE_DICTIONARY:
@@ -164,6 +400,15 @@ static func build_generated_signature_attack_from_special(
 		if typeof(control_value) == TYPE_DICTIONARY:
 			entry["control"] = (control_value as Dictionary).duplicate(true)
 	return entry
+
+static func build_generated_signature_attack_from_special(
+	kind: String,
+	special_base: Dictionary,
+	config: Dictionary,
+	hitstun_seconds: float,
+	blockstun_seconds: float
+) -> Dictionary:
+	return build_generated_signature_attack(kind, config, hitstun_seconds, blockstun_seconds)
 
 static func _build_generated_signature_attack_from_special(
 	kind: String,
@@ -180,43 +425,56 @@ static func _build_generated_signature_attack_from_special(
 		blockstun_seconds
 	)
 
-static func _resolve_signature_template_id(kind: String, config: Dictionary) -> String:
-	var explicit_template := str(config.get("template", "")).strip_edges().to_lower()
-	if explicit_template != "":
-		return explicit_template
-	if kind == "ultimate":
-		return "super"
-	var effect_value: Variant = config.get("effect", {})
-	if typeof(effect_value) == TYPE_DICTIONARY:
-		var effect := effect_value as Dictionary
-		var effect_type := str(effect.get("type", "")).strip_edges().to_lower()
-		match effect_type:
-			"buff":
-				return "install"
-			"mobility":
-				var mode := str(effect.get("mode", "")).strip_edges().to_lower()
-				if mode == "rising":
-					return "launcher"
-				return "approach"
-			"projectile", "trap", "summon":
-				return "setplay"
-	var control_value: Variant = config.get("control", {})
-	if typeof(control_value) == TYPE_DICTIONARY:
-		return "pressure"
-	return "pressure"
+static func _resolve_signature_skeleton_id(kind: String, config: Dictionary) -> String:
+	var explicit_skeleton := str(config.get("skeleton", "")).strip_edges().to_lower()
+	if explicit_skeleton != "":
+		return explicit_skeleton
+	var role := str(config.get("role", "")).strip_edges().to_lower()
+	match role:
+		"approach":
+			return "teleport_punish" if kind == "signature_b" else "dash_burst"
+		"anti_air":
+			return "rising_launcher"
+		"control":
+			return "control_snare" if kind == "signature_c" else "control_poke"
+		"setplay":
+			return "trap_setplay" if kind == "signature_c" else "trap_seed"
+		"install":
+			return "install_overclock" if kind == "ultimate" else "install_pulse"
+		"super":
+			return "screen_control_super" if kind == "ultimate" else "super_burst"
+	return "super_burst" if kind == "ultimate" else "pressure_check"
 
-static func _resolve_signature_template_defaults(template_id: String) -> Dictionary:
-	var value: Variant = SIGNATURE_TEMPLATE_DEFAULTS.get(template_id, SIGNATURE_TEMPLATE_DEFAULTS["pressure"])
+static func _resolve_signature_skeleton_defaults(skeleton_id: String) -> Dictionary:
+	var value: Variant = SIGNATURE_SKELETON_DEFAULTS.get(skeleton_id, SIGNATURE_SKELETON_DEFAULTS["pressure_check"])
 	if typeof(value) != TYPE_DICTIONARY:
 		return {}
 	return (value as Dictionary).duplicate(true)
 
-static func _apply_knockback_profile(entry: Dictionary, template: Dictionary) -> void:
-	var horizontal_scale := float(template.get("knockback_x_scale", 1.0))
-	var vertical_scale := float(template.get("knockback_y_scale", 1.0))
-	for key in ["knockback_ground", "knockback_air"]:
-		var value: Variant = entry.get(key, Vector2.ZERO)
-		if value is not Vector2:
-			continue
-		var knockback := value as Vector2
-		entry[key] = Vector2(knockback.x * horizontal_scale, knockback.y * vertical_scale)
+static func _apply_explicit_config_overrides(entry: Dictionary, config: Dictionary) -> void:
+	for key in ["startup", "active", "recovery", "block_recovery", "hitstun", "blockstun", "lunge_speed", "chip_bonus", "cooldown"]:
+		if config.has(key):
+			entry[key] = float(config.get(key, entry.get(key, 0.0)))
+	if config.has("damage"):
+		entry["damage"] = maxi(1, int(config.get("damage", entry.get("damage", 1))))
+	for key in ["cancel_on_hit", "cancel_on_block", "air_blockable"]:
+		if config.has(key):
+			entry[key] = bool(config.get(key, entry.get(key, false)))
+	if config.has("cancel_options"):
+		var cancel_value: Variant = config.get("cancel_options", [])
+		if typeof(cancel_value) == TYPE_ARRAY:
+			entry["cancel_options"] = (cancel_value as Array).duplicate()
+	if config.has("block_type"):
+		entry["block_type"] = str(config.get("block_type", entry.get("block_type", "mid")))
+	for key in [
+		"knockback_ground",
+		"knockback_air",
+		"hitbox_size_ground",
+		"hitbox_size_air",
+		"hitbox_offset_ground",
+		"hitbox_offset_air"
+	]:
+		if config.has(key):
+			var value: Variant = config.get(key, entry.get(key, Vector2.ZERO))
+			if value is Vector2:
+				entry[key] = value
