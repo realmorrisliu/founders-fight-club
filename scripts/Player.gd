@@ -15,6 +15,7 @@ signal hit_landed(attacker: Node, target: Node, attack_kind: String, is_counter:
 signal blocked_landed(attacker: Node, target: Node, attack_kind: String)
 signal tech_recovered(fighter: Node, tech_kind: String)
 signal throw_teched(attacker: Node, target: Node)
+signal throw_whiffed(attacker: Node)
 signal loadout_item_activated(fighter: Node, item_id: String, activation_count: int, elapsed_seconds: float)
 signal loadout_item_evolved(
 	fighter: Node,
@@ -2024,6 +2025,18 @@ func _refresh_ai_style_profile() -> void:
 func _get_ai_profile_number(key: String, fallback: float) -> float:
 	return float(ai_style_profile.get(key, fallback))
 
+func _get_ai_throw_tech_chance() -> float:
+	var explicit_value := float(ai_style_profile.get("throw_tech_chance", -1.0))
+	if explicit_value >= 0.0:
+		return clampf(explicit_value, 0.0, 1.0)
+	var block_chance := _get_ai_profile_number("block_chance", 0.35)
+	var throw_bias := _get_ai_profile_number("throw_bias", 1.0)
+	var combo_pressure := _get_ai_profile_number("combo_pressure", 0.52)
+	var derived := 0.08 + block_chance * 0.26
+	derived += maxf(0.0, throw_bias - 0.80) * 0.10
+	derived -= maxf(0.0, combo_pressure - 0.56) * 0.08
+	return clampf(derived, 0.10, 0.30)
+
 func _get_dodge_cooldown_seconds() -> float:
 	return DUEL_DODGE_COOLDOWN_SECONDS if _uses_duel_ruleset() else DODGE_COOLDOWN_SECONDS
 
@@ -2086,8 +2099,11 @@ func _update_attack(delta: float) -> void:
 		attack_phase = "recovery"
 		attack_time = 0.0
 		_set_hitbox_active(false)
-		if attack_kind == "throw" and _uses_duel_ruleset() and not attack_confirmed_hit and not attack_confirmed_block:
-			attack_recovery_override = maxf(attack_recovery_duration, DUEL_THROW_WHIFF_RECOVERY_SECONDS)
+		if attack_kind == "throw" and not attack_confirmed_hit and not attack_confirmed_block:
+			if _uses_duel_ruleset():
+				attack_recovery_override = maxf(attack_recovery_duration, DUEL_THROW_WHIFF_RECOVERY_SECONDS)
+			_record_training_exchange("throw_whiff", attack_kind, data, _build_training_neutral_hit_result(), false, 0, 0, 0)
+			throw_whiffed.emit(self)
 	elif attack_phase == "recovery" and attack_time >= recovery_duration:
 		_clear_attack_state()
 
@@ -4519,6 +4535,8 @@ func _record_training_exchange(
 	var recovery_seconds := _get_attack_recovery_remaining_seconds(attack_data)
 	var stun_frames := _seconds_to_frames(stun_seconds)
 	var recovery_frames := _seconds_to_frames(recovery_seconds)
+	var hp_before := int(hit_result.get("hp_before", current_hp))
+	var hp_after := int(hit_result.get("hp_after", current_hp))
 	last_training_info = {
 		"event_type": event_type,
 		"attack_kind": attack_kind,
@@ -4535,11 +4553,17 @@ func _record_training_exchange(
 		"damage_total": int(hit_result.get("damage_total", 0)),
 		"damage_taken": int(hit_result.get("damage_taken", 0)),
 		"chip_damage": int(hit_result.get("chip_damage", 0)),
-		"hp_before": int(hit_result.get("hp_before", 0)),
-		"hp_after": int(hit_result.get("hp_after", 0)),
+		"hp_before": hp_before,
+		"hp_after": hp_after,
 		"is_counter": is_counter_hit,
 		"throw_tech_source": str(hit_result.get("throw_tech_source", "")),
 		"throw_tech_window_type": str(hit_result.get("throw_tech_window_type", ""))
+	}
+
+func _build_training_neutral_hit_result() -> Dictionary:
+	return {
+		"hp_before": current_hp,
+		"hp_after": current_hp
 	}
 
 func _can_throw_tech(attack_meta: Dictionary) -> bool:
@@ -4553,8 +4577,10 @@ func _can_throw_tech(attack_meta: Dictionary) -> bool:
 		return false
 	if wake_invuln_time > 0.0:
 		return false
+	if _is_throw_tech_disabled_in_training():
+		return false
 	if is_ai:
-		return randf() < THROW_TECH_AI_CHANCE
+		return randf() < _get_ai_throw_tech_chance()
 	return throw_tech_buffer_time > 0.0 and throw_tech_input_source != ""
 
 func _apply_throw_tech_defense(knockback: Vector2) -> void:

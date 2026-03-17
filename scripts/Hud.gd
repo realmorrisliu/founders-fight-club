@@ -69,6 +69,7 @@ const MATCH_UI_MODE_STOCK := "stock"
 @onready var training_title_label := $TrainingPanel/TrainingTitleLabel
 @onready var training_mode_button := $TrainingPanel/TrainingModeButton
 @onready var training_dummy_button := $TrainingPanel/TrainingDummyButton
+@onready var training_tech_button := $TrainingPanel/TrainingTechButton
 @onready var training_detail_button := $TrainingPanel/TrainingDetailButton
 @onready var training_quick_hint_label := $TrainingPanel/TrainingQuickHintLabel
 @onready var training_summary_label := $TrainingPanel/TrainingSummaryLabel
@@ -184,6 +185,7 @@ func _ready() -> void:
 	lang_zh_button.pressed.connect(_on_lang_zh_pressed)
 	training_mode_button.pressed.connect(_on_training_mode_pressed)
 	training_dummy_button.pressed.connect(_on_training_dummy_pressed)
+	training_tech_button.pressed.connect(_on_training_tech_pressed)
 	training_detail_button.pressed.connect(_on_training_detail_pressed)
 	if round_tuning_option_a_button:
 		round_tuning_option_a_button.pressed.connect(_on_round_tuning_option_a_pressed)
@@ -233,7 +235,7 @@ func _layout_runtime_ui() -> void:
 	_set_control_rect(onboarding_progress_label, 12.0, 80.0, 120.0, 98.0)
 	_set_control_rect(onboarding_skip_button, 134.0, 78.0, 194.0, 104.0)
 	_set_control_rect(onboarding_replay_button, 200.0, 78.0, 258.0, 104.0)
-	_set_control_rect(training_panel, 20.0, 144.0, 356.0, 368.0)
+	_set_control_rect(training_panel, 20.0, 144.0, 356.0, 392.0)
 	_set_control_rect(training_title_label, 10.0, 8.0, 150.0, 28.0)
 	_set_control_rect(training_summary_label, 10.0, 30.0, 150.0, 52.0)
 	_set_control_rect(training_stun_label, 10.0, 54.0, 150.0, 74.0)
@@ -241,11 +243,12 @@ func _layout_runtime_ui() -> void:
 	_set_control_rect(training_advantage_label, 10.0, 92.0, 150.0, 112.0)
 	_set_control_rect(training_mode_button, 160.0, 8.0, 326.0, 30.0)
 	_set_control_rect(training_dummy_button, 160.0, 34.0, 326.0, 56.0)
-	_set_control_rect(training_detail_button, 160.0, 60.0, 326.0, 82.0)
-	_set_control_rect(training_quick_hint_label, 160.0, 90.0, 326.0, 146.0)
-	_set_control_rect(training_detail_label, 10.0, 148.0, 326.0, 194.0)
-	_set_control_rect(training_log_title_label, 10.0, 198.0, 120.0, 216.0)
-	_set_control_rect(training_log_label, 10.0, 220.0, 326.0, 360.0)
+	_set_control_rect(training_tech_button, 160.0, 60.0, 326.0, 82.0)
+	_set_control_rect(training_detail_button, 160.0, 86.0, 326.0, 108.0)
+	_set_control_rect(training_quick_hint_label, 160.0, 116.0, 326.0, 160.0)
+	_set_control_rect(training_detail_label, 10.0, 166.0, 326.0, 210.0)
+	_set_control_rect(training_log_title_label, 10.0, 214.0, 120.0, 232.0)
+	_set_control_rect(training_log_label, 10.0, 236.0, 326.0, 384.0)
 	_set_control_rect(round_tuning_panel, 98.0, 102.0, 542.0, 318.0)
 	_set_control_rect(round_tuning_title_label, 18.0, 12.0, 426.0, 32.0)
 	_set_control_rect(round_tuning_hint_label, 18.0, 36.0, 426.0, 54.0)
@@ -349,7 +352,7 @@ func _apply_runtime_skin() -> void:
 			UiSkinStore.ensure_backdrop(
 				training_panel,
 				"BackdropTexture",
-				_load_ui_texture(TRAINING_PANEL_TEXTURE_PATH, Vector2i(336, 224), Color(0.10, 0.16, 0.28, 0.98))
+				_load_ui_texture(TRAINING_PANEL_TEXTURE_PATH, Vector2i(336, 248), Color(0.10, 0.16, 0.28, 0.98))
 			)
 	if onboarding_panel:
 		UiSkinStore.ensure_backdrop(
@@ -380,6 +383,7 @@ func _apply_runtime_skin() -> void:
 	for button in [
 		training_mode_button,
 		training_dummy_button,
+		training_tech_button,
 		training_detail_button,
 		resume_button,
 		restart_button,
@@ -932,6 +936,8 @@ func _refresh_training_panel() -> void:
 		summary_parts.append(_resolve_training_guard_label(guard_mode))
 	if event_type == "throw_tech":
 		summary_parts.append(_resolve_training_guard_label("throw_break"))
+		if str(cached_training_info.get("throw_tech_window_type", "")) == "assist":
+			summary_parts.append(_tr_or_fallback("HUD_TRAINING_LOG_ASSIST_SHORT", "Assist"))
 	if is_counter:
 		summary_parts.append(tr("HUD_CALLOUT_COUNTER"))
 	if combo_count >= 2:
@@ -957,17 +963,25 @@ func _refresh_training_option_buttons() -> void:
 	var detail_value := tr("HUD_TRAINING_OPTION_ON") if bool(training_options.get("show_detail", false)) else tr("HUD_TRAINING_OPTION_OFF")
 	var dummy_mode := str(training_options.get("dummy_mode", "stand"))
 	var ruleset_profile := str(training_options.get("ruleset_profile", "duel"))
+	var throw_tech_assist_mode := str(training_options.get("throw_tech_assist_mode", "throw_only"))
 	var ruleset_label := _resolve_training_ruleset_label(ruleset_profile)
 	var dummy_label := _resolve_dummy_mode_label(dummy_mode)
+	var throw_tech_label := _resolve_throw_tech_assist_mode_label(throw_tech_assist_mode)
 	training_mode_button.text = _format_string_value(
 		_tr_or_fallback("HUD_TRAINING_RULESET_BUTTON", "Drill: %s"),
 		"Drill: %s",
 		ruleset_label
 	)
 	training_dummy_button.text = _format_string_value(tr("HUD_TRAINING_DUMMY_BUTTON"), "Dummy: %s", dummy_label)
+	training_tech_button.text = _format_string_value(
+		_tr_or_fallback("HUD_TRAINING_TECH_BUTTON", "Tech: %s"),
+		"Tech: %s",
+		throw_tech_label
+	)
 	training_detail_button.text = _format_string_value(tr("HUD_TRAINING_DETAIL_BUTTON"), "Adv Detail: %s", detail_value)
 	training_mode_button.visible = training_controls_visible
 	training_dummy_button.visible = training_controls_visible
+	training_tech_button.visible = training_controls_visible
 	training_detail_button.visible = training_controls_visible
 	var panel_enabled := bool(training_options.get("enabled", true))
 	training_panel.modulate = Color(1.0, 1.0, 1.0, 1.0) if panel_enabled else Color(0.78, 0.78, 0.78, 0.94)
@@ -995,7 +1009,7 @@ func _refresh_training_detail_label() -> void:
 	var recovery_frames := int(cached_training_info.get("recovery_frames", 0))
 	var stun_seconds := float(cached_training_info.get("stun_seconds", 0.0))
 	var recovery_seconds := float(cached_training_info.get("recovery_seconds", 0.0))
-	training_detail_label.text = "%s | %s | %s\n%s %dF (%.2fs)  %s %dF (%.2fs)" % [
+	var detail_text := "%s | %s | %s\n%s %dF (%.2fs)  %s %dF (%.2fs)" % [
 		event_label,
 		move_label,
 		guard_label,
@@ -1006,6 +1020,16 @@ func _refresh_training_detail_label() -> void:
 		recovery_frames,
 		recovery_seconds
 	]
+	var throw_tech_source := str(cached_training_info.get("throw_tech_source", ""))
+	var throw_tech_window_type := str(cached_training_info.get("throw_tech_window_type", ""))
+	if throw_tech_source != "":
+		detail_text += "\n%s %s" % [
+			_tr_or_fallback("HUD_TRAINING_DETAIL_TECH_LABEL", "Tech"),
+			_resolve_throw_tech_source_label(throw_tech_source)
+		]
+		if throw_tech_window_type == "assist":
+			detail_text += " | %s" % _tr_or_fallback("HUD_TRAINING_LOG_ASSIST_SHORT", "Assist")
+	training_detail_label.text = detail_text
 
 func _refresh_training_log_label() -> void:
 	if training_log_label == null:
@@ -1063,6 +1087,8 @@ func _resolve_training_event_label(event_type: String) -> String:
 			return tr("HUD_TRAINING_EVENT_BLOCK")
 		"throw_tech":
 			return tr("HUD_TRAINING_EVENT_THROW_TECH")
+		"throw_whiff":
+			return _tr_or_fallback("HUD_TRAINING_EVENT_THROW_WHIFF", "THROW WHIFF")
 	return tr("HUD_TRAINING_EVENT_HIT")
 
 func _resolve_training_attack_label(attack_kind: String, attacker_key: String = "p1") -> String:
@@ -1130,14 +1156,21 @@ func _resolve_training_log_line(entry: Dictionary) -> String:
 	var hp_before := int(entry.get("hp_before", 0))
 	var hp_after := int(entry.get("hp_after", 0))
 	var chip_damage := int(entry.get("chip_damage", 0))
+	var throw_tech_source := str(entry.get("throw_tech_source", ""))
+	var throw_tech_window_type := str(entry.get("throw_tech_window_type", ""))
 	var adv_short := _tr_or_fallback("HUD_TRAINING_LOG_ADV_SHORT", "Adv")
 	var damage_short := _tr_or_fallback("HUD_TRAINING_LOG_DAMAGE_SHORT", "D")
 	var combo_short := _tr_or_fallback("HUD_TRAINING_LOG_COMBO_SHORT", "C")
 	var hp_short := _tr_or_fallback("HUD_TRAINING_LOG_HP_SHORT", "HP")
 	var chip_short := _tr_or_fallback("HUD_TRAINING_LOG_CHIP_SHORT", "Chip")
+	var assist_short := _tr_or_fallback("HUD_TRAINING_LOG_ASSIST_SHORT", "Assist")
 	var line := "%s %s" % [event_label, move_label]
 	if block_tag != "":
 		line += " %s" % block_tag
+	if throw_tech_source != "":
+		line += " %s" % _resolve_throw_tech_source_label(throw_tech_source)
+	if throw_tech_window_type == "assist":
+		line += " %s" % assist_short
 	line += " %s %s" % [adv_short, adv_text]
 	line += " %s%d %s%d %s%d>%d" % [damage_short, damage_total, combo_short, combo_damage, hp_short, hp_before, hp_after]
 	if chip_damage > 0:
@@ -1152,6 +1185,24 @@ func _resolve_dummy_mode_label(mode: String) -> String:
 			return tr("HUD_TRAINING_DUMMY_RANDOM_BLOCK")
 		_:
 			return tr("HUD_TRAINING_DUMMY_STAND")
+
+func _resolve_throw_tech_assist_mode_label(mode: String) -> String:
+	match str(mode).strip_edges().to_lower():
+		"off":
+			return _tr_or_fallback("HUD_TRAINING_TECH_OFF", "Off")
+		"button_assist":
+			return _tr_or_fallback("HUD_TRAINING_TECH_BUTTON_ASSIST", "Button Assist")
+		_:
+			return _tr_or_fallback("HUD_TRAINING_TECH_THROW_ONLY", "Throw Only")
+
+func _resolve_throw_tech_source_label(source: String) -> String:
+	match str(source).strip_edges().to_lower():
+		"light":
+			return tr("HUD_TRAINING_MOVE_LIGHT")
+		"heavy":
+			return tr("HUD_TRAINING_MOVE_HEAVY")
+		_:
+			return tr("HUD_TRAINING_MOVE_THROW")
 
 func _resolve_training_ruleset_label(profile: String) -> String:
 	if str(profile).strip_edges().to_lower() == "platform":
@@ -1199,6 +1250,19 @@ func _on_training_dummy_pressed() -> void:
 		_:
 			current = "stand"
 	training_options["dummy_mode"] = current
+	_refresh_training_panel()
+	training_options_changed.emit(training_options.duplicate(true))
+
+func _on_training_tech_pressed() -> void:
+	var current := str(training_options.get("throw_tech_assist_mode", "throw_only")).strip_edges().to_lower()
+	match current:
+		"throw_only":
+			current = "button_assist"
+		"button_assist":
+			current = "off"
+		_:
+			current = "throw_only"
+	training_options["throw_tech_assist_mode"] = current
 	_refresh_training_panel()
 	training_options_changed.emit(training_options.duplicate(true))
 

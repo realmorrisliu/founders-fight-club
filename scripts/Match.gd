@@ -355,6 +355,10 @@ func _ready() -> void:
 		player_1.throw_teched.connect(_on_throw_teched)
 	if player_2 and player_2.has_signal("throw_teched"):
 		player_2.throw_teched.connect(_on_throw_teched)
+	if player_1 and player_1.has_signal("throw_whiffed"):
+		player_1.throw_whiffed.connect(_on_throw_whiffed)
+	if player_2 and player_2.has_signal("throw_whiffed"):
+		player_2.throw_whiffed.connect(_on_throw_whiffed)
 	if player_1 and player_1.has_signal("loadout_item_activated"):
 		player_1.loadout_item_activated.connect(_on_player_loadout_item_activated)
 	if player_2 and player_2.has_signal("loadout_item_activated"):
@@ -1556,6 +1560,11 @@ func _on_throw_teched(attacker, target) -> void:
 			Color(0.84, 1.0, 0.90, 0.95),
 			0.9
 		)
+	_push_training_info(attacker)
+
+func _on_throw_whiffed(attacker) -> void:
+	if bool(training_options.get("enabled", true)):
+		_show_combat_callout("HUD_CALLOUT_WHIFF", Color(1.0, 0.86, 0.68, 1.0))
 	_push_training_info(attacker)
 
 func _on_tech_recovered(fighter, tech_kind: String) -> void:
