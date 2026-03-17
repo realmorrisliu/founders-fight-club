@@ -119,6 +119,7 @@ messages = {
 	"HUD_TRAINING_DETAIL_HIDDEN": "Detail hidden",
 	"HUD_TRAINING_DETAIL_STUN_SHORT": "Stun",
 	"HUD_TRAINING_DETAIL_REC_SHORT": "Rec",
+	"HUD_TRAINING_DETAIL_TECH_LABEL": "Tech",
 "MENU_TITLE": "Founders Fight Club",
 "MENU_SUBTITLE": "Flow: Pick character + loadout -> choose mode -> start match.",
 "MENU_SUBTITLE_SIMPLE": "Pick your fighter, then jump straight into Guided Start, Story, VS, or Training.",

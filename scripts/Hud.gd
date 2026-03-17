@@ -1023,7 +1023,10 @@ func _refresh_training_detail_label() -> void:
 	var throw_tech_source := str(cached_training_info.get("throw_tech_source", ""))
 	var throw_tech_window_type := str(cached_training_info.get("throw_tech_window_type", ""))
 	if throw_tech_source != "":
-		detail_text += "\nTech %s" % _resolve_throw_tech_source_label(throw_tech_source)
+		detail_text += "\n%s %s" % [
+			_tr_or_fallback("HUD_TRAINING_DETAIL_TECH_LABEL", "Tech"),
+			_resolve_throw_tech_source_label(throw_tech_source)
+		]
 		if throw_tech_window_type == "assist":
 			detail_text += " | %s" % _tr_or_fallback("HUD_TRAINING_LOG_ASSIST_SHORT", "Assist")
 	training_detail_label.text = detail_text

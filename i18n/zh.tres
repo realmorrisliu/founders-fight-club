@@ -119,6 +119,7 @@ messages = {
 	"HUD_TRAINING_DETAIL_HIDDEN": "详情已隐藏",
 	"HUD_TRAINING_DETAIL_STUN_SHORT": "硬直",
 	"HUD_TRAINING_DETAIL_REC_SHORT": "恢复",
+	"HUD_TRAINING_DETAIL_TECH_LABEL": "拆投",
 "MENU_TITLE": "Founders Fight Club",
 "MENU_SUBTITLE": "流程：选角色+配置 -> 选模式 -> 开始对战。",
 "MENU_SUBTITLE_SIMPLE": "先选角色，再直接进入引导、剧情、VS 或训练。",

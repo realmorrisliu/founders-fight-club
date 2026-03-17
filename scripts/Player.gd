@@ -2099,12 +2099,12 @@ func _update_attack(delta: float) -> void:
 		attack_phase = "recovery"
 		attack_time = 0.0
 		_set_hitbox_active(false)
-		if attack_kind == "throw" and _uses_duel_ruleset() and not attack_confirmed_hit and not attack_confirmed_block:
-			attack_recovery_override = maxf(attack_recovery_duration, DUEL_THROW_WHIFF_RECOVERY_SECONDS)
-	elif attack_phase == "recovery" and attack_time >= recovery_duration:
 		if attack_kind == "throw" and not attack_confirmed_hit and not attack_confirmed_block:
+			if _uses_duel_ruleset():
+				attack_recovery_override = maxf(attack_recovery_duration, DUEL_THROW_WHIFF_RECOVERY_SECONDS)
 			_record_training_exchange("throw_whiff", attack_kind, data, {}, false, 0, 0, 0)
 			throw_whiffed.emit(self)
+	elif attack_phase == "recovery" and attack_time >= recovery_duration:
 		_clear_attack_state()
 
 	if attack_phase in ["startup", "active"] and data.has("lunge_speed"):

@@ -1885,6 +1885,33 @@ func _test_training_toggle_keeps_dummy_non_ai() -> void:
 			)
 			var whiff_label := str(hud.call("_resolve_training_event_label", "throw_whiff"))
 			_assert_true(whiff_log.findn(whiff_label) != -1, "training log line surfaces throw whiff events")
+			var previous_locale := TranslationServer.get_locale()
+			TranslationServer.set_locale("zh")
+			hud.call("set_training_options", {
+				"enabled": true,
+				"dummy_mode": "stand",
+				"show_detail": true,
+				"ruleset_profile": "duel",
+				"throw_tech_assist_mode": "button_assist"
+			})
+			hud.call("set_training_data", {
+				"event_type": "throw_tech",
+				"attack_kind": "throw",
+				"block_type": "throw",
+				"guard_mode": "throw_break",
+				"stun_frames": 0,
+				"recovery_frames": 14,
+				"stun_seconds": 0.0,
+				"recovery_seconds": 0.23,
+				"throw_tech_source": "light",
+				"throw_tech_window_type": "assist"
+			})
+			var detail_label := hud.get_node_or_null("TrainingPanel/TrainingDetailLabel") as Label
+			_assert_true(detail_label != null, "training hud exposes detail label for localized throw-tech detail")
+			if detail_label != null:
+				var tech_prefix := str(hud.call("_tr_or_fallback", "HUD_TRAINING_DETAIL_TECH_LABEL", "Tech"))
+				_assert_true(detail_label.text.findn(tech_prefix) != -1, "training detail label localizes throw-tech prefix")
+			TranslationServer.set_locale(previous_locale)
 	if is_instance_valid(training_node):
 		training_node.queue_free()
 	await process_frame
@@ -2219,6 +2246,9 @@ func _test_throw_tech_and_ai_defense_windows() -> void:
 	var throw_data := p1.call("_get_attack_data", "throw") as Dictionary
 	var whiff_recovery := float(p1.call("_get_attack_recovery_remaining_seconds", throw_data))
 	_assert_true(whiff_recovery >= 0.24, "whiffed duel throw leaves a punishable recovery window")
+	var whiff_training_info: Dictionary = p1.call("get_last_training_info")
+	_assert_true(str(whiff_training_info.get("event_type", "")) == "throw_whiff", "throw whiff training event is recorded as soon as recovery starts")
+	_assert_true(int(whiff_training_info.get("advantage_frames", 0)) < 0, "throw whiff training event preserves negative advantage during recovery")
 	p2.set("dodge_time", 0.0)
 	p2.call("_end_dodge_state")
 	p1.call("_update_attack", 0.12)
@@ -2236,6 +2266,18 @@ func _test_throw_tech_and_ai_defense_windows() -> void:
 	p1.call("_update_attack", 0.08)
 	var landed_throw_recovery := float(p1.call("_get_attack_recovery_remaining_seconds", throw_data))
 	_assert_true(landed_throw_recovery < 0.24, "landed throw keeps authored recovery instead of the whiff floor")
+
+	_reset_throw_tech_target_state(p1)
+	p1.call("_start_attack", "throw")
+	p1.call("_update_attack", 0.08)
+	p1.call("_on_attack_blocked", throw_data)
+	p1.call("_record_training_exchange", "throw_tech", "throw", throw_data, {
+		"throw_tech_source": "throw",
+		"throw_tech_window_type": "duel"
+	}, false, 0, 0, 11)
+	p1.call("_update_attack", 0.40)
+	var post_tech_training_info: Dictionary = p1.call("get_last_training_info")
+	_assert_true(str(post_tech_training_info.get("event_type", "")) == "throw_tech", "throw tech feedback is not overwritten by whiff logging after recovery")
 
 	p2.set("is_ai", true)
 	p2.set("ai_style_profile", {
