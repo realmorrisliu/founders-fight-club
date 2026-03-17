@@ -91,7 +91,8 @@ const TRAINING_DEFAULT_OPTIONS := {
 	"enabled": true,
 	"dummy_mode": "stand",
 	"show_detail": false,
-	"ruleset_profile": RULESET_DUEL
+	"ruleset_profile": RULESET_DUEL,
+	"throw_tech_assist_mode": "throw_only"
 }
 const IMPACT_ANIMATION_TEXTURE_PATHS := {
 	"hit": [
@@ -911,6 +912,12 @@ func _normalize_ruleset_profile(profile: String) -> String:
 	if normalized == RULESET_PLATFORM:
 		return RULESET_PLATFORM
 	return RULESET_DUEL
+
+func _normalize_throw_tech_assist_mode(mode: String) -> String:
+	var normalized := str(mode).strip_edges().to_lower()
+	if normalized in ["off", "button_assist"]:
+		return normalized
+	return "throw_only"
 
 func _uses_platform_ruleset() -> bool:
 	return ruleset_profile == RULESET_PLATFORM
@@ -1802,6 +1809,10 @@ func _show_hit_type_feedback(training_info: Dictionary, is_block_event: bool) ->
 func _apply_training_options() -> void:
 	var enabled := bool(training_options.get("enabled", true))
 	var dummy_mode := str(training_options.get("dummy_mode", "stand"))
+	var throw_tech_assist_mode := _normalize_throw_tech_assist_mode(
+		str(training_options.get("throw_tech_assist_mode", "throw_only"))
+	)
+	training_options["throw_tech_assist_mode"] = throw_tech_assist_mode
 	if hud and hud.has_method("set_training_options"):
 		hud.set_training_options(training_options)
 	if not enabled and hud:
@@ -1813,6 +1824,10 @@ func _apply_training_options() -> void:
 		player_2.call("set_training_dummy_options", enabled, dummy_mode)
 	if player_1 and player_1.has_method("set_training_dummy_options"):
 		player_1.call("set_training_dummy_options", false, "stand")
+	if player_2 and player_2.has_method("set_training_throw_tech_options"):
+		player_2.call("set_training_throw_tech_options", enabled, throw_tech_assist_mode)
+	if player_1 and player_1.has_method("set_training_throw_tech_options"):
+		player_1.call("set_training_throw_tech_options", enabled, throw_tech_assist_mode)
 	if training_scene_enabled:
 		if player_2 != null:
 			player_2.set("is_ai", false)
@@ -1828,6 +1843,9 @@ func _on_hud_training_options_changed(options: Dictionary) -> void:
 	training_options["show_detail"] = bool(options.get("show_detail", training_options.get("show_detail", false)))
 	var requested_ruleset := _normalize_ruleset_profile(str(options.get("ruleset_profile", training_options.get("ruleset_profile", ruleset_profile))))
 	training_options["ruleset_profile"] = requested_ruleset
+	training_options["throw_tech_assist_mode"] = _normalize_throw_tech_assist_mode(
+		str(options.get("throw_tech_assist_mode", training_options.get("throw_tech_assist_mode", "throw_only")))
+	)
 	if training_scene_enabled and requested_ruleset != ruleset_profile:
 		ruleset_profile = requested_ruleset
 		_apply_ruleset_profile()

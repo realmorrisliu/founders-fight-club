@@ -136,7 +136,8 @@ var training_options := {
 	"enabled": true,
 	"dummy_mode": "stand",
 	"show_detail": false,
-	"ruleset_profile": "duel"
+	"ruleset_profile": "duel",
+	"throw_tech_assist_mode": "throw_only"
 }
 var training_panel_visible := true
 var training_controls_visible := true
@@ -501,6 +502,12 @@ func set_training_options(options: Dictionary) -> void:
 	training_options["show_detail"] = bool(options.get("show_detail", training_options.get("show_detail", false)))
 	var ruleset_profile := str(options.get("ruleset_profile", training_options.get("ruleset_profile", "duel"))).strip_edges().to_lower()
 	training_options["ruleset_profile"] = "platform" if ruleset_profile == "platform" else "duel"
+	var throw_tech_assist_mode := str(
+		options.get("throw_tech_assist_mode", training_options.get("throw_tech_assist_mode", "throw_only"))
+	).strip_edges().to_lower()
+	if throw_tech_assist_mode not in ["off", "throw_only", "button_assist"]:
+		throw_tech_assist_mode = "throw_only"
+	training_options["throw_tech_assist_mode"] = throw_tech_assist_mode
 	_refresh_training_panel()
 
 func add_training_log_entry(info: Dictionary) -> void:
