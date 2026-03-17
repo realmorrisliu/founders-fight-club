@@ -923,7 +923,7 @@ func _refresh_training_panel() -> void:
 	if training_quick_hint_label:
 		training_quick_hint_label.text = _resolve_training_quick_hint_text()
 	_refresh_training_option_buttons()
-	if cached_training_info.is_empty():
+	if _should_surface_training_drill_state():
 		var drill_summary := _resolve_training_drill_state_summary()
 		training_summary_label.text = drill_summary if drill_summary != "" else tr("HUD_TRAINING_NO_DATA")
 		training_stun_label.text = _format_stat(tr("HUD_TRAINING_STUN"), "Stun: %dF", 0)
@@ -1001,6 +1001,18 @@ func _refresh_training_option_buttons() -> void:
 	var panel_enabled := bool(training_options.get("enabled", true))
 	training_panel.modulate = Color(1.0, 1.0, 1.0, 1.0) if panel_enabled else Color(0.78, 0.78, 0.78, 0.94)
 
+func _should_surface_training_drill_state() -> bool:
+	if cached_training_drill_state.is_empty():
+		return cached_training_info.is_empty()
+	var last_result := str(cached_training_drill_state.get("last_result", "")).strip_edges().to_lower()
+	if cached_training_info.is_empty():
+		return true
+	if last_result == "":
+		return false
+	var drill_rep_index := int(cached_training_drill_state.get("rep_index", 0))
+	var info_rep_index := int(cached_training_info.get("training_drill_rep_index", -1))
+	return drill_rep_index > info_rep_index
+
 func _refresh_training_detail_label() -> void:
 	if training_detail_label == null:
 		return
@@ -1009,7 +1021,7 @@ func _refresh_training_detail_label() -> void:
 	if not show_detail:
 		training_detail_label.text = tr("HUD_TRAINING_DETAIL_HIDDEN")
 		return
-	if cached_training_info.is_empty():
+	if _should_surface_training_drill_state():
 		var drill_detail := _resolve_training_drill_state_detail()
 		training_detail_label.text = drill_detail if drill_detail != "" else tr("HUD_TRAINING_NO_DATA")
 		return
