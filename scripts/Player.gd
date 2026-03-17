@@ -2057,12 +2057,6 @@ func _get_air_dodge_fall_speed() -> float:
 func _get_air_dodge_end_lag_seconds() -> float:
 	return DUEL_AIR_DODGE_END_LAG_SECONDS if _uses_duel_ruleset() else AIR_DODGE_END_LAG_SECONDS
 
-func _resolve_attack_recovery_seconds(kind: String, attack_data: Dictionary) -> float:
-	var recovery := float(attack_data.get("recovery", 0.20))
-	if kind == "throw" and _uses_duel_ruleset():
-		return maxf(recovery, DUEL_THROW_WHIFF_RECOVERY_SECONDS)
-	return recovery
-
 func _resolve_attack_block_recovery_seconds(kind: String, attack_data: Dictionary) -> float:
 	var recovery := float(attack_data.get("block_recovery", attack_data.get("recovery", 0.20)))
 	if kind == "throw" and _uses_duel_ruleset():
@@ -2077,6 +2071,7 @@ func _update_attack(delta: float) -> void:
 	_apply_hitbox_profile()
 	attack_time += delta
 	var data := _get_attack_data(attack_state)
+	var attack_kind := attack_state
 	var startup_duration := attack_startup_duration if attack_startup_duration > 0.0 else float(data.get("startup", 0.06))
 	var active_duration := attack_active_duration if attack_active_duration > 0.0 else float(data.get("active", 0.10))
 	var recovery_duration := attack_recovery_duration if attack_recovery_duration > 0.0 else float(data.get("recovery", 0.20))
@@ -2091,6 +2086,8 @@ func _update_attack(delta: float) -> void:
 		attack_phase = "recovery"
 		attack_time = 0.0
 		_set_hitbox_active(false)
+		if attack_kind == "throw" and _uses_duel_ruleset() and not attack_confirmed_hit and not attack_confirmed_block:
+			attack_recovery_override = maxf(attack_recovery_duration, DUEL_THROW_WHIFF_RECOVERY_SECONDS)
 	elif attack_phase == "recovery" and attack_time >= recovery_duration:
 		_clear_attack_state()
 
@@ -4002,7 +3999,7 @@ func _start_attack(kind: String) -> void:
 	var data := _get_attack_data(kind)
 	attack_startup_duration = float(data.get("startup", 0.06)) * _get_startup_multiplier_for_attack(kind)
 	attack_active_duration = float(data.get("active", 0.10))
-	attack_recovery_duration = _resolve_attack_recovery_seconds(kind, data)
+	attack_recovery_duration = float(data.get("recovery", 0.20))
 	facing_locked = true
 	facing_locked_direction = facing
 	hit_targets.clear()
