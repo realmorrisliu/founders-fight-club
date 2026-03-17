@@ -11,6 +11,7 @@ const RoundTuningEngineStore := preload("res://scripts/loadout/RoundTuningEngine
 const AttackTableStore := preload("res://scripts/resources/AttackTable.gd")
 const GeneratedSkillProfilesStore := preload("res://scripts/player/GeneratedSkillProfiles.gd")
 const PlayerDataStore := preload("res://scripts/player/PlayerData.gd")
+const PlayerSignatureAttackBuilderStore := preload("res://scripts/player/PlayerSignatureAttackBuilder.gd")
 const REQUIRED_BASE_ATTACKS := ["light", "heavy", "special", "throw"]
 const SUITE_SMOKE := "smoke"
 const SUITE_FULL := "full"
@@ -68,6 +69,7 @@ func _run_smoke_suite() -> void:
 	await _test_loadout_item_evolution_boundaries()
 	await _test_loadout_wave1_tuning_profiles_present()
 	await _test_generated_signature_profiles_are_normalized()
+	await _test_generated_signature_builder_uses_role_skeletons()
 	await _test_round_tuning_intermission_flow()
 	await _test_round_tuning_simultaneous_stock_fairness()
 	await _test_round_tuning_pick_cap_per_player()
@@ -1413,6 +1415,51 @@ func _test_generated_signature_profiles_are_normalized() -> void:
 			_assert_true(not slot_contracts.is_empty() and slot_contracts.has(slot_key), "%s slot contract map includes %s" % [character_id, slot_key])
 			_assert_true(str(contract.get("role", "")) == str(entry.get("role", "")), "%s slot contract role matches entry for %s" % [character_id, slot_key])
 			_assert_true(str(contract.get("skeleton", "")) == str(entry.get("skeleton", "")), "%s slot contract skeleton matches entry for %s" % [character_id, slot_key])
+
+func _test_generated_signature_builder_uses_role_skeletons() -> void:
+	var special_base_value: Variant = PlayerDataStore.ATTACK_DATA.get("special", {})
+	_assert_true(typeof(special_base_value) == TYPE_DICTIONARY, "builder regression test resolves special base data")
+	if typeof(special_base_value) != TYPE_DICTIONARY:
+		return
+	var special_base := (special_base_value as Dictionary).duplicate(true)
+	var distorted_special := special_base.duplicate(true)
+	distorted_special["block_type"] = "throw"
+	distorted_special["damage"] = 99
+	distorted_special["lunge_speed"] = 0.0
+	distorted_special["hitbox_size_ground"] = Vector2(80, 80)
+	distorted_special["hitbox_offset_ground"] = Vector2(-30, -30)
+	for character_id in ["bill_geytz", "larry_pagyr", "tim_cuke", "travis_kalanik"]:
+		var profile := GeneratedSkillProfilesStore.get_profile(character_id)
+		var unique_skeletons := {}
+		for slot_key in ["signature_a", "signature_b", "signature_c", "ultimate"]:
+			var config_value: Variant = profile.get(slot_key, {})
+			_assert_true(typeof(config_value) == TYPE_DICTIONARY, "%s builder test resolves %s config" % [character_id, slot_key])
+			if typeof(config_value) != TYPE_DICTIONARY:
+				continue
+			var config := config_value as Dictionary
+			var generated := PlayerSignatureAttackBuilderStore.build_generated_signature_attack(slot_key, config, 0.18, 0.14)
+			var legacy_alias := PlayerSignatureAttackBuilderStore.build_generated_signature_attack_from_special(
+				slot_key,
+				distorted_special,
+				config,
+				0.18,
+				0.14
+			)
+			_assert_true(not generated.is_empty(), "%s builder returns runtime attack for %s" % [character_id, slot_key])
+			_assert_true(str(generated.get("generated_role", "")) == str(config.get("role", "")), "%s builder stamps generated role for %s" % [character_id, slot_key])
+			_assert_true(str(generated.get("generated_skeleton", "")) == str(config.get("skeleton", "")), "%s builder stamps generated skeleton for %s" % [character_id, slot_key])
+			_assert_true(str(legacy_alias.get("block_type", "")) == str(generated.get("block_type", "")), "%s generated %s no longer depends on special block type" % [character_id, slot_key])
+			_assert_true(int(legacy_alias.get("damage", 0)) == int(generated.get("damage", 0)), "%s generated %s no longer depends on special damage" % [character_id, slot_key])
+			_assert_true(legacy_alias.get("hitbox_size_ground", Vector2.ZERO) == generated.get("hitbox_size_ground", Vector2.ZERO), "%s generated %s no longer depends on special hitbox size" % [character_id, slot_key])
+			var differs_from_special: bool = (
+				str(generated.get("block_type", "")) != str(special_base.get("block_type", ""))
+				or generated.get("hitbox_size_ground", Vector2.ZERO) != special_base.get("hitbox_size_ground", Vector2.ZERO)
+				or generated.get("hitbox_offset_ground", Vector2.ZERO) != special_base.get("hitbox_offset_ground", Vector2.ZERO)
+				or not is_equal_approx(float(generated.get("lunge_speed", 0.0)), float(special_base.get("lunge_speed", 0.0)))
+			)
+			_assert_true(differs_from_special, "%s generated %s differs from the base special profile" % [character_id, slot_key])
+			unique_skeletons[str(generated.get("generated_skeleton", ""))] = true
+		_assert_true(unique_skeletons.size() >= 3, "%s generated kit exposes at least three distinct skeletons" % character_id)
 
 func _test_match_metrics_telemetry_schema() -> void:
 	var metrics_path := ProjectSettings.globalize_path("user://match_metrics.jsonl")
