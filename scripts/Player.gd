@@ -494,11 +494,11 @@ const STATUS_SLOW_CAP_SECONDS := 1.2
 const STATUS_ROOT_CAP_SECONDS := 0.5
 const CHARACTER_TINT_BY_ID := PlayerDataStore.CHARACTER_TINT_BY_ID
 const REQUIRED_BASE_ATTACK_KEYS := ["light", "heavy", "special", "throw"]
-const ARCHETYPE_ALL_ROUNDER := "all_rounder"
-const ARCHETYPE_RUSHDOWN := "rushdown"
-const ARCHETYPE_ZONER := "zoner"
-const ARCHETYPE_BRUISER := "bruiser"
-const ARCHETYPE_COUNTER := "counter"
+const ARCHETYPE_ALL_ROUNDER := PlayerDataStore.ARCHETYPE_ALL_ROUNDER
+const ARCHETYPE_RUSHDOWN := PlayerDataStore.ARCHETYPE_RUSHDOWN
+const ARCHETYPE_ZONER := PlayerDataStore.ARCHETYPE_ZONER
+const ARCHETYPE_BRUISER := PlayerDataStore.ARCHETYPE_BRUISER
+const ARCHETYPE_COUNTER := PlayerDataStore.ARCHETYPE_COUNTER
 const BLOCK_CHIP_BY_ATTACK := {
 	"light": 0.0,
 	"heavy": 0.08,
@@ -1938,21 +1938,7 @@ func get_character_profile() -> Dictionary:
 	}
 
 func _resolve_archetype_key() -> String:
-	var preferred_range := _get_ai_profile_number("preferred_range", 56.0)
-	var combo_pressure := _get_ai_profile_number("combo_pressure", 0.52)
-	var signature_bias := _get_ai_profile_number("signature_bias", 1.0)
-	var special_bias := _get_ai_profile_number("special_bias", 1.0)
-	var heavy_bias := _get_ai_profile_number("heavy_bias", 1.0)
-	var block_chance := _get_ai_profile_number("block_chance", 0.35)
-	if combo_pressure >= 0.66 and preferred_range <= 58.0:
-		return ARCHETYPE_RUSHDOWN
-	if preferred_range >= 72.0 and signature_bias >= 1.20 and heavy_bias <= 0.95:
-		return ARCHETYPE_ZONER
-	if heavy_bias >= 1.14 or special_bias >= 1.14:
-		return ARCHETYPE_BRUISER
-	if block_chance >= 0.40:
-		return ARCHETYPE_COUNTER
-	return ARCHETYPE_ALL_ROUNDER
+	return PlayerDataStore.resolve_archetype_key_from_ai_profile(ai_style_profile)
 
 func _resolve_archetype_label_key(archetype_key: String) -> String:
 	match archetype_key:

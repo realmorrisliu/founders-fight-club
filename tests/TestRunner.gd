@@ -10,6 +10,7 @@ const EvolutionEngineStore := preload("res://scripts/loadout/EvolutionEngine.gd"
 const RoundTuningEngineStore := preload("res://scripts/loadout/RoundTuningEngine.gd")
 const AttackTableStore := preload("res://scripts/resources/AttackTable.gd")
 const GeneratedSkillProfilesStore := preload("res://scripts/player/GeneratedSkillProfiles.gd")
+const PlayerDataStore := preload("res://scripts/player/PlayerData.gd")
 const REQUIRED_BASE_ATTACKS := ["light", "heavy", "special", "throw"]
 const SUITE_SMOKE := "smoke"
 const SUITE_FULL := "full"
@@ -66,6 +67,7 @@ func _run_smoke_suite() -> void:
 	await _test_loadout_item_trigger_and_cooldown_runtime()
 	await _test_loadout_item_evolution_boundaries()
 	await _test_loadout_wave1_tuning_profiles_present()
+	await _test_generated_signature_profiles_are_normalized()
 	await _test_round_tuning_intermission_flow()
 	await _test_round_tuning_simultaneous_stock_fairness()
 	await _test_round_tuning_pick_cap_per_player()
@@ -1380,6 +1382,37 @@ func _test_loadout_wave1_tuning_profiles_present() -> void:
 		is_equal_approx(float(sam_core.get("cooldown_seconds", 6.0)), 5.5),
 		"wave1 tuning applies Sam core cooldown adjustment"
 	)
+
+func _test_generated_signature_profiles_are_normalized() -> void:
+	for character_id_variant in GeneratedSkillProfilesStore.PROFILE_BY_CHARACTER.keys():
+		var character_id := str(character_id_variant)
+		var profile := GeneratedSkillProfilesStore.get_profile(character_id)
+		_assert_true(not profile.is_empty(), "normalized generated profile loads for %s" % character_id)
+		var generated_archetype := str(profile.get("generated_archetype", ""))
+		_assert_true(generated_archetype != "", "normalized generated profile exposes archetype for %s" % character_id)
+		_assert_true(
+			generated_archetype == PlayerDataStore.resolve_character_archetype(character_id),
+			"normalized generated profile archetype matches shared resolver for %s" % character_id
+		)
+		var slot_contracts_value: Variant = profile.get("slot_contracts", {})
+		_assert_true(typeof(slot_contracts_value) == TYPE_DICTIONARY, "normalized generated profile exposes slot contracts for %s" % character_id)
+		var slot_contracts := {}
+		if typeof(slot_contracts_value) == TYPE_DICTIONARY:
+			slot_contracts = slot_contracts_value as Dictionary
+		for slot_key in ["signature_a", "signature_b", "signature_c", "ultimate"]:
+			var entry_value: Variant = profile.get(slot_key, {})
+			_assert_true(typeof(entry_value) == TYPE_DICTIONARY, "%s profile keeps %s entry as dictionary" % [character_id, slot_key])
+			if typeof(entry_value) != TYPE_DICTIONARY:
+				continue
+			var entry := entry_value as Dictionary
+			var contract := GeneratedSkillProfilesStore.get_slot_contract(profile, slot_key)
+			_assert_true(str(entry.get("slot_key", "")) == slot_key, "%s profile annotates slot key for %s" % [character_id, slot_key])
+			_assert_true(str(entry.get("generated_archetype", "")) == generated_archetype, "%s profile entry inherits archetype for %s" % [character_id, slot_key])
+			_assert_true(str(entry.get("role", "")) != "", "%s profile entry exposes role for %s" % [character_id, slot_key])
+			_assert_true(str(entry.get("skeleton", "")) != "", "%s profile entry exposes skeleton for %s" % [character_id, slot_key])
+			_assert_true(not slot_contracts.is_empty() and slot_contracts.has(slot_key), "%s slot contract map includes %s" % [character_id, slot_key])
+			_assert_true(str(contract.get("role", "")) == str(entry.get("role", "")), "%s slot contract role matches entry for %s" % [character_id, slot_key])
+			_assert_true(str(contract.get("skeleton", "")) == str(entry.get("skeleton", "")), "%s slot contract skeleton matches entry for %s" % [character_id, slot_key])
 
 func _test_match_metrics_telemetry_schema() -> void:
 	var metrics_path := ProjectSettings.globalize_path("user://match_metrics.jsonl")
