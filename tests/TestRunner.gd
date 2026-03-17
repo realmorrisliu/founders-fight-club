@@ -1141,6 +1141,15 @@ func _test_loadout_system_foundation() -> void:
 		str(signature_a_core.get("display_name_fallback", "")).find("GPT Burst") != -1,
 		"loadout skills inherit character-specific signature names instead of generic slot labels"
 	)
+	_assert_true(
+		str(signature_a_core.get("generated_role", "")) == str(GeneratedSkillProfilesStore.get_profile(character_id).get("signature_a", {}).get("role", "")),
+		"loadout skills carry generated role metadata from normalized signature profiles"
+	)
+	var ultimate_core := skill_by_id.get("%s_ultimate_core" % character_id, {}) as Dictionary
+	_assert_true(
+		str(ultimate_core.get("display_name_fallback", "")).find("(Install)") != -1,
+		"install-style ultimate loadout skills surface role-aware variant labels"
+	)
 
 func _test_loadout_session_flow_runtime_apply() -> void:
 	var menu_packed := load("res://scenes/Menu.tscn")
@@ -1428,9 +1437,12 @@ func _test_generated_signature_builder_uses_role_skeletons() -> void:
 	distorted_special["lunge_speed"] = 0.0
 	distorted_special["hitbox_size_ground"] = Vector2(80, 80)
 	distorted_special["hitbox_offset_ground"] = Vector2(-30, -30)
-	for character_id in ["bill_geytz", "larry_pagyr", "tim_cuke", "travis_kalanik"]:
+	for character_id_variant in GeneratedSkillProfilesStore.PROFILE_BY_CHARACTER.keys():
+		var character_id := str(character_id_variant)
 		var profile := GeneratedSkillProfilesStore.get_profile(character_id)
 		var unique_skeletons := {}
+		var unique_roles := {}
+		var unique_fingerprints := {}
 		for slot_key in ["signature_a", "signature_b", "signature_c", "ultimate"]:
 			var config_value: Variant = profile.get(slot_key, {})
 			_assert_true(typeof(config_value) == TYPE_DICTIONARY, "%s builder test resolves %s config" % [character_id, slot_key])
@@ -1458,8 +1470,23 @@ func _test_generated_signature_builder_uses_role_skeletons() -> void:
 				or not is_equal_approx(float(generated.get("lunge_speed", 0.0)), float(special_base.get("lunge_speed", 0.0)))
 			)
 			_assert_true(differs_from_special, "%s generated %s differs from the base special profile" % [character_id, slot_key])
+			unique_roles[str(generated.get("generated_role", ""))] = true
 			unique_skeletons[str(generated.get("generated_skeleton", ""))] = true
+			unique_fingerprints[_signature_attack_fingerprint(generated)] = true
+		_assert_true(unique_roles.size() >= 3, "%s generated kit exposes at least three distinct roles" % character_id)
 		_assert_true(unique_skeletons.size() >= 3, "%s generated kit exposes at least three distinct skeletons" % character_id)
+		_assert_true(unique_fingerprints.size() >= 3, "%s generated kit exposes at least three distinct gameplay fingerprints" % character_id)
+
+func _signature_attack_fingerprint(entry: Dictionary) -> String:
+	return "%s|%s|%.2f|%s|%s|%s|%s" % [
+		str(entry.get("block_type", "")),
+		str(entry.get("generated_skeleton", "")),
+		float(entry.get("lunge_speed", 0.0)),
+		str(entry.get("hitbox_size_ground", Vector2.ZERO)),
+		str(entry.get("hitbox_offset_ground", Vector2.ZERO)),
+		str(entry.get("knockback_ground", Vector2.ZERO)),
+		str(entry.get("cancel_options", []))
+	]
 
 func _test_match_metrics_telemetry_schema() -> void:
 	var metrics_path := ProjectSettings.globalize_path("user://match_metrics.jsonl")

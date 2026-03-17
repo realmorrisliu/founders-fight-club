@@ -195,12 +195,12 @@ static func _build_skill_defs(character_id: String, profile: Dictionary) -> Arra
 	var ultimate_damage_multiplier := float(tuning.get("ultimate_damage_multiplier", 1.0))
 	var ultimate_cooldown_multiplier := float(tuning.get("ultimate_cooldown_multiplier", 1.0))
 	return [
-		_build_skill_def(character_id, "signature_a", "core", 2, PackedStringArray(["neutral_tool"]), signature_a, 1.00 * signature_damage_multiplier, 1.00 * signature_cooldown_multiplier, str(move_names.get("signature_a", "Signature A")), "Core"),
-		_build_skill_def(character_id, "signature_a", "burst", 2, PackedStringArray(["high_chip"]), signature_a, 1.12 * signature_damage_multiplier, 1.08 * signature_cooldown_multiplier, str(move_names.get("signature_a", "Signature A")), "Burst"),
-		_build_skill_def(character_id, "signature_b", "mobility", 2, PackedStringArray(["burst_mobility"]), signature_b, 1.00 * signature_damage_multiplier, 0.96 * signature_cooldown_multiplier, str(move_names.get("signature_b", "Signature B")), "Mobility"),
-		_build_skill_def(character_id, "signature_b", "control", 2, PackedStringArray(["hard_cc"]), signature_b, 0.92 * signature_damage_multiplier, 1.00 * signature_cooldown_multiplier, str(move_names.get("signature_b", "Signature B")), "Control"),
-		_build_skill_def(character_id, "ultimate", "core", 2, PackedStringArray(["neutral_tool"]), ultimate, 1.00 * ultimate_damage_multiplier, 1.00 * ultimate_cooldown_multiplier, str(move_names.get("ultimate", "Ultimate")), "Core"),
-		_build_skill_def(character_id, "ultimate", "overclock", 3, PackedStringArray(["neutral_tool"]), ultimate, 1.10 * ultimate_damage_multiplier, 1.10 * ultimate_cooldown_multiplier, str(move_names.get("ultimate", "Ultimate")), "Overclock")
+		_build_skill_def(character_id, "signature_a", "core", 2, _compose_skill_tags(PackedStringArray(["neutral_tool"]), signature_a), signature_a, 1.00 * signature_damage_multiplier, 1.00 * signature_cooldown_multiplier, str(move_names.get("signature_a", "Signature A")), _resolve_skill_variant_label("signature_a", "core", signature_a, "Core")),
+		_build_skill_def(character_id, "signature_a", "burst", 2, _compose_skill_tags(PackedStringArray(["high_chip"]), signature_a), signature_a, 1.12 * signature_damage_multiplier, 1.08 * signature_cooldown_multiplier, str(move_names.get("signature_a", "Signature A")), _resolve_skill_variant_label("signature_a", "burst", signature_a, "Burst")),
+		_build_skill_def(character_id, "signature_b", "mobility", 2, _compose_skill_tags(PackedStringArray(["burst_mobility"]), signature_b), signature_b, 1.00 * signature_damage_multiplier, 0.96 * signature_cooldown_multiplier, str(move_names.get("signature_b", "Signature B")), _resolve_skill_variant_label("signature_b", "mobility", signature_b, "Mobility")),
+		_build_skill_def(character_id, "signature_b", "control", 2, _compose_skill_tags(PackedStringArray(["hard_cc"]), signature_b), signature_b, 0.92 * signature_damage_multiplier, 1.00 * signature_cooldown_multiplier, str(move_names.get("signature_b", "Signature B")), _resolve_skill_variant_label("signature_b", "control", signature_b, "Control")),
+		_build_skill_def(character_id, "ultimate", "core", 2, _compose_skill_tags(PackedStringArray(["neutral_tool"]), ultimate), ultimate, 1.00 * ultimate_damage_multiplier, 1.00 * ultimate_cooldown_multiplier, str(move_names.get("ultimate", "Ultimate")), _resolve_skill_variant_label("ultimate", "core", ultimate, "Core")),
+		_build_skill_def(character_id, "ultimate", "overclock", 3, _compose_skill_tags(PackedStringArray(["neutral_tool"]), ultimate), ultimate, 1.10 * ultimate_damage_multiplier, 1.10 * ultimate_cooldown_multiplier, str(move_names.get("ultimate", "Ultimate")), _resolve_skill_variant_label("ultimate", "overclock", ultimate, "Overclock"))
 	]
 
 static func _build_skill_def(
@@ -218,6 +218,8 @@ static func _build_skill_def(
 	var skill_id := "%s_%s_%s" % [character_id, slot_key, variant]
 	var cooldown := maxf(0.35, float(profile_entry.get("cooldown", 1.6)) * cooldown_multiplier)
 	var base_damage_scale := float(profile_entry.get("damage_scale", 0.62))
+	var generated_role := _resolve_profile_role(profile_entry)
+	var generated_skeleton := _resolve_profile_skeleton(profile_entry)
 	var resolved_base_name := base_name.strip_edges()
 	if resolved_base_name == "":
 		resolved_base_name = _slot_fallback_name(slot_key)
@@ -225,7 +227,9 @@ static func _build_skill_def(
 	var attack_patch := {
 		"damage_scale": clampf(base_damage_scale * damage_scale_multiplier, 0.35, 1.80),
 		"cooldown": cooldown,
-		"display_name": display_name
+		"display_name": display_name,
+		"generated_role": generated_role,
+		"generated_skeleton": generated_skeleton
 	}
 	if profile_entry.has("effect"):
 		var effect_value: Variant = profile_entry.get("effect", {})
@@ -248,6 +252,8 @@ static func _build_skill_def(
 		"display_name_fallback": display_name,
 		"slot_type": "ultimate" if slot_key == "ultimate" else "signature",
 		"slot_key": slot_key,
+		"generated_role": generated_role,
+		"generated_skeleton": generated_skeleton,
 		"cost": cost,
 		"tags": tags,
 		"attack_entry_key": slot_key,
@@ -255,6 +261,55 @@ static func _build_skill_def(
 		"attack_patch": attack_patch,
 		"selectable": true
 	}
+
+static func _compose_skill_tags(base_tags: PackedStringArray, profile_entry: Dictionary) -> PackedStringArray:
+	var tags := PackedStringArray()
+	for tag in base_tags:
+		tags.append(str(tag))
+	var generated_role := _resolve_profile_role(profile_entry, "")
+	if generated_role != "":
+		var role_tag := "role_%s" % generated_role
+		if not tags.has(role_tag):
+			tags.append(role_tag)
+	return tags
+
+static func _resolve_skill_variant_label(slot_key: String, variant: String, profile_entry: Dictionary, fallback: String) -> String:
+	var generated_role := _resolve_profile_role(profile_entry, "")
+	match slot_key:
+		"signature_a":
+			if variant == "core":
+				match generated_role:
+					"control":
+						return "Control"
+					"setplay":
+						return "Setup"
+					_:
+						return "Pressure"
+			if variant == "burst":
+				match generated_role:
+					"control":
+						return "Crush"
+					"setplay":
+						return "Snare"
+					_:
+						return "Burst"
+		"signature_b":
+			if variant == "mobility":
+				return "Pursuit"
+			if variant == "control":
+				return "Punish"
+		"ultimate":
+			if variant == "core":
+				return "Install" if generated_role == "install" else "Finisher"
+			if variant == "overclock":
+				return "Overclock"
+	return fallback
+
+static func _resolve_profile_role(profile_entry: Dictionary, fallback: String = "pressure") -> String:
+	return str(profile_entry.get("role", fallback)).strip_edges().to_lower()
+
+static func _resolve_profile_skeleton(profile_entry: Dictionary) -> String:
+	return str(profile_entry.get("skeleton", "")).strip_edges().to_lower()
 
 static func _build_item_defs(character_id: String) -> Array[Dictionary]:
 	var core_id := "%s_item_brand_core" % character_id

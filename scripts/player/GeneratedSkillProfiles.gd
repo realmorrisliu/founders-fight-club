@@ -153,6 +153,49 @@ const SLOT_CONTRACT_FALLBACKS_BY_ARCHETYPE := {
 		"ultimate": {"role": "install", "skeleton": "install_overclock"}
 	}
 }
+const ALLOWED_ROLES_BY_SLOT := {
+	"signature_a": {"pressure": true, "control": true},
+	"signature_b": {"approach": true},
+	"signature_c": {"control": true, "setplay": true, "anti_air": true},
+	"ultimate": {"super": true, "install": true}
+}
+const SKELETONS_BY_ROLE := {
+	"pressure": {
+		"pressure_check": true,
+		"projectile_check": true,
+		"summon_check": true,
+		"trap_seed": true,
+		"control_poke": true
+	},
+	"approach": {
+		"dash_burst": true,
+		"teleport_punish": true,
+		"rising_launcher": true
+	},
+	"control": {
+		"control_poke": true,
+		"control_snare": true,
+		"projectile_screen": true,
+		"summon_screen": true
+	},
+	"setplay": {
+		"trap_seed": true,
+		"trap_setplay": true,
+		"projectile_screen": true,
+		"summon_screen": true
+	},
+	"anti_air": {
+		"rising_launcher": true
+	},
+	"install": {
+		"install_pulse": true,
+		"install_overclock": true
+	},
+	"super": {
+		"super_burst": true,
+		"screen_control_super": true
+	}
+}
 
 static func get_profile(character_id: String) -> Dictionary:
 	var value: Variant = PROFILE_BY_CHARACTER.get(character_id, {})
@@ -206,16 +249,14 @@ static func _normalize_profile(character_id: String, profile: Dictionary) -> Dic
 	return normalized
 
 static func _resolve_slot_contract(slot_key: String, entry: Dictionary, generated_archetype: String) -> Dictionary:
-	var fallback := _get_archetype_slot_contract(generated_archetype, slot_key)
-	var role := str(entry.get("role", "")).strip_edges().to_lower()
-	var skeleton := str(entry.get("skeleton", "")).strip_edges().to_lower()
-	if role != "" and skeleton != "":
-		return _build_slot_contract(slot_key, role, skeleton)
-	var inferred := _infer_slot_contract_from_payload(slot_key, entry, fallback)
-	if role == "":
-		role = str(inferred.get("role", fallback.get("role", ""))).strip_edges().to_lower()
-	if skeleton == "":
-		skeleton = str(inferred.get("skeleton", fallback.get("skeleton", ""))).strip_edges().to_lower()
+	var preferred := _get_archetype_slot_contract(generated_archetype, slot_key)
+	var inferred := _infer_slot_contract_from_payload(slot_key, entry, preferred)
+	var role := str(entry.get("role", inferred.get("role", preferred.get("role", "")))).strip_edges().to_lower()
+	if not _is_role_allowed_for_slot(slot_key, role):
+		role = str(preferred.get("role", role)).strip_edges().to_lower()
+	var skeleton := str(entry.get("skeleton", inferred.get("skeleton", ""))).strip_edges().to_lower()
+	if skeleton == "" or not _does_skeleton_match_role(skeleton, role):
+		skeleton = _resolve_skeleton_for_role(role, slot_key, entry, preferred)
 	return _build_slot_contract(slot_key, role, skeleton)
 
 static func _get_archetype_slot_contract(generated_archetype: String, slot_key: String) -> Dictionary:
@@ -272,6 +313,64 @@ static func _infer_slot_contract_from_payload(slot_key: String, entry: Dictionar
 			return _build_slot_contract(slot_key, "control", "control_poke")
 		return _build_slot_contract(slot_key, "control", "control_snare")
 	return fallback
+
+static func _is_role_allowed_for_slot(slot_key: String, role: String) -> bool:
+	var allowed_value: Variant = ALLOWED_ROLES_BY_SLOT.get(slot_key, {})
+	if typeof(allowed_value) != TYPE_DICTIONARY:
+		return role != ""
+	var allowed_roles := allowed_value as Dictionary
+	return role != "" and allowed_roles.has(role)
+
+static func _does_skeleton_match_role(skeleton: String, role: String) -> bool:
+	var role_value: Variant = SKELETONS_BY_ROLE.get(role, {})
+	if typeof(role_value) != TYPE_DICTIONARY:
+		return false
+	return (role_value as Dictionary).has(skeleton)
+
+static func _resolve_skeleton_for_role(role: String, slot_key: String, entry: Dictionary, fallback: Dictionary) -> String:
+	var effect_type := _resolve_effect_type(entry)
+	var effect_mode := _resolve_effect_mode(entry)
+	match role:
+		"pressure":
+			if effect_type == "projectile":
+				return "projectile_check"
+			if effect_type == "summon":
+				return "summon_check"
+			if effect_type == "trap":
+				return "trap_seed"
+			if slot_key == "signature_a" and _has_control_payload(entry):
+				return "control_poke"
+			return str(fallback.get("skeleton", "pressure_check"))
+		"approach":
+			if effect_type == "mobility":
+				if effect_mode == "teleport":
+					return "teleport_punish"
+				if effect_mode == "rising":
+					return "rising_launcher"
+			return "dash_burst"
+		"control":
+			if effect_type == "projectile":
+				return "projectile_screen"
+			if effect_type == "summon":
+				return "summon_screen"
+			if slot_key == "signature_a":
+				return "control_poke"
+			return "control_snare"
+		"setplay":
+			if effect_type == "projectile":
+				return "projectile_screen"
+			if effect_type == "summon":
+				return "summon_screen"
+			return "trap_seed" if slot_key == "signature_a" else "trap_setplay"
+		"anti_air":
+			return "rising_launcher"
+		"install":
+			return "install_overclock" if slot_key == "ultimate" else "install_pulse"
+		"super":
+			if effect_type in ["projectile", "trap", "summon"]:
+				return "screen_control_super"
+			return "super_burst"
+	return str(fallback.get("skeleton", "pressure_check"))
 
 static func _resolve_effect_type(entry: Dictionary) -> String:
 	var effect_value: Variant = entry.get("effect", {})
