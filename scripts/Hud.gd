@@ -133,11 +133,13 @@ var hit_type_callout_message_key := ""
 var hit_type_callout_tween: Tween
 var dialogue_tween: Tween
 var cached_training_info := {}
+var cached_training_drill_state := {}
 var training_options := {
 	"enabled": true,
 	"dummy_mode": "stand",
 	"show_detail": false,
 	"ruleset_profile": "duel",
+	"drill_id": "duel_core",
 	"throw_tech_assist_mode": "throw_only"
 }
 var training_panel_visible := true
@@ -505,13 +507,22 @@ func set_training_options(options: Dictionary) -> void:
 	training_options["dummy_mode"] = dummy_mode
 	training_options["show_detail"] = bool(options.get("show_detail", training_options.get("show_detail", false)))
 	var ruleset_profile := str(options.get("ruleset_profile", training_options.get("ruleset_profile", "duel"))).strip_edges().to_lower()
-	training_options["ruleset_profile"] = "platform" if ruleset_profile == "platform" else "duel"
+	var drill_id := _normalize_training_drill_id(
+		str(options.get("drill_id", training_options.get("drill_id", ""))),
+		ruleset_profile
+	)
+	training_options["drill_id"] = drill_id
+	training_options["ruleset_profile"] = _resolve_ruleset_for_training_drill(drill_id)
 	var throw_tech_assist_mode := str(
 		options.get("throw_tech_assist_mode", training_options.get("throw_tech_assist_mode", "throw_only"))
 	).strip_edges().to_lower()
 	if throw_tech_assist_mode not in ["off", "throw_only", "button_assist"]:
 		throw_tech_assist_mode = "throw_only"
 	training_options["throw_tech_assist_mode"] = throw_tech_assist_mode
+	_refresh_training_panel()
+
+func set_training_drill_state(state: Dictionary) -> void:
+	cached_training_drill_state = state.duplicate(true)
 	_refresh_training_panel()
 
 func add_training_log_entry(info: Dictionary) -> void:
@@ -913,7 +924,8 @@ func _refresh_training_panel() -> void:
 		training_quick_hint_label.text = _resolve_training_quick_hint_text()
 	_refresh_training_option_buttons()
 	if cached_training_info.is_empty():
-		training_summary_label.text = tr("HUD_TRAINING_NO_DATA")
+		var drill_summary := _resolve_training_drill_state_summary()
+		training_summary_label.text = drill_summary if drill_summary != "" else tr("HUD_TRAINING_NO_DATA")
 		training_stun_label.text = _format_stat(tr("HUD_TRAINING_STUN"), "Stun: %dF", 0)
 		training_recovery_label.text = _format_stat(tr("HUD_TRAINING_RECOVERY"), "Recovery: %dF", 0)
 		training_advantage_label.text = _format_advantage_label(0)
@@ -962,15 +974,18 @@ func _refresh_training_panel() -> void:
 func _refresh_training_option_buttons() -> void:
 	var detail_value := tr("HUD_TRAINING_OPTION_ON") if bool(training_options.get("show_detail", false)) else tr("HUD_TRAINING_OPTION_OFF")
 	var dummy_mode := str(training_options.get("dummy_mode", "stand"))
-	var ruleset_profile := str(training_options.get("ruleset_profile", "duel"))
+	var drill_id := _normalize_training_drill_id(
+		str(training_options.get("drill_id", "")),
+		str(training_options.get("ruleset_profile", "duel"))
+	)
 	var throw_tech_assist_mode := str(training_options.get("throw_tech_assist_mode", "throw_only"))
-	var ruleset_label := _resolve_training_ruleset_label(ruleset_profile)
+	var drill_label := _resolve_training_drill_label(drill_id)
 	var dummy_label := _resolve_dummy_mode_label(dummy_mode)
 	var throw_tech_label := _resolve_throw_tech_assist_mode_label(throw_tech_assist_mode)
 	training_mode_button.text = _format_string_value(
 		_tr_or_fallback("HUD_TRAINING_RULESET_BUTTON", "Drill: %s"),
 		"Drill: %s",
-		ruleset_label
+		drill_label
 	)
 	training_dummy_button.text = _format_string_value(tr("HUD_TRAINING_DUMMY_BUTTON"), "Dummy: %s", dummy_label)
 	training_tech_button.text = _format_string_value(
@@ -995,7 +1010,8 @@ func _refresh_training_detail_label() -> void:
 		training_detail_label.text = tr("HUD_TRAINING_DETAIL_HIDDEN")
 		return
 	if cached_training_info.is_empty():
-		training_detail_label.text = tr("HUD_TRAINING_NO_DATA")
+		var drill_detail := _resolve_training_drill_state_detail()
+		training_detail_label.text = drill_detail if drill_detail != "" else tr("HUD_TRAINING_NO_DATA")
 		return
 	var event_label := _resolve_training_event_label(str(cached_training_info.get("event_type", "")))
 	var move_label := _resolve_training_attack_label(
@@ -1209,16 +1225,128 @@ func _resolve_training_ruleset_label(profile: String) -> String:
 		return _tr_or_fallback("HUD_TRAINING_RULESET_PLATFORM", "Air & Edge")
 	return _tr_or_fallback("HUD_TRAINING_RULESET_DUEL", "Duel Lab")
 
-func _resolve_training_drill_focus_text(profile: String) -> String:
-	if str(profile).strip_edges().to_lower() == "platform":
-		return _tr_or_fallback(
-			"HUD_TRAINING_DRILL_FOCUS_PLATFORM",
-			"Drill: air jump, ledge escape, DI survival."
-		)
-	return _tr_or_fallback(
-		"HUD_TRAINING_DRILL_FOCUS_DUEL",
-		"Drill: guard break, dodge punish, throw tech."
-	)
+func _normalize_training_drill_id(drill_id: String, ruleset_profile: String) -> String:
+	var normalized := str(drill_id).strip_edges().to_lower()
+	if normalized in ["duel_core", "recovery_route", "ledge_escape", "di_survival"]:
+		return normalized
+	return "recovery_route" if str(ruleset_profile).strip_edges().to_lower() == "platform" else "duel_core"
+
+func _resolve_ruleset_for_training_drill(drill_id: String) -> String:
+	return "platform" if _normalize_training_drill_id(drill_id, "duel") in ["recovery_route", "ledge_escape", "di_survival"] else "duel"
+
+func _cycle_training_drill_id(drill_id: String) -> String:
+	match _normalize_training_drill_id(drill_id, "duel"):
+		"duel_core":
+			return "recovery_route"
+		"recovery_route":
+			return "ledge_escape"
+		"ledge_escape":
+			return "di_survival"
+		_:
+			return "duel_core"
+
+func _resolve_training_drill_label(drill_id: String) -> String:
+	match _normalize_training_drill_id(drill_id, str(training_options.get("ruleset_profile", "duel"))):
+		"recovery_route":
+			return _tr_or_fallback("HUD_TRAINING_DRILL_RECOVERY_ROUTE", "Recovery Route")
+		"ledge_escape":
+			return _tr_or_fallback("HUD_TRAINING_DRILL_LEDGE_ESCAPE", "Ledge Escape")
+		"di_survival":
+			return _tr_or_fallback("HUD_TRAINING_DRILL_DI_SURVIVAL", "DI Survival")
+		_:
+			return _tr_or_fallback("HUD_TRAINING_DRILL_DUEL_CORE", "Duel Lab")
+
+func _resolve_training_drill_focus_text(drill_id: String) -> String:
+	match _normalize_training_drill_id(drill_id, str(training_options.get("ruleset_profile", "duel"))):
+		"recovery_route":
+			return _tr_or_fallback(
+				"HUD_TRAINING_DRILL_FOCUS_RECOVERY_ROUTE",
+				"Drill: route back with jump, air drift, and specials before you cross the blast line."
+			)
+		"ledge_escape":
+			return _tr_or_fallback(
+				"HUD_TRAINING_DRILL_FOCUS_LEDGE_ESCAPE",
+				"Drill: reclaim stage from ledge with jump, roll, attack, and drop mix-ups."
+			)
+		"di_survival":
+			return _tr_or_fallback(
+				"HUD_TRAINING_DRILL_FOCUS_DI_SURVIVAL",
+				"Drill: hold DI early and survive one more launch before the blast zone."
+			)
+		_:
+			return _tr_or_fallback(
+				"HUD_TRAINING_DRILL_FOCUS_DUEL_CORE",
+				"Drill: guard break, dodge punish, throw tech."
+			)
+
+func _resolve_training_drill_result_label(result: String) -> String:
+	match str(result).strip_edges().to_lower():
+		"success":
+			return _tr_or_fallback("HUD_TRAINING_DRILL_RESULT_SUCCESS", "Success")
+		"fail":
+			return _tr_or_fallback("HUD_TRAINING_DRILL_RESULT_FAIL", "Fail")
+		"reset":
+			return _tr_or_fallback("HUD_TRAINING_DRILL_RESULT_RESET", "Reset")
+		_:
+			return ""
+
+func _resolve_training_drill_reason_label(reason: String) -> String:
+	match str(reason).strip_edges().to_lower():
+		"ring_out":
+			return _tr_or_fallback("HUD_TRAINING_DRILL_REASON_RING_OUT", "Ring Out")
+		"ko":
+			return _tr_or_fallback("HUD_TRAINING_DRILL_REASON_KO", "KO Reset")
+		_:
+			return ""
+
+func _resolve_training_drill_reason_key(state: Dictionary) -> String:
+	var fail_reason := str(state.get("fail_reason", "")).strip_edges().to_lower()
+	if fail_reason != "":
+		return fail_reason
+	var reset_reason := str(state.get("reset_reason", "")).strip_edges().to_lower()
+	if reset_reason != "":
+		return reset_reason
+	return str(state.get("success_reason", "")).strip_edges().to_lower()
+
+func _resolve_training_drill_state_summary() -> String:
+	if cached_training_drill_state.is_empty():
+		return ""
+	var drill_label := _resolve_training_drill_label(str(cached_training_drill_state.get("drill_id", "")))
+	var rep_template := _tr_or_fallback("HUD_TRAINING_DRILL_REP_SHORT", "Rep %d")
+	if rep_template.find("%") == -1:
+		rep_template = "Rep %d"
+	var next_rep := maxi(1, int(cached_training_drill_state.get("rep_index", 0)) + 1)
+	var summary_parts := PackedStringArray([drill_label, rep_template % next_rep])
+	var last_result := _resolve_training_drill_result_label(str(cached_training_drill_state.get("last_result", "")))
+	var reason := _resolve_training_drill_reason_label(_resolve_training_drill_reason_key(cached_training_drill_state))
+	if last_result != "":
+		summary_parts.append(last_result)
+	if reason != "":
+		summary_parts.append(reason)
+	return "  ".join(summary_parts)
+
+func _resolve_training_drill_state_detail() -> String:
+	if cached_training_drill_state.is_empty():
+		return ""
+	var ruleset_label := _resolve_training_ruleset_label(str(cached_training_drill_state.get("ruleset_profile", "duel")))
+	var status := str(cached_training_drill_state.get("rep_status", "idle")).strip_edges().to_lower()
+	var status_label := _tr_or_fallback("HUD_TRAINING_DRILL_STATUS_ACTIVE", "Active")
+	if status == "idle":
+		status_label = _tr_or_fallback("HUD_TRAINING_DRILL_STATUS_IDLE", "Idle")
+	var next_rep := maxi(1, int(cached_training_drill_state.get("rep_index", 0)) + 1)
+	var rep_template := _tr_or_fallback("HUD_TRAINING_DRILL_REP_DETAIL", "Next Rep %d")
+	if rep_template.find("%") == -1:
+		rep_template = "Next Rep %d"
+	var reason := _resolve_training_drill_reason_label(_resolve_training_drill_reason_key(cached_training_drill_state))
+	var detail_parts := PackedStringArray([
+		_resolve_training_drill_label(str(cached_training_drill_state.get("drill_id", ""))),
+		ruleset_label,
+		status_label,
+		rep_template % next_rep
+	])
+	if reason != "":
+		detail_parts.append(reason)
+	return " | ".join(detail_parts)
 
 func _update_language_buttons() -> void:
 	var locale := TranslationServer.get_locale()
@@ -1235,8 +1363,10 @@ func _on_back_menu_pressed() -> void:
 	menu_requested.emit()
 
 func _on_training_mode_pressed() -> void:
-	var current := str(training_options.get("ruleset_profile", "duel")).strip_edges().to_lower()
-	training_options["ruleset_profile"] = "platform" if current == "duel" else "duel"
+	var current := str(training_options.get("drill_id", "duel_core")).strip_edges().to_lower()
+	var next_drill_id := _cycle_training_drill_id(current)
+	training_options["drill_id"] = next_drill_id
+	training_options["ruleset_profile"] = _resolve_ruleset_for_training_drill(next_drill_id)
 	_refresh_training_panel()
 	training_options_changed.emit(training_options.duplicate(true))
 
@@ -1586,19 +1716,19 @@ func _resolve_training_quick_hint_text() -> String:
 	if preset_value == "":
 		preset_value = GameSettingsStore.get_control_preset()
 	var preset := GameSettingsStore.normalize_control_preset(preset_value)
-	var ruleset_profile := str(training_options.get("ruleset_profile", "duel"))
+	var drill_id := str(training_options.get("drill_id", "duel_core"))
 	if preset == GameSettingsStore.CONTROL_PRESET_CLASSIC:
 		return "%s\n%s" % [
 			_tr_or_fallback(
 				"HUD_TRAINING_QUICK_HINT_CLASSIC",
 				"Classic: WASD Move (W Jump) | Back Guard | J Light | K Heavy | L Special | U Throw | I Dash | Dodge: Back+I | Ultimate: L+K"
 			),
-			_resolve_training_drill_focus_text(ruleset_profile)
+			_resolve_training_drill_focus_text(drill_id)
 		]
 	return "%s\n%s" % [
 		_tr_or_fallback(
 			"HUD_TRAINING_QUICK_HINT_MODERN",
 			"Modern: WASD Move | Space Jump | H Guard | J Light | K Heavy | I Special | U Throw | L Dash | Dodge: H+L | Ultimate: I+K"
 		),
-		_resolve_training_drill_focus_text(ruleset_profile)
+		_resolve_training_drill_focus_text(drill_id)
 	]
