@@ -1,6 +1,12 @@
 extends RefCounted
 class_name PlayerData
 
+const ARCHETYPE_ALL_ROUNDER := "all_rounder"
+const ARCHETYPE_RUSHDOWN := "rushdown"
+const ARCHETYPE_ZONER := "zoner"
+const ARCHETYPE_BRUISER := "bruiser"
+const ARCHETYPE_COUNTER := "counter"
+
 const AI_PROFILE_DEFAULT := {
 	"preferred_range": 56.0,
 	"chase_range": 108.0,
@@ -149,3 +155,33 @@ const ATTACK_DATA := {
 		"hitbox_offset_ground": Vector2(18, 0), "hitbox_offset_air": Vector2(18, -6)
 	}
 }
+
+static func get_ai_profile(character_id: String) -> Dictionary:
+	var profile := AI_PROFILE_DEFAULT.duplicate(true)
+	var override_value: Variant = AI_PROFILE_BY_CHARACTER.get(character_id, {})
+	if typeof(override_value) != TYPE_DICTIONARY:
+		return profile
+	var overrides := override_value as Dictionary
+	for key in overrides.keys():
+		profile[str(key)] = overrides[key]
+	return profile
+
+static func resolve_archetype_key_from_ai_profile(ai_profile: Dictionary) -> String:
+	var preferred_range := float(ai_profile.get("preferred_range", 56.0))
+	var combo_pressure := float(ai_profile.get("combo_pressure", 0.52))
+	var signature_bias := float(ai_profile.get("signature_bias", 1.0))
+	var special_bias := float(ai_profile.get("special_bias", 1.0))
+	var heavy_bias := float(ai_profile.get("heavy_bias", 1.0))
+	var block_chance := float(ai_profile.get("block_chance", 0.35))
+	if combo_pressure >= 0.66 and preferred_range <= 58.0:
+		return ARCHETYPE_RUSHDOWN
+	if preferred_range >= 72.0 and signature_bias >= 1.20 and heavy_bias <= 0.95:
+		return ARCHETYPE_ZONER
+	if heavy_bias >= 1.14 or special_bias >= 1.14:
+		return ARCHETYPE_BRUISER
+	if block_chance >= 0.40:
+		return ARCHETYPE_COUNTER
+	return ARCHETYPE_ALL_ROUNDER
+
+static func resolve_character_archetype(character_id: String) -> String:
+	return resolve_archetype_key_from_ai_profile(get_ai_profile(character_id))

@@ -1,6 +1,8 @@
 extends RefCounted
 class_name GeneratedSkillProfiles
 
+const PlayerDataStore := preload("res://scripts/player/PlayerData.gd")
+
 const PROFILE_BY_CHARACTER := {
 	"prototype_p1": {
 		"signature_a": {"damage_scale": 0.62, "cooldown": 1.4, "effect": {"type": "projectile", "speed": 300.0, "duration": 1.05, "size": Vector2(26, 16)}},
@@ -118,8 +120,180 @@ const PROFILE_BY_CHARACTER := {
 	}
 }
 
+const SLOT_KEYS := ["signature_a", "signature_b", "signature_c", "ultimate"]
+const SLOT_CONTRACT_FALLBACKS_BY_ARCHETYPE := {
+	PlayerDataStore.ARCHETYPE_ALL_ROUNDER: {
+		"signature_a": {"role": "pressure", "skeleton": "pressure_check"},
+		"signature_b": {"role": "approach", "skeleton": "dash_burst"},
+		"signature_c": {"role": "control", "skeleton": "control_snare"},
+		"ultimate": {"role": "super", "skeleton": "super_burst"}
+	},
+	PlayerDataStore.ARCHETYPE_RUSHDOWN: {
+		"signature_a": {"role": "pressure", "skeleton": "pressure_check"},
+		"signature_b": {"role": "approach", "skeleton": "dash_burst"},
+		"signature_c": {"role": "anti_air", "skeleton": "rising_launcher"},
+		"ultimate": {"role": "super", "skeleton": "super_burst"}
+	},
+	PlayerDataStore.ARCHETYPE_ZONER: {
+		"signature_a": {"role": "pressure", "skeleton": "projectile_check"},
+		"signature_b": {"role": "approach", "skeleton": "teleport_punish"},
+		"signature_c": {"role": "setplay", "skeleton": "trap_setplay"},
+		"ultimate": {"role": "super", "skeleton": "screen_control_super"}
+	},
+	PlayerDataStore.ARCHETYPE_BRUISER: {
+		"signature_a": {"role": "pressure", "skeleton": "pressure_check"},
+		"signature_b": {"role": "approach", "skeleton": "rising_launcher"},
+		"signature_c": {"role": "control", "skeleton": "control_snare"},
+		"ultimate": {"role": "super", "skeleton": "super_burst"}
+	},
+	PlayerDataStore.ARCHETYPE_COUNTER: {
+		"signature_a": {"role": "control", "skeleton": "control_poke"},
+		"signature_b": {"role": "approach", "skeleton": "teleport_punish"},
+		"signature_c": {"role": "control", "skeleton": "control_snare"},
+		"ultimate": {"role": "install", "skeleton": "install_overclock"}
+	}
+}
+
 static func get_profile(character_id: String) -> Dictionary:
 	var value: Variant = PROFILE_BY_CHARACTER.get(character_id, {})
 	if typeof(value) != TYPE_DICTIONARY:
 		return {}
-	return (value as Dictionary).duplicate(true)
+	return _normalize_profile(character_id, (value as Dictionary).duplicate(true))
+
+static func get_generated_archetype(profile: Dictionary) -> String:
+	return str(profile.get("generated_archetype", PlayerDataStore.ARCHETYPE_ALL_ROUNDER))
+
+static func get_slot_contract(profile: Dictionary, slot_key: String) -> Dictionary:
+	var slot_contracts_value: Variant = profile.get("slot_contracts", {})
+	if typeof(slot_contracts_value) == TYPE_DICTIONARY:
+		var slot_contracts := slot_contracts_value as Dictionary
+		var contract_value: Variant = slot_contracts.get(slot_key, {})
+		if typeof(contract_value) == TYPE_DICTIONARY:
+			return (contract_value as Dictionary).duplicate(true)
+	var entry_value: Variant = profile.get(slot_key, {})
+	if typeof(entry_value) != TYPE_DICTIONARY:
+		return {}
+	var entry := entry_value as Dictionary
+	return _build_slot_contract(
+		slot_key,
+		str(entry.get("role", "")),
+		str(entry.get("skeleton", ""))
+	)
+
+static func _normalize_profile(character_id: String, profile: Dictionary) -> Dictionary:
+	var normalized := profile.duplicate(true)
+	var generated_archetype := str(normalized.get(
+		"generated_archetype",
+		PlayerDataStore.resolve_character_archetype(character_id)
+	)).strip_edges().to_lower()
+	if generated_archetype == "":
+		generated_archetype = PlayerDataStore.ARCHETYPE_ALL_ROUNDER
+	normalized["generated_archetype"] = generated_archetype
+	var slot_contracts := {}
+	for slot_key in SLOT_KEYS:
+		var entry_value: Variant = normalized.get(slot_key, {})
+		if typeof(entry_value) != TYPE_DICTIONARY:
+			continue
+		var entry := (entry_value as Dictionary).duplicate(true)
+		var contract := _resolve_slot_contract(slot_key, entry, generated_archetype)
+		entry["slot_key"] = slot_key
+		entry["generated_archetype"] = generated_archetype
+		entry["role"] = str(contract.get("role", ""))
+		entry["skeleton"] = str(contract.get("skeleton", ""))
+		normalized[slot_key] = entry
+		slot_contracts[slot_key] = contract
+	normalized["slot_contracts"] = slot_contracts
+	return normalized
+
+static func _resolve_slot_contract(slot_key: String, entry: Dictionary, generated_archetype: String) -> Dictionary:
+	var fallback := _get_archetype_slot_contract(generated_archetype, slot_key)
+	var role := str(entry.get("role", "")).strip_edges().to_lower()
+	var skeleton := str(entry.get("skeleton", "")).strip_edges().to_lower()
+	if role != "" and skeleton != "":
+		return _build_slot_contract(slot_key, role, skeleton)
+	var inferred := _infer_slot_contract_from_payload(slot_key, entry, fallback)
+	if role == "":
+		role = str(inferred.get("role", fallback.get("role", ""))).strip_edges().to_lower()
+	if skeleton == "":
+		skeleton = str(inferred.get("skeleton", fallback.get("skeleton", ""))).strip_edges().to_lower()
+	return _build_slot_contract(slot_key, role, skeleton)
+
+static func _get_archetype_slot_contract(generated_archetype: String, slot_key: String) -> Dictionary:
+	var contract_map_value: Variant = SLOT_CONTRACT_FALLBACKS_BY_ARCHETYPE.get(
+		generated_archetype,
+		SLOT_CONTRACT_FALLBACKS_BY_ARCHETYPE[PlayerDataStore.ARCHETYPE_ALL_ROUNDER]
+	)
+	if typeof(contract_map_value) != TYPE_DICTIONARY:
+		return {}
+	var contract_map := contract_map_value as Dictionary
+	var contract_value: Variant = contract_map.get(slot_key, {})
+	if typeof(contract_value) != TYPE_DICTIONARY:
+		return {}
+	var contract := contract_value as Dictionary
+	return _build_slot_contract(
+		slot_key,
+		str(contract.get("role", "")),
+		str(contract.get("skeleton", ""))
+	)
+
+static func _infer_slot_contract_from_payload(slot_key: String, entry: Dictionary, fallback: Dictionary) -> Dictionary:
+	var effect_type := _resolve_effect_type(entry)
+	var effect_mode := _resolve_effect_mode(entry)
+	if slot_key == "ultimate":
+		match effect_type:
+			"buff":
+				return _build_slot_contract(slot_key, "install", "install_overclock")
+			"projectile", "trap", "summon":
+				return _build_slot_contract(slot_key, "super", "screen_control_super")
+		return fallback
+	match effect_type:
+		"mobility":
+			if effect_mode == "rising":
+				return _build_slot_contract(slot_key, "anti_air" if slot_key == "signature_c" else "approach", "rising_launcher")
+			if effect_mode == "teleport":
+				return _build_slot_contract(slot_key, "approach", "teleport_punish")
+			return _build_slot_contract(slot_key, "approach", "dash_burst")
+		"projectile":
+			if slot_key == "signature_c":
+				return _build_slot_contract(slot_key, "control", "projectile_screen")
+			return _build_slot_contract(slot_key, "pressure", "projectile_check")
+		"trap":
+			if slot_key == "signature_a":
+				return _build_slot_contract(slot_key, "setplay", "trap_seed")
+			return _build_slot_contract(slot_key, "setplay", "trap_setplay")
+		"summon":
+			if slot_key == "signature_a":
+				return _build_slot_contract(slot_key, "pressure", "summon_check")
+			return _build_slot_contract(slot_key, "setplay", "summon_screen")
+		"buff":
+			return _build_slot_contract(slot_key, "install", "install_pulse")
+	if _has_control_payload(entry):
+		if slot_key == "signature_a":
+			return _build_slot_contract(slot_key, "control", "control_poke")
+		return _build_slot_contract(slot_key, "control", "control_snare")
+	return fallback
+
+static func _resolve_effect_type(entry: Dictionary) -> String:
+	var effect_value: Variant = entry.get("effect", {})
+	if typeof(effect_value) != TYPE_DICTIONARY:
+		return ""
+	return str((effect_value as Dictionary).get("type", "")).strip_edges().to_lower()
+
+static func _resolve_effect_mode(entry: Dictionary) -> String:
+	var effect_value: Variant = entry.get("effect", {})
+	if typeof(effect_value) != TYPE_DICTIONARY:
+		return ""
+	return str((effect_value as Dictionary).get("mode", "")).strip_edges().to_lower()
+
+static func _has_control_payload(entry: Dictionary) -> bool:
+	var control_value: Variant = entry.get("control", {})
+	if typeof(control_value) != TYPE_DICTIONARY:
+		return false
+	return not (control_value as Dictionary).is_empty()
+
+static func _build_slot_contract(slot_key: String, role: String, skeleton: String) -> Dictionary:
+	return {
+		"slot_key": slot_key,
+		"role": role,
+		"skeleton": skeleton
+	}
