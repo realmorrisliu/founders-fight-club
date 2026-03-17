@@ -2107,6 +2107,8 @@ func _test_throw_tech_and_ai_defense_windows() -> void:
 
 	p1.set("is_ai", false)
 	p2.set("is_ai", false)
+	p1.call("set_ruleset_profile", "duel")
+	p2.call("set_ruleset_profile", "duel")
 	_reset_throw_tech_target_state(p2)
 
 	var throw_meta := {
@@ -2130,6 +2132,9 @@ func _test_throw_tech_and_ai_defense_windows() -> void:
 	var tech_result: Dictionary = p2.call("apply_damage", 10, Vector2(110, -16), 0.12, "throw", throw_meta)
 	_assert_true(bool(tech_result.get("throw_teched", false)), "throw tech succeeds inside tighter input buffer window")
 	_assert_true(str(tech_result.get("throw_tech_source", "")) == "throw", "throw tech records throw input as its source")
+	var defender_velocity_value: Variant = p2.get("velocity")
+	if defender_velocity_value is Vector2:
+		_assert_true(absf((defender_velocity_value as Vector2).x) >= 90.0, "throw tech pushback resets the defender out of throw range")
 
 	_reset_throw_tech_target_state(p2)
 	p2.call("_clear_throw_tech_buffer")
@@ -2150,6 +2155,35 @@ func _test_throw_tech_and_ai_defense_windows() -> void:
 	_assert_true(not bool(assist_off_result.get("throw_teched", false)), "training can disable throw-tech buffering entirely")
 
 	p2.call("set_training_throw_tech_options", false, "throw_only")
+
+	_reset_throw_tech_target_state(p1)
+	_reset_throw_tech_target_state(p2)
+	p1.call("_start_attack", "throw")
+	p1.call("_update_attack", 0.08)
+	p2.call("_start_spot_dodge")
+	var dodge_throw_result: Dictionary = p2.call("apply_damage", 11, Vector2(180, -16), 0.24, "throw", throw_meta)
+	_assert_true(bool(dodge_throw_result.get("ignored", false)), "spot dodge cleanly avoids throw attempts")
+	p1.call("_update_attack", 0.08)
+	var throw_data := p1.call("_get_attack_data", "throw") as Dictionary
+	var whiff_recovery := float(p1.call("_get_attack_recovery_remaining_seconds", throw_data))
+	_assert_true(whiff_recovery >= 0.24, "whiffed duel throw leaves a punishable recovery window")
+	p2.set("dodge_time", 0.0)
+	p2.call("_end_dodge_state")
+	p1.call("_update_attack", 0.12)
+	_assert_true(str(p1.get("attack_phase")) == "recovery", "throw stays in recovery after dodge invulnerability ends")
+	_assert_true(bool(p2.call("_can_start_attack")), "defender can punish after dodging a throw")
+
+	_reset_throw_tech_target_state(p1)
+	_reset_throw_tech_target_state(p2)
+	p1.call("_start_attack", "throw")
+	p1.call("_update_attack", 0.08)
+	var landed_throw_result: Dictionary = p2.call("apply_damage", 11, Vector2(180, -16), 0.24, "throw", throw_meta)
+	_assert_true(not bool(landed_throw_result.get("throw_teched", false)), "landed throw test starts from an unteched grab")
+	_assert_true(int(landed_throw_result.get("damage_total", 0)) > 0, "landed throw test confirms the defender actually took the throw")
+	p1.set("attack_confirmed_hit", true)
+	p1.call("_update_attack", 0.08)
+	var landed_throw_recovery := float(p1.call("_get_attack_recovery_remaining_seconds", throw_data))
+	_assert_true(landed_throw_recovery < 0.24, "landed throw keeps authored recovery instead of the whiff floor")
 
 	p2.set("is_ai", true)
 	p2.set("ai_block_time", 0.0)
