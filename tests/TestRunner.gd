@@ -2149,6 +2149,23 @@ func _test_training_sandbox_resets_on_ko_and_ring_out() -> void:
 			if detail_label != null:
 				var ring_out_label := str(hud.call("_resolve_training_drill_reason_label", "ring_out"))
 				_assert_true(detail_label.text.findn(ring_out_label) != -1, "training detail surfaces the latest drill fail reason over stale platform hit data")
+		p2.set("attack_state", "heavy")
+		p2.set("attack_phase", "active")
+		p2.set("hitstun_time", 0.18)
+		p2.set("blockstun_time", 0.12)
+		p2.set("velocity", Vector2(-84.0, -46.0))
+		p1.set("current_hp", 12)
+		p1.set("wake_invuln_time", 0.0)
+		p1.call("apply_damage", 999, Vector2(180, -24), 0.14, "heavy", {})
+		await process_frame
+		await process_frame
+		var platform_ko_state := training_node.get("training_drill_state") as Dictionary
+		_assert_true(float(p2.get("wake_invuln_time")) > 0.0, "platform drill KO reset respawns the surviving dummy before the next rep")
+		_assert_true(str(p2.get("attack_state")) == "", "platform drill KO reset clears stale dummy attack state")
+		_assert_true(float(p2.get("hitstun_time")) <= 0.0, "platform drill KO reset clears stale dummy hitstun")
+		_assert_true(float(p2.get("blockstun_time")) <= 0.0, "platform drill KO reset clears stale dummy blockstun")
+		_assert_true(str(platform_ko_state.get("last_result", "")) == "reset", "platform drill KO reset still records a reset outcome")
+		_assert_true(str(platform_ko_state.get("reset_reason", "")) == "ko", "platform drill KO reset records KO as the reset reason")
 	if is_instance_valid(training_node):
 		training_node.queue_free()
 	await process_frame
@@ -2213,6 +2230,8 @@ func _test_air_edge_drills_have_rep_behaviors() -> void:
 		await process_frame
 		var di_runtime := training_node.get("training_drill_runtime") as Dictionary
 		_assert_true(float(di_runtime.get("launch_delay_seconds", 0.0)) > 0.0, "DI survival drill exposes a positive launch delay configuration")
+		p1.set("wake_invuln_time", 0.0)
+		p1.set("is_blocking", false)
 		training_node.call("_trigger_di_survival_launch")
 		var launch_seen := bool((training_node.get("training_drill_runtime") as Dictionary).get("launch_triggered", false))
 		_assert_true(launch_seen, "DI survival drill launch helper arms the rep")
@@ -2223,6 +2242,27 @@ func _test_air_edge_drills_have_rep_behaviors() -> void:
 			var di_state := training_node.get("training_drill_state") as Dictionary
 			_assert_true(str(di_state.get("last_result", "")) == "success", "DI survival drill records success after surviving the launch")
 			_assert_true(str(di_state.get("success_reason", "")) == "survived_launch", "DI survival drill records survived launch as the success reason")
+
+		training_node.call("_on_hud_training_options_changed", {
+			"enabled": true,
+			"dummy_mode": "stand",
+			"show_detail": false,
+			"ruleset_profile": "platform",
+			"drill_id": "di_survival"
+		})
+		await process_frame
+		await process_frame
+		p1.set("facing", -1)
+		p1.set("is_blocking", true)
+		p1.set("wake_invuln_time", 0.0)
+		training_node.call("_trigger_di_survival_launch")
+		await process_frame
+		await process_frame
+		var denied_state := training_node.get("training_drill_state") as Dictionary
+		var denied_runtime := training_node.get("training_drill_runtime") as Dictionary
+		_assert_true(str(denied_state.get("last_result", "")) == "fail", "DI survival drill fails the rep when the scripted launch gets denied")
+		_assert_true(str(denied_state.get("fail_reason", "")) == "launch_denied", "DI survival drill records launch denial when no real launch connects")
+		_assert_true(not bool(denied_runtime.get("launch_triggered", false)), "DI survival drill does not arm success after a denied launch")
 	if is_instance_valid(training_node):
 		training_node.queue_free()
 	await process_frame

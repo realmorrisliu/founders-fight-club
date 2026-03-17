@@ -1055,6 +1055,7 @@ func _reset_training_drill_runtime(drill_id: String) -> void:
 	training_drill_runtime = {
 		"drill_id": drill_id,
 		"elapsed_seconds": 0.0,
+		"launch_attempted": false,
 		"launch_triggered": false,
 		"launch_delay_seconds": TRAINING_DRILL_DI_LAUNCH_DELAY_SECONDS,
 		"success_armed": false
@@ -1223,7 +1224,35 @@ func _update_di_survival_drill() -> void:
 func _trigger_di_survival_launch() -> void:
 	if player_1 == null:
 		return
-	player_1.call("apply_damage", TRAINING_DRILL_DI_DAMAGE, TRAINING_DRILL_DI_KNOCKBACK, 0.22, "heavy", {})
+	if bool(training_drill_runtime.get("launch_attempted", false)):
+		return
+	training_drill_runtime["launch_attempted"] = true
+	var launch_result_value: Variant = player_1.call(
+		"apply_damage",
+		TRAINING_DRILL_DI_DAMAGE,
+		TRAINING_DRILL_DI_KNOCKBACK,
+		0.22,
+		"heavy",
+		{}
+	)
+	var launch_result := {}
+	if typeof(launch_result_value) == TYPE_DICTIONARY:
+		launch_result = (launch_result_value as Dictionary).duplicate(true)
+	var blocked := bool(launch_result.get("blocked", false))
+	var ignored := bool(launch_result.get("ignored", false))
+	if blocked or ignored:
+		_reset_training_sandbox_players(
+			["p1", "p2"],
+			"fail",
+			"launch_denied",
+			{
+				"launch_blocked": blocked,
+				"launch_ignored": ignored,
+				"guard_mode": str(launch_result.get("guard_mode", "none")),
+				"ruleset_profile": ruleset_profile
+			}
+		)
+		return
 	training_drill_runtime["launch_triggered"] = true
 	training_drill_runtime["success_armed"] = true
 
@@ -1585,10 +1614,18 @@ func _reset_training_sandbox_players(
 			continue
 		seen[player_key] = true
 		normalized_keys.append(player_key)
+	var respawn_keys: Array[String] = []
+	for player_key in normalized_keys:
+		respawn_keys.append(player_key)
+	if str(training_options.get("drill_id", TRAINING_DRILL_DUEL_CORE)) != TRAINING_DRILL_DUEL_CORE:
+		respawn_keys.clear()
+		respawn_keys.append("p1")
+		respawn_keys.append("p2")
+	for player_key in respawn_keys:
 		_respawn_player_by_key(player_key)
 	if result != "" or reason != "":
-		_record_training_drill_rep_result(result, reason, normalized_keys, metrics)
-	_prepare_training_drill_rep(normalized_keys)
+		_record_training_drill_rep_result(result, reason, respawn_keys, metrics)
+	_prepare_training_drill_rep(respawn_keys)
 
 func _get_player_by_key(player_key: String) -> CharacterBody2D:
 	if player_key == "p1":
