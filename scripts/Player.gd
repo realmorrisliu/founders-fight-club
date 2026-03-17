@@ -4982,6 +4982,33 @@ func force_respawn(spawn_position: Vector2, facing_direction: int = 1) -> void:
 	_update_visual()
 	health_changed.emit()
 
+func apply_training_state_patch(patch: Dictionary) -> void:
+	if patch.has("position"):
+		var position_value: Variant = patch.get("position", global_position)
+		if position_value is Vector2:
+			global_position = position_value
+	if patch.has("velocity"):
+		var velocity_value: Variant = patch.get("velocity", Vector2.ZERO)
+		if velocity_value is Vector2:
+			velocity = velocity_value
+	if patch.has("current_hp"):
+		current_hp = clampi(int(patch.get("current_hp", current_hp)), 1, MAX_HP)
+	if patch.has("facing"):
+		facing = 1 if int(patch.get("facing", facing)) >= 0 else -1
+		facing_locked_direction = facing
+	if patch.has("air_jumps"):
+		air_jumps_remaining = clampi(int(patch.get("air_jumps", air_jumps_remaining)), 0, MAX_AIR_JUMPS)
+	if patch.has("air_dodge_ready"):
+		air_dodge_available = bool(patch.get("air_dodge_ready", air_dodge_available))
+	if patch.has("ledge_hang_side"):
+		var ledge_side_value := int(patch.get("ledge_hang_side", 0))
+		if ledge_side_value != 0:
+			_release_occupied_ledge()
+			_start_ledge_hang(ledge_side_value)
+	_update_facing()
+	_update_visual()
+	health_changed.emit()
+
 func set_hitstop_active(active: bool) -> void:
 	hitstop_active = active
 	if active:

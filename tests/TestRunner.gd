@@ -91,6 +91,7 @@ func _run_smoke_suite() -> void:
 	await _test_camera_vertical_framing_response()
 	await _test_training_toggle_keeps_dummy_non_ai()
 	await _test_training_sandbox_resets_on_ko_and_ring_out()
+	await _test_air_edge_drills_have_rep_behaviors()
 	await _test_character_visual_readability_tinting()
 	await _test_player_visual_fx_pipeline()
 	await _test_signature_visual_identity_pipeline()
@@ -2109,11 +2110,8 @@ func _test_training_sandbox_resets_on_ko_and_ring_out() -> void:
 		})
 		await process_frame
 		await process_frame
-		var platform_respawn := Vector2(330.0, 316.0)
-		if typeof(spawn_points) == TYPE_DICTIONARY:
-			var platform_spawn_value: Variant = (spawn_points as Dictionary).get("p1", platform_respawn)
-			if platform_spawn_value is Vector2:
-				platform_respawn = platform_spawn_value
+		var platform_stage_right_x := float(training_node.get("stage_right_x"))
+		var platform_stage_floor_y := float(training_node.get("stage_floor_y"))
 		if hud != null:
 			hud.call("set_training_data", {
 				"event_type": "block",
@@ -2131,7 +2129,10 @@ func _test_training_sandbox_resets_on_ko_and_ring_out() -> void:
 		var platform_drill_state := training_node.get("training_drill_state") as Dictionary
 		_assert_true(str(training_node.get("win_rule")) == "hp_timer", "platform drill keeps hp UI while sandboxing edge resets")
 		_assert_true(not bool(training_node.get("match_over")), "platform drill ring-out reset keeps training sandbox active")
-		_assert_true(p1.global_position.distance_to(platform_respawn) <= 4.0, "platform drill ring-out auto-respawns fighter")
+		_assert_true(
+			p1.global_position.x > platform_stage_right_x + 40.0 and p1.global_position.y < platform_stage_floor_y - 40.0,
+			"platform drill ring-out reset returns fighter to the recovery-route start position"
+		)
 		_assert_true(int(p1.get("current_hp")) == 100, "platform drill ring-out reset restores health for the next rep")
 		_assert_true(str(platform_drill_state.get("drill_id", "")) == "recovery_route", "platform drill sandbox keeps the explicit recovery drill id")
 		_assert_true(str(platform_drill_state.get("last_result", "")) == "fail", "platform drill ring-out records a fail outcome")
@@ -2148,6 +2149,80 @@ func _test_training_sandbox_resets_on_ko_and_ring_out() -> void:
 			if detail_label != null:
 				var ring_out_label := str(hud.call("_resolve_training_drill_reason_label", "ring_out"))
 				_assert_true(detail_label.text.findn(ring_out_label) != -1, "training detail surfaces the latest drill fail reason over stale platform hit data")
+	if is_instance_valid(training_node):
+		training_node.queue_free()
+	await process_frame
+
+func _test_air_edge_drills_have_rep_behaviors() -> void:
+	var packed := load("res://scenes/Training.tscn")
+	_assert_true(packed is PackedScene, "training scene loads for Air & Edge drill behavior test")
+	if packed is not PackedScene:
+		return
+	var training_node := (packed as PackedScene).instantiate()
+	get_root().add_child(training_node)
+	await process_frame
+	await process_frame
+	var p1 := training_node.get_node_or_null("Player1") as CharacterBody2D
+	var stage_right_x := float(training_node.get("stage_right_x"))
+	var stage_floor_y := float(training_node.get("stage_floor_y"))
+	_assert_true(p1 != null, "Air & Edge drill behavior test resolves player1")
+	if p1 != null:
+		training_node.call("_on_hud_training_options_changed", {
+			"enabled": true,
+			"dummy_mode": "stand",
+			"show_detail": false,
+			"ruleset_profile": "platform",
+			"drill_id": "recovery_route"
+		})
+		await process_frame
+		await process_frame
+		_assert_true(p1.global_position.x > stage_right_x + 40.0, "recovery drill starts player1 offstage to the side of the platform")
+		p1.call("_start_ledge_hang", 1)
+		await process_frame
+		await process_frame
+		var recovery_state := training_node.get("training_drill_state") as Dictionary
+		_assert_true(str(recovery_state.get("last_result", "")) == "success", "recovery drill records success after a ledge grab")
+		_assert_true(str(recovery_state.get("success_reason", "")) == "ledge_recovery", "recovery drill records ledge recovery as the success reason")
+
+		training_node.call("_on_hud_training_options_changed", {
+			"enabled": true,
+			"dummy_mode": "stand",
+			"show_detail": false,
+			"ruleset_profile": "platform",
+			"drill_id": "ledge_escape"
+		})
+		await process_frame
+		await process_frame
+		_assert_true(bool(p1.get("is_ledge_hanging")), "ledge escape drill starts player1 in ledge hang")
+		p1.call("_roll_getup_from_ledge")
+		p1.global_position = Vector2(stage_right_x - 96.0, stage_floor_y)
+		await process_frame
+		await process_frame
+		var ledge_state := training_node.get("training_drill_state") as Dictionary
+		_assert_true(str(ledge_state.get("last_result", "")) == "success", "ledge escape drill records success after reclaiming stage")
+		_assert_true(str(ledge_state.get("success_reason", "")) == "stage_reclaim", "ledge escape drill records stage reclaim as the success reason")
+
+		training_node.call("_on_hud_training_options_changed", {
+			"enabled": true,
+			"dummy_mode": "stand",
+			"show_detail": false,
+			"ruleset_profile": "platform",
+			"drill_id": "di_survival"
+		})
+		await process_frame
+		await process_frame
+		var di_runtime := training_node.get("training_drill_runtime") as Dictionary
+		_assert_true(float(di_runtime.get("launch_delay_seconds", 0.0)) > 0.0, "DI survival drill exposes a positive launch delay configuration")
+		training_node.call("_trigger_di_survival_launch")
+		var launch_seen := bool((training_node.get("training_drill_runtime") as Dictionary).get("launch_triggered", false))
+		_assert_true(launch_seen, "DI survival drill launch helper arms the rep")
+		if launch_seen:
+			p1.call("_start_ledge_hang", 1)
+			training_node.call("_update_di_survival_drill")
+			await process_frame
+			var di_state := training_node.get("training_drill_state") as Dictionary
+			_assert_true(str(di_state.get("last_result", "")) == "success", "DI survival drill records success after surviving the launch")
+			_assert_true(str(di_state.get("success_reason", "")) == "survived_launch", "DI survival drill records survived launch as the success reason")
 	if is_instance_valid(training_node):
 		training_node.queue_free()
 	await process_frame

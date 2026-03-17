@@ -31,6 +31,13 @@ const TRAINING_DRILL_RULESET_BY_ID := {
 }
 const TRAINING_DRILL_STATUS_IDLE := "idle"
 const TRAINING_DRILL_STATUS_ACTIVE := "active"
+const TRAINING_DRILL_RECOVERY_START_OFFSET := Vector2(88.0, -112.0)
+const TRAINING_DRILL_RECOVERY_START_VELOCITY := Vector2(-28.0, 18.0)
+const TRAINING_DRILL_LEDGE_DUMMY_OFFSET_X := 92.0
+const TRAINING_DRILL_DI_PLAYER_HP := 38
+const TRAINING_DRILL_DI_LAUNCH_DELAY_SECONDS := 0.24
+const TRAINING_DRILL_DI_DAMAGE := 18
+const TRAINING_DRILL_DI_KNOCKBACK := Vector2(248.0, -312.0)
 const DEFAULT_STAGE_LEFT_X := StageConfigStore.DEFAULT_LEFT_X
 const DEFAULT_STAGE_RIGHT_X := StageConfigStore.DEFAULT_RIGHT_X
 const DEFAULT_STAGE_FLOOR_Y := StageConfigStore.DEFAULT_FLOOR_Y
@@ -286,6 +293,7 @@ var sfx_streams := {}
 var walls_node: StaticBody2D
 var training_options := TRAINING_DEFAULT_OPTIONS.duplicate(true)
 var training_drill_state := {}
+var training_drill_runtime := {}
 var selected_character_ids := {"p1": "", "p2": ""}
 var selected_character_names := {"p1": "Player 1", "p2": "Player 2"}
 var selected_character_profiles := {"p1": {}, "p2": {}}
@@ -452,6 +460,8 @@ func _process(delta: float) -> void:
 			return
 	elif _uses_training_platform_sandbox():
 		_update_training_platform_ring_out_state()
+	if _uses_training_sandbox():
+		_update_training_drill_behaviors(delta)
 	if not round_timer_enabled:
 		_update_hud()
 		_update_camera(delta)
@@ -1041,6 +1051,182 @@ func _record_training_drill_rep_result(result: String, reason: String, affected_
 	)
 	_sync_training_drill_state_to_hud()
 
+func _reset_training_drill_runtime(drill_id: String) -> void:
+	training_drill_runtime = {
+		"drill_id": drill_id,
+		"elapsed_seconds": 0.0,
+		"launch_triggered": false,
+		"launch_delay_seconds": TRAINING_DRILL_DI_LAUNCH_DELAY_SECONDS,
+		"success_armed": false
+	}
+
+func _apply_training_patch_to_player(player_key: String, patch: Dictionary) -> void:
+	var fighter := _get_player_by_key(player_key)
+	if fighter == null:
+		return
+	if fighter.has_method("apply_training_state_patch"):
+		fighter.call("apply_training_state_patch", patch)
+
+func _prepare_training_drill_rep(player_keys: Array[String]) -> void:
+	if not training_scene_enabled or not bool(training_options.get("enabled", true)):
+		training_drill_runtime.clear()
+		return
+	var drill_id := str(training_options.get("drill_id", TRAINING_DRILL_DUEL_CORE))
+	_reset_training_drill_runtime(drill_id)
+	match drill_id:
+		TRAINING_DRILL_RECOVERY_ROUTE:
+			_setup_recovery_route_drill(player_keys)
+		TRAINING_DRILL_LEDGE_ESCAPE:
+			_setup_ledge_escape_drill(player_keys)
+		TRAINING_DRILL_DI_SURVIVAL:
+			_setup_di_survival_drill(player_keys)
+		_:
+			training_drill_runtime.clear()
+
+func _setup_recovery_route_drill(_player_keys: Array[String]) -> void:
+	_apply_training_patch_to_player(
+		"p1",
+		{
+			"position": Vector2(stage_right_x, stage_floor_y) + TRAINING_DRILL_RECOVERY_START_OFFSET,
+			"velocity": TRAINING_DRILL_RECOVERY_START_VELOCITY,
+			"facing": -1,
+			"air_jumps": 1,
+			"air_dodge_ready": true,
+			"current_hp": 100
+		}
+	)
+	_apply_training_patch_to_player(
+		"p2",
+		{
+			"position": Vector2(stage_right_x - 108.0, stage_floor_y),
+			"velocity": Vector2.ZERO,
+			"facing": 1,
+			"current_hp": 100
+		}
+	)
+	training_drill_runtime["entry_side"] = "right"
+
+func _setup_ledge_escape_drill(_player_keys: Array[String]) -> void:
+	_apply_training_patch_to_player(
+		"p1",
+		{
+			"position": Vector2(stage_right_x - 12.0, stage_floor_y - 18.0),
+			"velocity": Vector2.ZERO,
+			"facing": -1,
+			"air_jumps": 1,
+			"air_dodge_ready": true,
+			"current_hp": 100,
+			"ledge_hang_side": 1
+		}
+	)
+	_apply_training_patch_to_player(
+		"p2",
+		{
+			"position": Vector2(stage_right_x - TRAINING_DRILL_LEDGE_DUMMY_OFFSET_X, stage_floor_y),
+			"velocity": Vector2.ZERO,
+			"facing": 1,
+			"current_hp": 100
+		}
+	)
+	training_drill_runtime["entry_side"] = "right"
+
+func _setup_di_survival_drill(_player_keys: Array[String]) -> void:
+	_apply_training_patch_to_player(
+		"p1",
+		{
+			"position": Vector2(stage_right_x - 126.0, stage_floor_y),
+			"velocity": Vector2.ZERO,
+			"facing": 1,
+			"air_jumps": 1,
+			"air_dodge_ready": true,
+			"current_hp": TRAINING_DRILL_DI_PLAYER_HP
+		}
+	)
+	_apply_training_patch_to_player(
+		"p2",
+		{
+			"position": Vector2(stage_right_x - 210.0, stage_floor_y),
+			"velocity": Vector2.ZERO,
+			"facing": 1,
+			"current_hp": 100
+		}
+	)
+
+func _complete_training_drill_rep(reason: String, metrics: Dictionary = {}) -> void:
+	_reset_training_sandbox_players(["p1", "p2"], "success", reason, metrics)
+
+func _update_training_drill_behaviors(delta: float) -> void:
+	if not bool(training_options.get("enabled", true)):
+		return
+	var drill_id := str(training_options.get("drill_id", TRAINING_DRILL_DUEL_CORE))
+	if drill_id == TRAINING_DRILL_DUEL_CORE:
+		return
+	if training_drill_runtime.is_empty() or str(training_drill_runtime.get("drill_id", "")) != drill_id:
+		_prepare_training_drill_rep(["p1", "p2"])
+	if training_drill_runtime.is_empty():
+		return
+	training_drill_runtime["elapsed_seconds"] = float(training_drill_runtime.get("elapsed_seconds", 0.0)) + maxf(0.0, delta)
+	match drill_id:
+		TRAINING_DRILL_RECOVERY_ROUTE:
+			_update_recovery_route_drill()
+		TRAINING_DRILL_LEDGE_ESCAPE:
+			_update_ledge_escape_drill()
+		TRAINING_DRILL_DI_SURVIVAL:
+			_update_di_survival_drill()
+
+func _update_recovery_route_drill() -> void:
+	if player_1 == null:
+		return
+	if bool(player_1.get("is_ledge_hanging")):
+		_complete_training_drill_rep("ledge_recovery", {"finish_state": "ledge"})
+		return
+	if player_1.is_on_floor() and player_1.global_position.x <= stage_right_x - 24.0:
+		_complete_training_drill_rep("stage_recovery", {"finish_state": "stage"})
+
+func _update_ledge_escape_drill() -> void:
+	if player_1 == null:
+		return
+	var was_hanging := bool(training_drill_runtime.get("success_armed", false))
+	if bool(player_1.get("is_ledge_hanging")):
+		training_drill_runtime["success_armed"] = true
+		return
+	if not was_hanging:
+		return
+	if player_1.global_position.x <= stage_right_x - 34.0:
+		_complete_training_drill_rep(
+			"stage_reclaim",
+			{
+				"finish_state": "stage",
+				"dodge_state": str(player_1.get("dodge_state")),
+				"attack_state": str(player_1.get("attack_state"))
+			}
+		)
+
+func _update_di_survival_drill() -> void:
+	if player_1 == null:
+		return
+	var launch_triggered := bool(training_drill_runtime.get("launch_triggered", false))
+	if not launch_triggered:
+		var launch_delay := float(training_drill_runtime.get("launch_delay_seconds", TRAINING_DRILL_DI_LAUNCH_DELAY_SECONDS))
+		if float(training_drill_runtime.get("elapsed_seconds", 0.0)) < launch_delay:
+			return
+		_trigger_di_survival_launch()
+		return
+	if not bool(training_drill_runtime.get("success_armed", false)):
+		return
+	if bool(player_1.get("is_ledge_hanging")):
+		_complete_training_drill_rep("survived_launch", {"finish_state": "ledge"})
+		return
+	if player_1.is_on_floor() and float(player_1.get("hitstun_time")) <= 0.0:
+		_complete_training_drill_rep("survived_launch", {"finish_state": "ground"})
+
+func _trigger_di_survival_launch() -> void:
+	if player_1 == null:
+		return
+	player_1.call("apply_damage", TRAINING_DRILL_DI_DAMAGE, TRAINING_DRILL_DI_KNOCKBACK, 0.22, "heavy", {})
+	training_drill_runtime["launch_triggered"] = true
+	training_drill_runtime["success_armed"] = true
+
 func _normalize_throw_tech_assist_mode(mode: String) -> String:
 	var normalized := str(mode).strip_edges().to_lower()
 	if normalized in ["off", "button_assist"]:
@@ -1090,7 +1276,7 @@ func _update_training_platform_ring_out_state() -> void:
 	if reset_keys.is_empty():
 		return
 	_reset_training_sandbox_players(
-		reset_keys,
+		["p1", "p2"],
 		"fail",
 		"ring_out",
 		{"ring_out_count": reset_keys.size(), "ruleset_profile": ruleset_profile}
@@ -1402,6 +1588,7 @@ func _reset_training_sandbox_players(
 		_respawn_player_by_key(player_key)
 	if result != "" or reason != "":
 		_record_training_drill_rep_result(result, reason, normalized_keys, metrics)
+	_prepare_training_drill_rep(normalized_keys)
 
 func _get_player_by_key(player_key: String) -> CharacterBody2D:
 	if player_key == "p1":
@@ -1981,6 +2168,11 @@ func _apply_training_options() -> void:
 	if hud and hud.has_method("set_training_options"):
 		hud.set_training_options(training_options)
 	_refresh_training_drill_state()
+	if training_scene_enabled:
+		if drill_id == TRAINING_DRILL_DUEL_CORE:
+			training_drill_runtime.clear()
+		elif training_drill_runtime.is_empty() or str(training_drill_runtime.get("drill_id", "")) != drill_id:
+			_prepare_training_drill_rep(["p1", "p2"])
 	if not enabled and hud:
 		if hud.has_method("set_training_data"):
 			hud.set_training_data({})
