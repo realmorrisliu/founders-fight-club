@@ -1926,20 +1926,31 @@ func _test_training_toggle_keeps_dummy_non_ai() -> void:
 	_assert_true(hud != null, "training dummy ai toggle test resolves hud")
 	if p2 != null:
 		_assert_true(not bool(p2.get("is_ai")), "training scene keeps dummy non-ai by default")
+		var initial_drill_state := training_node.get("training_drill_state") as Dictionary
+		_assert_true(str(initial_drill_state.get("drill_id", "")) == "duel_core", "training scene defaults to duel-core drill contract")
 		training_node.call("_on_hud_training_options_changed", {
 			"enabled": true,
 			"dummy_mode": "stand",
 			"show_detail": false,
 			"ruleset_profile": "platform",
+			"drill_id": "recovery_route",
 			"throw_tech_assist_mode": "button_assist"
 		})
 		await process_frame
 		_assert_true(not bool(p2.get("is_ai")), "switching training ruleset does not re-enable dummy ai")
 		_assert_true(str(training_node.get("ruleset_profile")) == "platform", "training ruleset toggle updates match ruleset")
+		var recovery_drill_state := training_node.get("training_drill_state") as Dictionary
+		_assert_true(str(recovery_drill_state.get("drill_id", "")) == "recovery_route", "training scene routes platform lab through an explicit recovery drill id")
+		_assert_true(str(recovery_drill_state.get("rep_status", "")) == "active", "training drill state marks the current rep as active")
 		_assert_true(str(p2.get("training_throw_tech_assist_mode")) == "button_assist", "training scene routes throw-tech assist mode to the dummy player")
 		if hud != null:
+			var mode_button := hud.get_node_or_null("TrainingPanel/TrainingModeButton") as Button
 			var tech_button := hud.get_node_or_null("TrainingPanel/TrainingTechButton") as Button
+			_assert_true(mode_button != null, "training hud exposes drill mode button")
 			_assert_true(tech_button != null, "training hud exposes throw-tech assist button")
+			if mode_button != null:
+				var recovery_label := str(hud.call("_resolve_training_drill_label", "recovery_route"))
+				_assert_true(mode_button.text.findn(recovery_label) != -1, "training hud button surfaces the active recovery drill label")
 			if tech_button != null:
 				var button_assist_label := str(hud.call("_resolve_throw_tech_assist_mode_label", "button_assist"))
 				_assert_true(tech_button.text.findn(button_assist_label) != -1, "training hud button surfaces button-assist state")
@@ -1951,11 +1962,14 @@ func _test_training_toggle_keeps_dummy_non_ai() -> void:
 			"dummy_mode": "random_block",
 			"show_detail": true,
 			"ruleset_profile": "duel",
+			"drill_id": "duel_core",
 			"throw_tech_assist_mode": "throw_only"
 		})
 		await process_frame
 		_assert_true(not bool(p2.get("is_ai")), "switching back to duel keeps dummy non-ai")
 		_assert_true(str(training_node.get("ruleset_profile")) == "duel", "training ruleset toggle can return to duel")
+		var duel_drill_state := training_node.get("training_drill_state") as Dictionary
+		_assert_true(str(duel_drill_state.get("drill_id", "")) == "duel_core", "training scene restores duel-core drill id when switching back")
 		_assert_true(str(p2.get("training_throw_tech_assist_mode")) == "throw_only", "training scene can restore throw-only tech contract")
 		if hud != null:
 			var throw_only_button := hud.get_node_or_null("TrainingPanel/TrainingTechButton") as Button
@@ -2034,26 +2048,64 @@ func _test_training_sandbox_resets_on_ko_and_ring_out() -> void:
 	await process_frame
 	var p1 := training_node.get_node_or_null("Player1") as CharacterBody2D
 	var p2 := training_node.get_node_or_null("Player2") as CharacterBody2D
+	var hud := training_node.get_node_or_null("Hud")
 	var spawn_points: Variant = training_node.get("spawn_points")
 	_assert_true(p1 != null and p2 != null, "training sandbox reset test resolves both fighters")
 	if p1 != null and p2 != null:
+		training_node.call("_on_hud_training_options_changed", {
+			"enabled": true,
+			"dummy_mode": "stand",
+			"show_detail": true,
+			"ruleset_profile": "duel",
+			"drill_id": "duel_core",
+			"throw_tech_assist_mode": "throw_only"
+		})
+		await process_frame
 		var duel_respawn := Vector2(570.0, 316.0)
 		if typeof(spawn_points) == TYPE_DICTIONARY:
 			var spawn_value: Variant = (spawn_points as Dictionary).get("p2", duel_respawn)
 			if spawn_value is Vector2:
 				duel_respawn = spawn_value
+		if hud != null:
+			hud.call("set_training_data", {
+				"event_type": "hit",
+				"attack_kind": "heavy",
+				"attacker_key": "p1",
+				"training_drill_rep_index": 0,
+				"stun_frames": 18,
+				"recovery_frames": 12,
+				"advantage_frames": 6
+			})
 		p2.call("apply_damage", 999, Vector2(180, -24), 0.14, "heavy", {})
 		await process_frame
 		await process_frame
+		var duel_drill_state := training_node.get("training_drill_state") as Dictionary
 		_assert_true(not bool(training_node.get("match_over")), "training duel KO reset keeps sandbox active")
 		_assert_true(p2.global_position.distance_to(duel_respawn) <= 4.0, "training duel KO reset respawns defender at drill spawn")
 		_assert_true(int(p2.get("current_hp")) == 100, "training duel KO reset restores health for the next rep")
+		_assert_true(str(duel_drill_state.get("last_result", "")) == "reset", "training duel KO reset records a drill reset outcome")
+		_assert_true(str(duel_drill_state.get("reset_reason", "")) == "ko", "training duel KO reset records KO as the reset reason")
+		_assert_true(int(duel_drill_state.get("rep_index", 0)) == 1, "training duel KO reset advances the drill rep counter")
+		if hud != null:
+			var summary_label := hud.get_node_or_null("TrainingPanel/TrainingSummaryLabel") as Label
+			var detail_label := hud.get_node_or_null("TrainingPanel/TrainingDetailLabel") as Label
+			_assert_true(summary_label != null, "training sandbox reset test resolves training summary label")
+			_assert_true(detail_label != null, "training sandbox reset test resolves training detail label")
+			if summary_label != null:
+				var reset_label := str(hud.call("_resolve_training_drill_result_label", "reset"))
+				var ko_label := str(hud.call("_resolve_training_drill_reason_label", "ko"))
+				_assert_true(summary_label.text.findn(reset_label) != -1, "training summary surfaces drill reset outcome over stale hit data")
+				_assert_true(summary_label.text.findn(ko_label) != -1, "training summary surfaces the drill reset reason over stale hit data")
+			if detail_label != null:
+				var ko_label := str(hud.call("_resolve_training_drill_reason_label", "ko"))
+				_assert_true(detail_label.text.findn(ko_label) != -1, "training detail surfaces the latest drill reset reason over stale hit data")
 
 		training_node.call("_on_hud_training_options_changed", {
 			"enabled": true,
 			"dummy_mode": "stand",
-			"show_detail": false,
-			"ruleset_profile": "platform"
+			"show_detail": true,
+			"ruleset_profile": "platform",
+			"drill_id": "recovery_route"
 		})
 		await process_frame
 		await process_frame
@@ -2062,14 +2114,40 @@ func _test_training_sandbox_resets_on_ko_and_ring_out() -> void:
 			var platform_spawn_value: Variant = (spawn_points as Dictionary).get("p1", platform_respawn)
 			if platform_spawn_value is Vector2:
 				platform_respawn = platform_spawn_value
+		if hud != null:
+			hud.call("set_training_data", {
+				"event_type": "block",
+				"attack_kind": "special",
+				"attacker_key": "p1",
+				"training_drill_rep_index": 0,
+				"stun_frames": 9,
+				"recovery_frames": 14,
+				"advantage_frames": -5
+			})
 		p1.position = Vector2(1400.0, 300.0)
 		p1.set("current_hp", 12)
 		await process_frame
 		await process_frame
+		var platform_drill_state := training_node.get("training_drill_state") as Dictionary
 		_assert_true(str(training_node.get("win_rule")) == "hp_timer", "platform drill keeps hp UI while sandboxing edge resets")
 		_assert_true(not bool(training_node.get("match_over")), "platform drill ring-out reset keeps training sandbox active")
 		_assert_true(p1.global_position.distance_to(platform_respawn) <= 4.0, "platform drill ring-out auto-respawns fighter")
 		_assert_true(int(p1.get("current_hp")) == 100, "platform drill ring-out reset restores health for the next rep")
+		_assert_true(str(platform_drill_state.get("drill_id", "")) == "recovery_route", "platform drill sandbox keeps the explicit recovery drill id")
+		_assert_true(str(platform_drill_state.get("last_result", "")) == "fail", "platform drill ring-out records a fail outcome")
+		_assert_true(str(platform_drill_state.get("fail_reason", "")) == "ring_out", "platform drill ring-out records the fail reason")
+		_assert_true(int(platform_drill_state.get("rep_index", 0)) == 1, "platform drill ring-out advances the drill rep counter")
+		if hud != null:
+			var summary_label := hud.get_node_or_null("TrainingPanel/TrainingSummaryLabel") as Label
+			var detail_label := hud.get_node_or_null("TrainingPanel/TrainingDetailLabel") as Label
+			if summary_label != null:
+				var fail_label := str(hud.call("_resolve_training_drill_result_label", "fail"))
+				var ring_out_label := str(hud.call("_resolve_training_drill_reason_label", "ring_out"))
+				_assert_true(summary_label.text.findn(fail_label) != -1, "training summary surfaces drill fail outcome over stale platform hit data")
+				_assert_true(summary_label.text.findn(ring_out_label) != -1, "training summary surfaces drill fail reason over stale platform hit data")
+			if detail_label != null:
+				var ring_out_label := str(hud.call("_resolve_training_drill_reason_label", "ring_out"))
+				_assert_true(detail_label.text.findn(ring_out_label) != -1, "training detail surfaces the latest drill fail reason over stale platform hit data")
 	if is_instance_valid(training_node):
 		training_node.queue_free()
 	await process_frame

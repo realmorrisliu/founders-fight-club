@@ -13,6 +13,24 @@ const WIN_RULE_HP_TIMER := "hp_timer"
 const WIN_RULE_STOCK := "stock"
 const RULESET_DUEL := "duel"
 const RULESET_PLATFORM := "platform"
+const TRAINING_DRILL_DUEL_CORE := "duel_core"
+const TRAINING_DRILL_RECOVERY_ROUTE := "recovery_route"
+const TRAINING_DRILL_LEDGE_ESCAPE := "ledge_escape"
+const TRAINING_DRILL_DI_SURVIVAL := "di_survival"
+const TRAINING_DRILL_IDS := [
+	TRAINING_DRILL_DUEL_CORE,
+	TRAINING_DRILL_RECOVERY_ROUTE,
+	TRAINING_DRILL_LEDGE_ESCAPE,
+	TRAINING_DRILL_DI_SURVIVAL
+]
+const TRAINING_DRILL_RULESET_BY_ID := {
+	TRAINING_DRILL_DUEL_CORE: RULESET_DUEL,
+	TRAINING_DRILL_RECOVERY_ROUTE: RULESET_PLATFORM,
+	TRAINING_DRILL_LEDGE_ESCAPE: RULESET_PLATFORM,
+	TRAINING_DRILL_DI_SURVIVAL: RULESET_PLATFORM
+}
+const TRAINING_DRILL_STATUS_IDLE := "idle"
+const TRAINING_DRILL_STATUS_ACTIVE := "active"
 const DEFAULT_STAGE_LEFT_X := StageConfigStore.DEFAULT_LEFT_X
 const DEFAULT_STAGE_RIGHT_X := StageConfigStore.DEFAULT_RIGHT_X
 const DEFAULT_STAGE_FLOOR_Y := StageConfigStore.DEFAULT_FLOOR_Y
@@ -92,6 +110,7 @@ const TRAINING_DEFAULT_OPTIONS := {
 	"dummy_mode": "stand",
 	"show_detail": false,
 	"ruleset_profile": RULESET_DUEL,
+	"drill_id": TRAINING_DRILL_DUEL_CORE,
 	"throw_tech_assist_mode": "throw_only"
 }
 const IMPACT_ANIMATION_TEXTURE_PATHS := {
@@ -266,6 +285,7 @@ var screen_flash_duration := 0.0
 var sfx_streams := {}
 var walls_node: StaticBody2D
 var training_options := TRAINING_DEFAULT_OPTIONS.duplicate(true)
+var training_drill_state := {}
 var selected_character_ids := {"p1": "", "p2": ""}
 var selected_character_names := {"p1": "Player 1", "p2": "Player 2"}
 var selected_character_profiles := {"p1": {}, "p2": {}}
@@ -319,6 +339,7 @@ func _ready() -> void:
 	training_options["dummy_mode"] = training_dummy_default_mode
 	training_options["show_detail"] = training_detail_default_visible
 	training_options["ruleset_profile"] = ruleset_profile
+	training_options["drill_id"] = _resolve_default_training_drill_id(ruleset_profile)
 	_setup_camera()
 	_setup_walls()
 	_setup_effects_layer()
@@ -917,6 +938,109 @@ func _normalize_ruleset_profile(profile: String) -> String:
 		return RULESET_PLATFORM
 	return RULESET_DUEL
 
+func _resolve_ruleset_for_training_drill(drill_id: String) -> String:
+	return str(TRAINING_DRILL_RULESET_BY_ID.get(drill_id, RULESET_DUEL))
+
+func _resolve_default_training_drill_id(profile: String) -> String:
+	if _normalize_ruleset_profile(profile) == RULESET_PLATFORM:
+		return TRAINING_DRILL_RECOVERY_ROUTE
+	return TRAINING_DRILL_DUEL_CORE
+
+func _normalize_training_drill_id(drill_id: String, profile: String = "") -> String:
+	var normalized := drill_id.strip_edges().to_lower()
+	if TRAINING_DRILL_IDS.has(normalized):
+		return normalized
+	return _resolve_default_training_drill_id(profile if profile != "" else ruleset_profile)
+
+func _build_training_drill_state(drill_id: String, patch: Dictionary = {}) -> Dictionary:
+	var resolved_drill_id := _normalize_training_drill_id(drill_id, str(patch.get("ruleset_profile", ruleset_profile)))
+	var resolved_ruleset := _resolve_ruleset_for_training_drill(resolved_drill_id)
+	var metrics_value: Variant = patch.get("metrics", {})
+	var metrics := {}
+	if typeof(metrics_value) == TYPE_DICTIONARY:
+		metrics = (metrics_value as Dictionary).duplicate(true)
+	var affected_players_value: Variant = patch.get("affected_players", [])
+	var affected_players := PackedStringArray()
+	if typeof(affected_players_value) == TYPE_ARRAY:
+		for player_key_value in affected_players_value:
+			var player_key := str(player_key_value).strip_edges()
+			if player_key != "":
+				affected_players.append(player_key)
+	return {
+		"drill_id": resolved_drill_id,
+		"ruleset_profile": resolved_ruleset,
+		"rep_index": maxi(0, int(patch.get("rep_index", 0))),
+		"rep_status": str(
+			patch.get(
+				"rep_status",
+				TRAINING_DRILL_STATUS_ACTIVE if bool(training_options.get("enabled", true)) else TRAINING_DRILL_STATUS_IDLE
+			)
+		),
+		"last_result": str(patch.get("last_result", "")).strip_edges().to_lower(),
+		"success_reason": str(patch.get("success_reason", "")).strip_edges().to_lower(),
+		"fail_reason": str(patch.get("fail_reason", "")).strip_edges().to_lower(),
+		"reset_reason": str(patch.get("reset_reason", "")).strip_edges().to_lower(),
+		"reset_timer_seconds": maxf(0.0, float(patch.get("reset_timer_seconds", 0.0))),
+		"affected_players": affected_players,
+		"metrics": metrics
+	}
+
+func _sync_training_drill_state_to_hud() -> void:
+	if hud and hud.has_method("set_training_drill_state"):
+		hud.set_training_drill_state(training_drill_state)
+
+func _refresh_training_drill_state(reset_result: bool = false) -> void:
+	var enabled := bool(training_options.get("enabled", true))
+	var drill_id := _normalize_training_drill_id(
+		str(training_options.get("drill_id", "")),
+		str(training_options.get("ruleset_profile", ruleset_profile))
+	)
+	var ruleset := _resolve_ruleset_for_training_drill(drill_id)
+	training_options["drill_id"] = drill_id
+	training_options["ruleset_profile"] = ruleset
+	var current := training_drill_state if typeof(training_drill_state) == TYPE_DICTIONARY else {}
+	var drill_changed := str(current.get("drill_id", "")) != drill_id
+	var next_state := _build_training_drill_state(
+		drill_id,
+		{
+			"ruleset_profile": ruleset,
+			"rep_index": 0 if drill_changed else int(current.get("rep_index", 0)),
+			"rep_status": TRAINING_DRILL_STATUS_ACTIVE if enabled else TRAINING_DRILL_STATUS_IDLE,
+			"last_result": "" if (drill_changed or reset_result) else str(current.get("last_result", "")),
+			"success_reason": "" if (drill_changed or reset_result) else str(current.get("success_reason", "")),
+			"fail_reason": "" if (drill_changed or reset_result) else str(current.get("fail_reason", "")),
+			"reset_reason": "" if (drill_changed or reset_result) else str(current.get("reset_reason", "")),
+			"reset_timer_seconds": 0.0 if (drill_changed or reset_result) else float(current.get("reset_timer_seconds", 0.0)),
+			"affected_players": [] if (drill_changed or reset_result) else current.get("affected_players", []),
+			"metrics": {} if (drill_changed or reset_result) else current.get("metrics", {})
+		}
+	)
+	training_drill_state = next_state
+	_sync_training_drill_state_to_hud()
+
+func _record_training_drill_rep_result(result: String, reason: String, affected_players: Array[String], metrics: Dictionary = {}) -> void:
+	if not bool(training_options.get("enabled", true)):
+		return
+	var current := training_drill_state if typeof(training_drill_state) == TYPE_DICTIONARY else {}
+	var rep_index := int(current.get("rep_index", 0)) + 1
+	var normalized_result := str(result).strip_edges().to_lower()
+	var normalized_reason := str(reason).strip_edges().to_lower()
+	var patch := {
+		"rep_index": rep_index,
+		"rep_status": TRAINING_DRILL_STATUS_ACTIVE,
+		"last_result": normalized_result,
+		"success_reason": normalized_reason if normalized_result == "success" else "",
+		"fail_reason": normalized_reason if normalized_result == "fail" else "",
+		"reset_reason": normalized_reason if normalized_result not in ["success", "fail"] else "",
+		"affected_players": affected_players,
+		"metrics": metrics
+	}
+	training_drill_state = _build_training_drill_state(
+		str(current.get("drill_id", training_options.get("drill_id", TRAINING_DRILL_DUEL_CORE))),
+		patch
+	)
+	_sync_training_drill_state_to_hud()
+
 func _normalize_throw_tech_assist_mode(mode: String) -> String:
 	var normalized := str(mode).strip_edges().to_lower()
 	if normalized in ["off", "button_assist"]:
@@ -965,7 +1089,12 @@ func _update_training_platform_ring_out_state() -> void:
 		reset_keys.append("p2")
 	if reset_keys.is_empty():
 		return
-	_reset_training_sandbox_players(reset_keys)
+	_reset_training_sandbox_players(
+		reset_keys,
+		"fail",
+		"ring_out",
+		{"ring_out_count": reset_keys.size(), "ruleset_profile": ruleset_profile}
+	)
 
 func _update_stock_ring_out_state() -> void:
 	var p1_out := player_1 and _is_outside_blast_zone(player_1.global_position)
@@ -1256,14 +1385,23 @@ func _respawn_player_by_key(player_key: String) -> void:
 		fighter.global_position = spawn
 		fighter.set("current_hp", 100)
 
-func _reset_training_sandbox_players(player_keys: Array[String]) -> void:
+func _reset_training_sandbox_players(
+	player_keys: Array[String],
+	result: String = "",
+	reason: String = "",
+	metrics: Dictionary = {}
+) -> void:
 	var seen := {}
+	var normalized_keys: Array[String] = []
 	for player_key_value in player_keys:
 		var player_key := str(player_key_value).strip_edges()
 		if player_key == "" or seen.has(player_key):
 			continue
 		seen[player_key] = true
+		normalized_keys.append(player_key)
 		_respawn_player_by_key(player_key)
+	if result != "" or reason != "":
+		_record_training_drill_rep_result(result, reason, normalized_keys, metrics)
 
 func _get_player_by_key(player_key: String) -> CharacterBody2D:
 	if player_key == "p1":
@@ -1443,7 +1581,12 @@ func _on_player_defeated(loser_key: String) -> void:
 			reset_keys.append("p1")
 		if p2_defeated:
 			reset_keys.append("p2")
-		_reset_training_sandbox_players(reset_keys)
+		_reset_training_sandbox_players(
+			reset_keys,
+			"reset",
+			"ko",
+			{"defeated_count": reset_keys.size(), "ruleset_profile": ruleset_profile}
+		)
 		return
 	if _uses_stock_rule():
 		var p1_defeated: bool = player_1 != null and int(player_1.current_hp) <= 0
@@ -1783,9 +1926,12 @@ func _push_training_info(fighter: Node) -> Dictionary:
 	var attacker_key := _resolve_player_key_for_node(fighter)
 	if attacker_key != "":
 		info["attacker_key"] = attacker_key
+	info["training_drill_id"] = str(training_drill_state.get("drill_id", training_options.get("drill_id", TRAINING_DRILL_DUEL_CORE)))
+	info["training_drill_rep_index"] = int(training_drill_state.get("rep_index", 0))
 	hud.set_training_data(info)
 	if hud.has_method("add_training_log_entry"):
 		hud.add_training_log_entry(info)
+	_sync_training_drill_state_to_hud()
 	return info
 
 func _resolve_player_key_for_node(node: Node) -> String:
@@ -1818,12 +1964,23 @@ func _show_hit_type_feedback(training_info: Dictionary, is_block_event: bool) ->
 func _apply_training_options() -> void:
 	var enabled := bool(training_options.get("enabled", true))
 	var dummy_mode := str(training_options.get("dummy_mode", "stand"))
+	var drill_id := _normalize_training_drill_id(
+		str(training_options.get("drill_id", "")),
+		str(training_options.get("ruleset_profile", ruleset_profile))
+	)
+	var requested_ruleset := _resolve_ruleset_for_training_drill(drill_id)
+	training_options["drill_id"] = drill_id
+	training_options["ruleset_profile"] = requested_ruleset
+	if ruleset_profile != requested_ruleset:
+		ruleset_profile = requested_ruleset
+		_apply_ruleset_profile()
 	var throw_tech_assist_mode := _normalize_throw_tech_assist_mode(
 		str(training_options.get("throw_tech_assist_mode", "throw_only"))
 	)
 	training_options["throw_tech_assist_mode"] = throw_tech_assist_mode
 	if hud and hud.has_method("set_training_options"):
 		hud.set_training_options(training_options)
+	_refresh_training_drill_state()
 	if not enabled and hud:
 		if hud.has_method("set_training_data"):
 			hud.set_training_data({})
@@ -1851,12 +2008,17 @@ func _on_hud_training_options_changed(options: Dictionary) -> void:
 	training_options["dummy_mode"] = dummy_mode
 	training_options["show_detail"] = bool(options.get("show_detail", training_options.get("show_detail", false)))
 	var requested_ruleset := _normalize_ruleset_profile(str(options.get("ruleset_profile", training_options.get("ruleset_profile", ruleset_profile))))
-	training_options["ruleset_profile"] = requested_ruleset
+	var requested_drill_id := _normalize_training_drill_id(
+		str(options.get("drill_id", training_options.get("drill_id", _resolve_default_training_drill_id(requested_ruleset)))),
+		requested_ruleset
+	)
+	training_options["drill_id"] = requested_drill_id
+	training_options["ruleset_profile"] = _resolve_ruleset_for_training_drill(requested_drill_id)
 	training_options["throw_tech_assist_mode"] = _normalize_throw_tech_assist_mode(
 		str(options.get("throw_tech_assist_mode", training_options.get("throw_tech_assist_mode", "throw_only")))
 	)
-	if training_scene_enabled and requested_ruleset != ruleset_profile:
-		ruleset_profile = requested_ruleset
+	if training_scene_enabled and (training_options["ruleset_profile"] != ruleset_profile or requested_drill_id != str(training_drill_state.get("drill_id", ""))):
+		ruleset_profile = str(training_options.get("ruleset_profile", requested_ruleset))
 		_apply_ruleset_profile()
 		_reset_training_sandbox_players(["p1", "p2"])
 		if hud:
@@ -1864,6 +2026,7 @@ func _on_hud_training_options_changed(options: Dictionary) -> void:
 				hud.set_training_data({})
 			if hud.has_method("clear_training_log"):
 				hud.clear_training_log()
+		_refresh_training_drill_state(true)
 	_apply_training_options()
 
 func _play_attack_sfx(prefix: String, attack_kind: String) -> void:
