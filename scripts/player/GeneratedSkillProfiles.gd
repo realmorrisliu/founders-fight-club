@@ -196,6 +196,116 @@ const SKELETONS_BY_ROLE := {
 		"screen_control_super": true
 	}
 }
+const ROLE_BALANCE_BANDS := {
+	"pressure": {
+		"damage_scale_min": 0.58,
+		"damage_scale_max": 0.68,
+		"cooldown_min": 1.3,
+		"cooldown_max": 1.6
+	},
+	"approach": {
+		"damage_scale_min": 0.60,
+		"damage_scale_max": 0.78,
+		"cooldown_min": 1.8,
+		"cooldown_max": 2.1
+	},
+	"control": {
+		"damage_scale_min": 0.56,
+		"damage_scale_max": 0.70,
+		"cooldown_min": 1.8,
+		"cooldown_max": 2.2
+	},
+	"setplay": {
+		"damage_scale_min": 0.60,
+		"damage_scale_max": 0.72,
+		"cooldown_min": 2.0,
+		"cooldown_max": 2.3
+	},
+	"anti_air": {
+		"damage_scale_min": 0.64,
+		"damage_scale_max": 0.76,
+		"cooldown_min": 1.9,
+		"cooldown_max": 2.2
+	},
+	"install": {
+		"damage_scale_min": 0.88,
+		"damage_scale_max": 0.98,
+		"cooldown_min": 7.8,
+		"cooldown_max": 8.4
+	},
+	"super": {
+		"damage_scale_min": 0.90,
+		"damage_scale_max": 1.02,
+		"cooldown_min": 7.8,
+		"cooldown_max": 8.3
+	}
+}
+const MOBILITY_EFFECT_LIMITS := {
+	"dash": {
+		"speed_min": 320.0,
+		"speed_max": 360.0
+	},
+	"teleport": {
+		"distance_min": 110.0,
+		"distance_max": 124.0
+	},
+	"rising": {
+		"rise_speed_min": 300.0,
+		"rise_speed_max": 340.0,
+		"forward_speed_min": 120.0,
+		"forward_speed_max": 220.0
+	}
+}
+const PROJECTILE_EFFECT_LIMITS := {
+	"speed_min": 220.0,
+	"speed_max": 430.0,
+	"duration_min": 0.8,
+	"duration_max": 1.2,
+	"size_min": Vector2(22, 14),
+	"size_max": Vector2(40, 22)
+}
+const SUMMON_EFFECT_LIMITS := {
+	"speed_min": 245.0,
+	"speed_max": 320.0,
+	"duration_min": 1.1,
+	"duration_max": 1.3,
+	"spawn_delay_min": 0.04,
+	"spawn_delay_max": 0.18,
+	"size_min": Vector2(30, 18),
+	"size_max": Vector2(38, 20)
+}
+const TRAP_EFFECT_LIMITS := {
+	"duration_min": 1.25,
+	"duration_max": 1.4,
+	"spawn_delay_min": 0.08,
+	"spawn_delay_max": 0.14,
+	"size_min": Vector2(32, 18),
+	"size_max": Vector2(44, 24)
+}
+const CONTROL_PAYLOAD_LIMITS := {
+	"slow_seconds_min": 0.45,
+	"slow_seconds_max": 0.72,
+	"slow_factor_min": 0.58,
+	"slow_factor_max": 0.76,
+	"root_seconds_max": 0.14,
+	"silence_seconds_max": 0.75
+}
+const SIGNATURE_BUFF_LIMITS := {
+	"duration_min": 2.8,
+	"duration_max": 4.0,
+	"damage_multiplier_max": 1.12,
+	"speed_multiplier_max": 1.10,
+	"startup_multiplier_min": 0.82,
+	"chip_bonus_max": 0.08
+}
+const ULTIMATE_BUFF_LIMITS := {
+	"duration_min": 4.0,
+	"duration_max": 4.8,
+	"damage_multiplier_max": 1.24,
+	"speed_multiplier_max": 1.12,
+	"startup_multiplier_min": 0.80,
+	"chip_bonus_max": 0.10
+}
 
 static func get_profile(character_id: String) -> Dictionary:
 	var value: Variant = PROFILE_BY_CHARACTER.get(character_id, {})
@@ -243,6 +353,7 @@ static func _normalize_profile(character_id: String, profile: Dictionary) -> Dic
 		entry["generated_archetype"] = generated_archetype
 		entry["role"] = str(contract.get("role", ""))
 		entry["skeleton"] = str(contract.get("skeleton", ""))
+		_apply_balance_band(entry, contract)
 		normalized[slot_key] = entry
 		slot_contracts[slot_key] = contract
 	normalized["slot_contracts"] = slot_contracts
@@ -396,3 +507,162 @@ static func _build_slot_contract(slot_key: String, role: String, skeleton: Strin
 		"role": role,
 		"skeleton": skeleton
 	}
+
+static func _apply_balance_band(entry: Dictionary, contract: Dictionary) -> void:
+	var role := str(contract.get("role", "")).strip_edges().to_lower()
+	var band_value: Variant = ROLE_BALANCE_BANDS.get(role, {})
+	if typeof(band_value) != TYPE_DICTIONARY:
+		return
+	var band := band_value as Dictionary
+	if entry.has("damage_scale"):
+		entry["damage_scale"] = clampf(
+			float(entry.get("damage_scale", band.get("damage_scale_min", 0.0))),
+			float(band.get("damage_scale_min", 0.0)),
+			float(band.get("damage_scale_max", 10.0))
+		)
+	if entry.has("cooldown"):
+		entry["cooldown"] = clampf(
+			float(entry.get("cooldown", band.get("cooldown_min", 0.0))),
+			float(band.get("cooldown_min", 0.0)),
+			float(band.get("cooldown_max", 99.0))
+		)
+	_normalize_effect_payload(entry)
+	_normalize_control_payload(entry)
+
+static func _normalize_effect_payload(entry: Dictionary) -> void:
+	var effect_value: Variant = entry.get("effect", {})
+	if typeof(effect_value) != TYPE_DICTIONARY:
+		return
+	var effect := (effect_value as Dictionary).duplicate(true)
+	var effect_type := str(effect.get("type", "")).strip_edges().to_lower()
+	match effect_type:
+		"mobility":
+			_normalize_mobility_effect(effect)
+		"projectile":
+			_clamp_float_key(effect, "speed", PROJECTILE_EFFECT_LIMITS)
+			_clamp_float_key(effect, "duration", PROJECTILE_EFFECT_LIMITS)
+			_clamp_vector2_key(effect, "size", PROJECTILE_EFFECT_LIMITS)
+		"summon":
+			_clamp_float_key(effect, "speed", SUMMON_EFFECT_LIMITS)
+			_clamp_float_key(effect, "duration", SUMMON_EFFECT_LIMITS)
+			_clamp_float_key(effect, "spawn_delay", SUMMON_EFFECT_LIMITS)
+			_clamp_vector2_key(effect, "size", SUMMON_EFFECT_LIMITS)
+		"trap":
+			_clamp_float_key(effect, "duration", TRAP_EFFECT_LIMITS)
+			_clamp_float_key(effect, "spawn_delay", TRAP_EFFECT_LIMITS)
+			_clamp_vector2_key(effect, "size", TRAP_EFFECT_LIMITS)
+		"buff":
+			_normalize_buff_effect(effect, str(entry.get("slot_key", "")) == "ultimate")
+	entry["effect"] = effect
+
+static func _normalize_mobility_effect(effect: Dictionary) -> void:
+	var mode := str(effect.get("mode", "")).strip_edges().to_lower()
+	var limits_value: Variant = MOBILITY_EFFECT_LIMITS.get(mode, {})
+	if typeof(limits_value) != TYPE_DICTIONARY:
+		return
+	var limits := limits_value as Dictionary
+	match mode:
+		"dash":
+			_clamp_float_key(effect, "speed", limits)
+		"teleport":
+			_clamp_float_key(effect, "distance", limits)
+		"rising":
+			_clamp_float_key(effect, "rise_speed", limits)
+			_clamp_float_key(effect, "forward_speed", limits)
+
+static func _normalize_control_payload(entry: Dictionary) -> void:
+	var control_value: Variant = entry.get("control", {})
+	if typeof(control_value) == TYPE_DICTIONARY:
+		var control := (control_value as Dictionary).duplicate(true)
+		_clamp_float_key(control, "slow_seconds", CONTROL_PAYLOAD_LIMITS)
+		_clamp_float_key(control, "slow_factor", CONTROL_PAYLOAD_LIMITS)
+		if control.has("root_seconds"):
+			control["root_seconds"] = minf(
+				float(control.get("root_seconds", 0.0)),
+				float(CONTROL_PAYLOAD_LIMITS.get("root_seconds_max", 0.14))
+			)
+		if control.has("silence_seconds"):
+			control["silence_seconds"] = minf(
+				float(control.get("silence_seconds", 0.0)),
+				float(CONTROL_PAYLOAD_LIMITS.get("silence_seconds_max", 0.75))
+			)
+		entry["control"] = control
+	var effect_value: Variant = entry.get("effect", {})
+	if typeof(effect_value) != TYPE_DICTIONARY:
+		return
+	var effect := (effect_value as Dictionary).duplicate(true)
+	if effect.has("slow_seconds"):
+		_clamp_float_key(effect, "slow_seconds", CONTROL_PAYLOAD_LIMITS)
+	if effect.has("slow_factor"):
+		_clamp_float_key(effect, "slow_factor", CONTROL_PAYLOAD_LIMITS)
+	if effect.has("root_seconds"):
+		effect["root_seconds"] = minf(
+			float(effect.get("root_seconds", 0.0)),
+			float(CONTROL_PAYLOAD_LIMITS.get("root_seconds_max", 0.14))
+		)
+	if effect.has("silence_seconds"):
+		effect["silence_seconds"] = minf(
+			float(effect.get("silence_seconds", 0.0)),
+			float(CONTROL_PAYLOAD_LIMITS.get("silence_seconds_max", 0.75))
+		)
+	entry["effect"] = effect
+
+static func _normalize_buff_effect(effect: Dictionary, is_ultimate: bool) -> void:
+	var buff_value: Variant = effect.get("buff", {})
+	if typeof(buff_value) != TYPE_DICTIONARY:
+		return
+	var buff := (buff_value as Dictionary).duplicate(true)
+	var limits: Dictionary = ULTIMATE_BUFF_LIMITS if is_ultimate else SIGNATURE_BUFF_LIMITS
+	_clamp_float_key(buff, "duration", limits)
+	if buff.has("damage_multiplier"):
+		buff["damage_multiplier"] = minf(
+			float(buff.get("damage_multiplier", 1.0)),
+			float(limits.get("damage_multiplier_max", 1.0))
+		)
+	if buff.has("speed_multiplier"):
+		buff["speed_multiplier"] = minf(
+			float(buff.get("speed_multiplier", 1.0)),
+			float(limits.get("speed_multiplier_max", 1.0))
+		)
+	if buff.has("startup_multiplier"):
+		buff["startup_multiplier"] = maxf(
+			float(buff.get("startup_multiplier", 1.0)),
+			float(limits.get("startup_multiplier_min", 1.0))
+		)
+	if buff.has("chip_bonus"):
+		buff["chip_bonus"] = minf(
+			float(buff.get("chip_bonus", 0.0)),
+			float(limits.get("chip_bonus_max", 0.0))
+		)
+	effect["buff"] = buff
+
+static func _clamp_float_key(entry: Dictionary, key: String, limits: Dictionary) -> void:
+	if not entry.has(key):
+		return
+	var min_key := "%s_min" % key
+	var max_key := "%s_max" % key
+	entry[key] = clampf(
+		float(entry.get(key, limits.get(min_key, 0.0))),
+		float(limits.get(min_key, entry.get(key, 0.0))),
+		float(limits.get(max_key, entry.get(key, 0.0)))
+	)
+
+static func _clamp_vector2_key(entry: Dictionary, key: String, limits: Dictionary) -> void:
+	if not entry.has(key):
+		return
+	var value: Variant = entry.get(key, Vector2.ZERO)
+	if not (value is Vector2):
+		return
+	var min_key := "%s_min" % key
+	var max_key := "%s_max" % key
+	var min_value: Variant = limits.get(min_key, value)
+	var max_value: Variant = limits.get(max_key, value)
+	if not (min_value is Vector2) or not (max_value is Vector2):
+		return
+	var vector := value as Vector2
+	var min_vector := min_value as Vector2
+	var max_vector := max_value as Vector2
+	entry[key] = Vector2(
+		clampf(vector.x, min_vector.x, max_vector.x),
+		clampf(vector.y, min_vector.y, max_vector.y)
+	)
