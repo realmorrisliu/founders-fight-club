@@ -982,9 +982,16 @@ func _test_onboarding_progress_tracks_actual_player_state() -> void:
 				var dodge_runtime := (dodge_runtime_value as Dictionary).duplicate(true)
 				dodge_runtime["dummy_attack_started"] = true
 				training_node.set("onboarding_lesson_runtime", dodge_runtime)
+			training_node.call("_on_hit_landed", player_1, player_2, "light", false, 1)
 			player_2.set("attack_state", "heavy")
+			player_2.set("attack_phase", "active")
+			training_node.call("_update_onboarding_progress", 0.05)
 			player_2.set("attack_phase", "recovery")
 			training_node.call("_update_onboarding_progress", 0.05)
+			_assert_true(
+				int(training_node.get("onboarding_step_index")) == 4,
+				"dodge onboarding ignores hits that happened before the punish opening"
+			)
 			training_node.call("_on_hit_landed", player_1, player_2, "light", false, 1)
 			training_node.call("_update_onboarding_progress", 0.05)
 			training_node.call("_update_onboarding_progress", 1.0)
@@ -1006,9 +1013,14 @@ func _test_onboarding_progress_tracks_actual_player_state() -> void:
 				var special_runtime := (special_runtime_value as Dictionary).duplicate(true)
 				special_runtime["dummy_attack_started"] = true
 				training_node.set("onboarding_lesson_runtime", special_runtime)
+			training_node.call("_on_hit_landed", player_1, player_2, "special", false, 1)
 			player_2.set("attack_state", "heavy")
 			player_2.set("attack_phase", "recovery")
 			training_node.call("_update_onboarding_progress", 0.05)
+			_assert_true(
+				not bool(training_node.get("onboarding_completed")),
+				"special onboarding ignores special hits that happened before the punish opening"
+			)
 			training_node.call("_on_hit_landed", player_1, player_2, "special", false, 1)
 			training_node.call("_update_onboarding_progress", 0.05)
 			training_node.call("_update_onboarding_progress", 1.0)

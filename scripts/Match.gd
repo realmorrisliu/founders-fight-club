@@ -1985,6 +1985,8 @@ func _build_onboarding_lesson_runtime(step: Dictionary) -> Dictionary:
 		"dummy_hit_player": false,
 		"player_hit_dummy": false,
 		"player_special_hit": false,
+		"player_hit_dummy_during_opening": false,
+		"player_special_hit_during_opening": false,
 		"player_throw_hit": false,
 		"player_attack_blocked": false,
 		"last_player_hit_kind": "",
@@ -2114,13 +2116,15 @@ func _update_onboarding_scenario_lesson(step: Dictionary, delta: float) -> void:
 		if player_1 != null and player_2 != null and bool(onboarding_lesson_runtime.get("dummy_attack_started", false)):
 			var attack_state := str(player_2.get("attack_state")).strip_edges().to_lower()
 			var attack_phase := str(player_2.get("attack_phase")).strip_edges().to_lower()
-			if (str(player_1.get("dodge_state")) != "" or float(player_1.get("dodge_time")) > 0.0) and attack_state == "heavy":
+			if (str(player_1.get("dodge_state")) != "" or float(player_1.get("dodge_time")) > 0.0) and attack_state == "heavy" and attack_phase != "recovery":
 				onboarding_lesson_runtime["dodge_confirmed"] = true
 			if not bool(onboarding_lesson_runtime.get("punish_window_active", false)) and attack_state == "heavy" and attack_phase == "recovery":
 				onboarding_lesson_runtime["punish_window_active"] = true
 				onboarding_lesson_runtime["punish_window_seconds"] = float(
 					onboarding_lesson_runtime.get("punish_window_duration", ONBOARDING_DODGE_PUNISH_WINDOW_SECONDS)
 				)
+				onboarding_lesson_runtime["player_hit_dummy_during_opening"] = false
+				onboarding_lesson_runtime["player_special_hit_during_opening"] = false
 			if bool(onboarding_lesson_runtime.get("punish_window_active", false)):
 				onboarding_lesson_runtime["punish_window_seconds"] = maxf(
 					0.0,
@@ -2148,7 +2152,7 @@ func _update_onboarding_scenario_lesson(step: Dictionary, delta: float) -> void:
 			if bool(onboarding_lesson_runtime.get("dummy_blocked_player", false)):
 				_queue_onboarding_lesson_outcome(step, "fail", "HUD_ONBOARDING_FEEDBACK_DODGE_FAIL_BLOCK", "Guard survived, but dodge creates the punish.")
 				return
-			if bool(onboarding_lesson_runtime.get("dodge_confirmed", false)) and bool(onboarding_lesson_runtime.get("player_hit_dummy", false)):
+			if bool(onboarding_lesson_runtime.get("dodge_confirmed", false)) and bool(onboarding_lesson_runtime.get("player_hit_dummy_during_opening", false)):
 				_queue_onboarding_lesson_outcome(step, "success", "HUD_ONBOARDING_FEEDBACK_DODGE_SUCCESS", "Clean punish. Dodge beats commitment.")
 				return
 			if bool(onboarding_lesson_runtime.get("punish_window_active", false)) and float(onboarding_lesson_runtime.get("punish_window_seconds", 0.0)) <= 0.0:
@@ -2158,10 +2162,10 @@ func _update_onboarding_scenario_lesson(step: Dictionary, delta: float) -> void:
 			if bool(onboarding_lesson_runtime.get("dummy_hit_player", false)):
 				_queue_onboarding_lesson_outcome(step, "fail", "HUD_ONBOARDING_FEEDBACK_SPECIAL_FAIL_HIT", "You got clipped. Wait for the opening first.")
 				return
-			if bool(onboarding_lesson_runtime.get("punish_window_active", false)) and bool(onboarding_lesson_runtime.get("player_special_hit", false)):
+			if bool(onboarding_lesson_runtime.get("punish_window_active", false)) and bool(onboarding_lesson_runtime.get("player_special_hit_during_opening", false)):
 				_queue_onboarding_lesson_outcome(step, "success", "HUD_ONBOARDING_FEEDBACK_SPECIAL_SUCCESS", "Special confirmed. Save it for clear openings.")
 				return
-			if bool(onboarding_lesson_runtime.get("punish_window_active", false)) and bool(onboarding_lesson_runtime.get("player_hit_dummy", false)) and not bool(onboarding_lesson_runtime.get("player_special_hit", false)):
+			if bool(onboarding_lesson_runtime.get("punish_window_active", false)) and bool(onboarding_lesson_runtime.get("player_hit_dummy_during_opening", false)) and not bool(onboarding_lesson_runtime.get("player_special_hit_during_opening", false)):
 				_queue_onboarding_lesson_outcome(step, "fail", "HUD_ONBOARDING_FEEDBACK_SPECIAL_FAIL_WRONG", "The opening was real, but this lesson wants a special cash-out.")
 				return
 			if bool(onboarding_lesson_runtime.get("punish_window_active", false)) and float(onboarding_lesson_runtime.get("punish_window_seconds", 0.0)) <= 0.0:
@@ -2460,6 +2464,9 @@ func _record_onboarding_combat_event(attacker, target, attack_kind: String, is_b
 		onboarding_lesson_runtime["last_player_hit_kind"] = normalized_kind
 		onboarding_lesson_runtime["player_throw_hit"] = normalized_kind == "throw"
 		onboarding_lesson_runtime["player_special_hit"] = _is_onboarding_special_attack_kind(normalized_kind)
+		if bool(onboarding_lesson_runtime.get("punish_window_active", false)):
+			onboarding_lesson_runtime["player_hit_dummy_during_opening"] = true
+			onboarding_lesson_runtime["player_special_hit_during_opening"] = bool(onboarding_lesson_runtime.get("player_special_hit_during_opening", false)) or _is_onboarding_special_attack_kind(normalized_kind)
 
 func _on_hit_landed(_attacker, _target, _kind, _is_counter: bool, _combo_count: int) -> void:
 	_record_onboarding_combat_event(_attacker, _target, _kind, false)
