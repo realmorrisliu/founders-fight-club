@@ -30,12 +30,13 @@ def _project_name(repo_root: Path) -> str:
 
 def _candidate_paths(repo_root: Path, project_name: str) -> list[Path]:
     home = Path.home()
+    repo_test_home = repo_root / ".godot-test-home"
     candidates = [
-        repo_root
-        / ".godot-test-home"
+        repo_test_home
         / "Library/Application Support/Godot/app_userdata"
         / project_name
         / "match_metrics.jsonl",
+        repo_test_home / ".local/share/godot/app_userdata" / project_name / "match_metrics.jsonl",
         home
         / "Library/Application Support/Godot/app_userdata"
         / project_name
@@ -162,6 +163,14 @@ def _merge_counter(target: dict[str, int], source: dict[str, Any]) -> dict[str, 
     return dict(counter)
 
 
+def _resolve_blast_margin_sample_count(funnel: dict[str, Any]) -> int:
+    explicit_count = int(funnel.get("closest_blast_margin_sample_count", 0))
+    if explicit_count > 0:
+        return explicit_count
+    legacy_avg_margin = float(funnel.get("avg_closest_blast_margin_px", -1.0))
+    return 1 if legacy_avg_margin >= 0.0 else 0
+
+
 def _aggregate_training_funnels(records: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     aggregates: dict[str, dict[str, Any]] = {}
     for record in records:
@@ -190,7 +199,7 @@ def _aggregate_training_funnels(records: list[dict[str, Any]]) -> dict[str, dict
             aggregate["_fail_seconds_sum"] += float(funnel.get("avg_fail_seconds", 0.0)) * int(
                 funnel.get("fail_count", 0)
             )
-            margin_samples = int(funnel.get("closest_blast_margin_sample_count", 0))
+            margin_samples = _resolve_blast_margin_sample_count(funnel)
             if margin_samples > 0:
                 aggregate["closest_blast_margin_sample_count"] += margin_samples
                 aggregate["_closest_margin_sum"] += float(funnel.get("avg_closest_blast_margin_px", -1.0)) * margin_samples
