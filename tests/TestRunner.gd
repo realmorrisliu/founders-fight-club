@@ -872,17 +872,34 @@ func _test_onboarding_progress_tracks_actual_player_state() -> void:
 		await process_frame
 		var player_1 := training_node.get_node_or_null("Player1")
 		var step_label := training_node.get_node_or_null("Hud/OnboardingPanel/StepLabel")
+		var status_label := training_node.get_node_or_null("Hud/OnboardingPanel/StatusLabel")
 		_assert_true(player_1 != null, "onboarding runtime state test resolves player1")
 		_assert_true(step_label is Label, "onboarding runtime state test resolves step label")
-		if player_1 != null and step_label is Label:
+		_assert_true(status_label is Label, "onboarding runtime state test resolves status label")
+		if player_1 != null and step_label is Label and status_label is Label:
 			training_node.call("_start_onboarding_sequence")
 			training_node.set("onboarding_step_index", 2)
+			training_node.call("_sync_current_onboarding_lesson_state")
 			training_node.call("_refresh_onboarding_hud")
 			await process_frame
 			_assert_true(
 				(step_label as Label).text.findn("back") != -1,
 				"classic onboarding guard copy explains back-to-block"
 			)
+			_assert_true(
+				(status_label as Label).text.findn("Guard") != -1 or (status_label as Label).text.findn("strikes") != -1,
+				"onboarding status copy explains the guard lesson goal"
+			)
+			TranslationServer.set_locale("zh")
+			training_node.call("_on_locale_changed", "zh")
+			await process_frame
+			_assert_true(
+				(status_label as Label).text.findn("防御") != -1 or (status_label as Label).text.findn("打击") != -1,
+				"onboarding status copy refreshes when locale changes mid-lesson"
+			)
+			TranslationServer.set_locale("en")
+			training_node.call("_on_locale_changed", "en")
+			await process_frame
 			_assert_true(not _action_has_any_keyboard_key("block"), "classic preset still removes keyboard block action during onboarding")
 
 			player_1.set("is_blocking", true)
@@ -896,6 +913,21 @@ func _test_onboarding_progress_tracks_actual_player_state() -> void:
 			training_node.call("_refresh_onboarding_hud")
 			await process_frame
 			_assert_true(
+				(step_label as Label).text.findn("throw") != -1,
+				"onboarding throw lesson now follows the defense lesson"
+			)
+
+			player_1.set("attack_state", "throw")
+			training_node.call("_update_onboarding_progress")
+			_assert_true(
+				int(training_node.get("onboarding_step_index")) == 4,
+				"throw onboarding advances from actual throw state"
+			)
+
+			player_1.set("attack_state", "")
+			training_node.call("_refresh_onboarding_hud")
+			await process_frame
+			_assert_true(
 				(step_label as Label).text.findn("dash") != -1,
 				"classic onboarding dodge copy explains back-plus-dash"
 			)
@@ -904,25 +936,8 @@ func _test_onboarding_progress_tracks_actual_player_state() -> void:
 			player_1.set("dodge_time", 0.12)
 			training_node.call("_update_onboarding_progress")
 			_assert_true(
-				int(training_node.get("onboarding_step_index")) == 4,
+				int(training_node.get("onboarding_step_index")) == 5,
 				"dodge onboarding advances from actual dodge state"
-			)
-
-			player_1.set("dodge_state", "")
-			player_1.set("dodge_time", 0.0)
-			training_node.set("onboarding_step_index", 5)
-			training_node.call("_refresh_onboarding_hud")
-			await process_frame
-			_assert_true(
-				(step_label as Label).text.findn("throw") != -1,
-				"onboarding throw step remains after the defense lesson"
-			)
-
-			player_1.set("attack_state", "throw")
-			training_node.call("_update_onboarding_progress")
-			_assert_true(
-				int(training_node.get("onboarding_step_index")) == 6,
-				"throw onboarding advances from actual throw state"
 			)
 		if is_instance_valid(training_node):
 			training_node.queue_free()

@@ -108,6 +108,7 @@ const MATCH_UI_MODE_STOCK := "stock"
 @onready var onboarding_panel := $OnboardingPanel
 @onready var onboarding_title_label := $OnboardingPanel/TitleLabel
 @onready var onboarding_step_label := $OnboardingPanel/StepLabel
+@onready var onboarding_status_label := $OnboardingPanel/StatusLabel
 @onready var onboarding_progress_label := $OnboardingPanel/ProgressLabel
 @onready var onboarding_skip_button := $OnboardingPanel/SkipButton
 @onready var onboarding_replay_button := $OnboardingPanel/ReplayButton
@@ -152,6 +153,7 @@ var onboarding_state := {
 	"visible": false,
 	"title_text": "",
 	"step_text": "",
+	"status_text": "",
 	"progress_text": "",
 	"allow_skip": true,
 	"allow_replay": false
@@ -234,9 +236,10 @@ func _layout_runtime_ui() -> void:
 	_set_control_rect(onboarding_panel, 350.0, 144.0, 620.0, 258.0)
 	_set_control_rect(onboarding_title_label, 12.0, 8.0, 258.0, 28.0)
 	_set_control_rect(onboarding_step_label, 12.0, 30.0, 258.0, 74.0)
-	_set_control_rect(onboarding_progress_label, 12.0, 80.0, 120.0, 98.0)
-	_set_control_rect(onboarding_skip_button, 134.0, 78.0, 194.0, 104.0)
-	_set_control_rect(onboarding_replay_button, 200.0, 78.0, 258.0, 104.0)
+	_set_control_rect(onboarding_status_label, 12.0, 66.0, 258.0, 90.0)
+	_set_control_rect(onboarding_progress_label, 12.0, 92.0, 120.0, 110.0)
+	_set_control_rect(onboarding_skip_button, 134.0, 90.0, 194.0, 116.0)
+	_set_control_rect(onboarding_replay_button, 200.0, 90.0, 258.0, 116.0)
 	_set_control_rect(training_panel, 20.0, 144.0, 356.0, 392.0)
 	_set_control_rect(training_title_label, 10.0, 8.0, 150.0, 28.0)
 	_set_control_rect(training_summary_label, 10.0, 30.0, 150.0, 52.0)
@@ -288,6 +291,7 @@ func _apply_runtime_typography() -> void:
 	dialogue_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	onboarding_title_label.add_theme_font_size_override("font_size", 12)
 	onboarding_step_label.add_theme_font_size_override("font_size", 11)
+	onboarding_status_label.add_theme_font_size_override("font_size", 10)
 	onboarding_progress_label.add_theme_font_size_override("font_size", 10)
 	onboarding_skip_button.add_theme_font_size_override("font_size", 10)
 	onboarding_replay_button.add_theme_font_size_override("font_size", 10)
@@ -598,6 +602,7 @@ func set_onboarding_state(
 	is_visible: bool,
 	title_text: String = "",
 	step_text: String = "",
+	status_text: String = "",
 	progress_text: String = "",
 	allow_skip: bool = true,
 	allow_replay: bool = false
@@ -605,6 +610,7 @@ func set_onboarding_state(
 	onboarding_state["visible"] = is_visible
 	onboarding_state["title_text"] = title_text
 	onboarding_state["step_text"] = step_text
+	onboarding_state["status_text"] = status_text
 	onboarding_state["progress_text"] = progress_text
 	onboarding_state["allow_skip"] = allow_skip
 	onboarding_state["allow_replay"] = allow_replay
@@ -897,6 +903,11 @@ func _refresh_onboarding_panel() -> void:
 		step_text = _tr_or_fallback("HUD_ONBOARDING_WAITING", "Follow the prompt to continue.")
 	if onboarding_step_label:
 		onboarding_step_label.text = step_text
+	var status_text := str(onboarding_state.get("status_text", "")).strip_edges()
+	if status_text == "":
+		status_text = _tr_or_fallback("HUD_ONBOARDING_STATUS_WAITING", "Learn the goal behind each action.")
+	if onboarding_status_label:
+		onboarding_status_label.text = status_text
 	var progress_text := str(onboarding_state.get("progress_text", "")).strip_edges()
 	if onboarding_progress_label:
 		onboarding_progress_label.visible = progress_text != ""

@@ -220,14 +220,73 @@ const DIALOGUE_PACK_PATH := "res://assets/data/dialogue/DialoguePackV1.json"
 const DIALOGUE_LINE_DELAY_SECONDS := 0.45
 const MATCH_METRICS_LOG_PATH := "user://match_metrics.jsonl"
 const MATCH_METRICS_SCHEMA_VERSION := 2
+const ONBOARDING_SEQUENCE_VERSION := 2
+const ONBOARDING_FEEDBACK_SECONDS := 0.8
 const ONBOARDING_STEPS := [
-	{"id": "move", "key": "HUD_ONBOARDING_STEP_MOVE", "fallback": "Move left / right to continue."},
-	{"id": "jump", "key": "HUD_ONBOARDING_STEP_JUMP", "fallback": "Jump once to continue."},
-	{"id": "guard", "key": "HUD_ONBOARDING_STEP_GUARD", "fallback": "Hold guard once to continue."},
-	{"id": "dodge", "key": "HUD_ONBOARDING_STEP_DODGE", "fallback": "Press Guard + Dash to dodge."},
-	{"id": "attack", "key": "HUD_ONBOARDING_STEP_ATTACK", "fallback": "Use light or heavy attack once."},
-	{"id": "throw", "key": "HUD_ONBOARDING_STEP_THROW", "fallback": "Use throw once."},
-	{"id": "special", "key": "HUD_ONBOARDING_STEP_SPECIAL", "fallback": "Use special or ultimate once."}
+	{
+		"id": "move",
+		"lesson_type": "movement",
+		"setup": "neutral",
+		"goal": "move",
+		"key": "HUD_ONBOARDING_STEP_MOVE",
+		"fallback": "Move left / right to continue.",
+		"hint_key": "HUD_ONBOARDING_STATUS_MOVE",
+		"hint_fallback": "Movement opens every other lesson."
+	},
+	{
+		"id": "jump",
+		"lesson_type": "movement",
+		"setup": "neutral",
+		"goal": "jump",
+		"key": "HUD_ONBOARDING_STEP_JUMP",
+		"fallback": "Jump once to continue.",
+		"hint_key": "HUD_ONBOARDING_STATUS_JUMP",
+		"hint_fallback": "Jump changes timing and route."
+	},
+	{
+		"id": "guard",
+		"lesson_type": "scenario",
+		"setup": "guard_response",
+		"goal": "block_dummy_strike",
+		"key": "HUD_ONBOARDING_STEP_GUARD",
+		"classic_key": "HUD_ONBOARDING_STEP_GUARD_CLASSIC",
+		"fallback": "Dummy will swing. Guard the strike.",
+		"classic_fallback": "Dummy will swing. Hold back to guard the strike.",
+		"hint_key": "HUD_ONBOARDING_STATUS_GUARD",
+		"hint_fallback": "Guard stops committed strikes."
+	},
+	{
+		"id": "throw",
+		"lesson_type": "scenario",
+		"setup": "throw_guard_break",
+		"goal": "throw_guarding_dummy",
+		"key": "HUD_ONBOARDING_STEP_THROW",
+		"fallback": "Dummy is holding guard. Use throw to break defense.",
+		"hint_key": "HUD_ONBOARDING_STATUS_THROW",
+		"hint_fallback": "Throw beats guard when strikes are getting blocked."
+	},
+	{
+		"id": "dodge",
+		"lesson_type": "scenario",
+		"setup": "dodge_punish",
+		"goal": "dodge_then_punish",
+		"key": "HUD_ONBOARDING_STEP_DODGE",
+		"classic_key": "HUD_ONBOARDING_STEP_DODGE_CLASSIC",
+		"fallback": "Dummy will commit to a heavy. Dodge it, then punish.",
+		"classic_fallback": "Dummy will commit to a heavy. Hold back, then press Dash to dodge and punish.",
+		"hint_key": "HUD_ONBOARDING_STATUS_DODGE",
+		"hint_fallback": "Dodge avoids the swing and creates a punish."
+	},
+	{
+		"id": "special",
+		"lesson_type": "scenario",
+		"setup": "special_punish",
+		"goal": "special_opening_punish",
+		"key": "HUD_ONBOARDING_STEP_SPECIAL",
+		"fallback": "Dummy will overcommit. Punish the opening with special or signature.",
+		"hint_key": "HUD_ONBOARDING_STATUS_SPECIAL",
+		"hint_fallback": "Big openings are where specials cash out."
+	}
 ]
 
 var time_left := ROUND_TIME_SECONDS
@@ -326,6 +385,8 @@ var onboarding_step_index := 0
 var onboarding_steps_completed := PackedStringArray()
 var onboarding_completed_seconds := -1.0
 var onboarding_entry_point := "match_start"
+var onboarding_lesson_state := {}
+var onboarding_lesson_runtime := {}
 var telemetry_round_tuning_picks: Array[Dictionary] = []
 var telemetry_item_activation_events: Array[Dictionary] = []
 var telemetry_item_evolution_events: Array[Dictionary] = []
@@ -449,7 +510,7 @@ func _process(delta: float) -> void:
 	if get_tree().paused:
 		return
 	match_elapsed_seconds += maxf(0.0, delta)
-	_update_onboarding_progress()
+	_update_onboarding_progress(delta)
 	if match_over:
 		_update_story_round_transition(delta)
 		return
@@ -804,12 +865,15 @@ func _append_match_metrics_log(result_key: String) -> void:
 		"item_evolution_success_rate": evolution_success_rate,
 		"item_evolution_avg_trigger_time_seconds": _calc_average_evolution_trigger_seconds(),
 		"onboarding": {
+			"version": ONBOARDING_SEQUENCE_VERSION,
 			"started": onboarding_started,
 			"completed": onboarding_completed,
 			"skipped": onboarding_skipped,
 			"forced_replay": onboarding_forced_replay,
 			"entry_point": onboarding_entry_point,
 			"steps_completed": onboarding_steps_completed,
+			"lesson_ids_completed": onboarding_steps_completed,
+			"active_lesson_id": str(onboarding_lesson_state.get("lesson_id", "")),
 			"completed_at_seconds": onboarding_completed_seconds
 		}
 	}
@@ -1833,6 +1897,8 @@ func _initialize_onboarding_flow() -> void:
 	onboarding_completed_seconds = -1.0
 	onboarding_forced_replay = false
 	onboarding_entry_point = "match_start"
+	onboarding_lesson_state.clear()
+	onboarding_lesson_runtime.clear()
 	if not onboarding_enabled:
 		_refresh_onboarding_hud()
 		return
@@ -1868,18 +1934,72 @@ func _start_onboarding_sequence() -> void:
 	onboarding_step_index = 0
 	onboarding_steps_completed = PackedStringArray()
 	onboarding_completed_seconds = -1.0
+	onboarding_lesson_state.clear()
+	onboarding_lesson_runtime.clear()
+	_sync_current_onboarding_lesson_state()
 	_refresh_onboarding_hud()
 
-func _update_onboarding_progress() -> void:
+func _resolve_onboarding_step(step_index: int) -> Dictionary:
+	if step_index < 0 or step_index >= ONBOARDING_STEPS.size():
+		return {}
+	var step_value: Variant = ONBOARDING_STEPS[step_index]
+	if typeof(step_value) != TYPE_DICTIONARY:
+		return {}
+	return (step_value as Dictionary).duplicate(true)
+
+func _build_onboarding_lesson_state(step: Dictionary, patch: Dictionary = {}) -> Dictionary:
+	var lesson_id := str(step.get("id", "")).strip_edges()
+	var hint_key := str(step.get("hint_key", "")).strip_edges()
+	var hint_fallback := str(step.get("hint_fallback", "Learn the goal behind each action."))
+	var state := {
+		"lesson_id": lesson_id,
+		"lesson_type": str(step.get("lesson_type", "movement")).strip_edges().to_lower(),
+		"setup": str(step.get("setup", "neutral")).strip_edges().to_lower(),
+		"goal": str(step.get("goal", lesson_id)).strip_edges().to_lower(),
+		"status": "active",
+		"status_key": hint_key if hint_key != "" else "HUD_ONBOARDING_STATUS_WAITING",
+		"status_fallback": hint_fallback
+	}
+	for key in patch.keys():
+		state[str(key)] = patch[key]
+	return state
+
+func _build_onboarding_lesson_runtime(step: Dictionary) -> Dictionary:
+	return {
+		"lesson_id": str(step.get("id", "")).strip_edges(),
+		"lesson_type": str(step.get("lesson_type", "movement")).strip_edges().to_lower(),
+		"setup": str(step.get("setup", "neutral")).strip_edges().to_lower(),
+		"goal": str(step.get("goal", "")).strip_edges().to_lower(),
+		"phase": "active",
+		"feedback_timer": 0.0,
+		"last_result": ""
+	}
+
+func _sync_current_onboarding_lesson_state() -> void:
+	var step := _resolve_onboarding_step(onboarding_step_index)
+	if step.is_empty():
+		onboarding_lesson_state.clear()
+		onboarding_lesson_runtime.clear()
+		return
+	onboarding_lesson_state = _build_onboarding_lesson_state(step)
+	onboarding_lesson_runtime = _build_onboarding_lesson_runtime(step)
+
+func _update_onboarding_progress(delta: float = 0.0) -> void:
 	if not onboarding_active:
 		return
+	if not onboarding_lesson_runtime.is_empty():
+		onboarding_lesson_runtime["feedback_timer"] = maxf(
+			0.0,
+			float(onboarding_lesson_runtime.get("feedback_timer", 0.0)) - maxf(0.0, delta)
+		)
 	if onboarding_step_index < 0 or onboarding_step_index >= ONBOARDING_STEPS.size():
 		_complete_onboarding(false)
 		return
-	var step := ONBOARDING_STEPS[onboarding_step_index] as Dictionary
+	var step := _resolve_onboarding_step(onboarding_step_index)
 	var step_id := str(step.get("id", "")).strip_edges()
 	if step_id == "":
 		onboarding_step_index += 1
+		_sync_current_onboarding_lesson_state()
 		_refresh_onboarding_hud()
 		return
 	if not _is_onboarding_step_completed(step_id):
@@ -1889,6 +2009,7 @@ func _update_onboarding_progress() -> void:
 	if onboarding_step_index >= ONBOARDING_STEPS.size():
 		_complete_onboarding(false)
 		return
+	_sync_current_onboarding_lesson_state()
 	_refresh_onboarding_hud()
 
 func _get_active_control_preset() -> String:
@@ -1897,16 +2018,21 @@ func _get_active_control_preset() -> String:
 		preset_value = GameSettingsStore.get_control_preset()
 	return GameSettingsStore.normalize_control_preset(preset_value)
 
-func _resolve_onboarding_step_copy(step_id: String, default_key: String, default_fallback: String) -> Dictionary:
+func _resolve_onboarding_step_copy(step: Dictionary) -> Dictionary:
+	var step_id := str(step.get("id", "")).strip_edges()
+	var default_key := str(step.get("key", "")).strip_edges()
+	var default_fallback := str(step.get("fallback", "Follow the prompt to continue."))
+	var classic_key := str(step.get("classic_key", "")).strip_edges()
+	var classic_fallback := str(step.get("classic_fallback", default_fallback))
 	if step_id == "guard" and _get_active_control_preset() == GameSettingsStore.CONTROL_PRESET_CLASSIC:
 		return {
-			"key": "HUD_ONBOARDING_STEP_GUARD_CLASSIC",
-			"fallback": "Hold back once to guard."
+			"key": classic_key if classic_key != "" else "HUD_ONBOARDING_STEP_GUARD_CLASSIC",
+			"fallback": classic_fallback if classic_fallback != "" else "Dummy will swing. Hold back to guard the strike."
 		}
 	if step_id == "dodge" and _get_active_control_preset() == GameSettingsStore.CONTROL_PRESET_CLASSIC:
 		return {
-			"key": "HUD_ONBOARDING_STEP_DODGE_CLASSIC",
-			"fallback": "Hold back, then press Dash to dodge."
+			"key": classic_key if classic_key != "" else "HUD_ONBOARDING_STEP_DODGE_CLASSIC",
+			"fallback": classic_fallback if classic_fallback != "" else "Dummy will commit to a heavy. Hold back, then press Dash to dodge and punish."
 		}
 	return {
 		"key": default_key,
@@ -1914,13 +2040,30 @@ func _resolve_onboarding_step_copy(step_id: String, default_key: String, default
 	}
 
 func _resolve_onboarding_step_text(step: Dictionary) -> String:
-	var step_id := str(step.get("id", "")).strip_edges()
 	var default_key := str(step.get("key", "")).strip_edges()
 	var default_fallback := str(step.get("fallback", "Follow the prompt to continue."))
-	var copy := _resolve_onboarding_step_copy(step_id, default_key, default_fallback)
+	var copy := _resolve_onboarding_step_copy(step)
 	return _tr_or_fallback(
 		str(copy.get("key", default_key)).strip_edges(),
 		str(copy.get("fallback", default_fallback))
+	)
+
+func _resolve_onboarding_hint_text(step: Dictionary) -> String:
+	var hint_key := str(step.get("hint_key", "")).strip_edges()
+	var hint_fallback := str(step.get("hint_fallback", "Learn the goal behind each action."))
+	return _tr_or_fallback(
+		hint_key if hint_key != "" else "HUD_ONBOARDING_STATUS_WAITING",
+		hint_fallback
+	)
+
+func _resolve_onboarding_status_text(step: Dictionary) -> String:
+	var default_key := str(step.get("hint_key", "")).strip_edges()
+	var default_fallback := str(step.get("hint_fallback", "Learn the goal behind each action."))
+	var status_key := str(onboarding_lesson_state.get("status_key", default_key)).strip_edges()
+	var status_fallback := str(onboarding_lesson_state.get("status_fallback", default_fallback))
+	return _tr_or_fallback(
+		status_key if status_key != "" else "HUD_ONBOARDING_STATUS_WAITING",
+		status_fallback if status_fallback != "" else default_fallback
 	)
 
 func _is_onboarding_step_completed(step_id: String) -> bool:
@@ -1956,6 +2099,8 @@ func _complete_onboarding(skipped: bool) -> void:
 	onboarding_completed = true
 	onboarding_skipped = skipped
 	onboarding_completed_seconds = match_elapsed_seconds
+	onboarding_lesson_state.clear()
+	onboarding_lesson_runtime.clear()
 	GameSettingsStore.set_onboarding_completed(true)
 	_refresh_onboarding_hud()
 
@@ -1963,10 +2108,13 @@ func _refresh_onboarding_hud() -> void:
 	if hud == null or not hud.has_method("set_onboarding_state"):
 		return
 	if not onboarding_active:
-		hud.set_onboarding_state(false, "", "", "", false, false)
+		hud.set_onboarding_state(false, "", "", "", "", false, false)
 		return
-	var step := ONBOARDING_STEPS[onboarding_step_index] as Dictionary
+	var step := _resolve_onboarding_step(onboarding_step_index)
 	var step_text := _resolve_onboarding_step_text(step)
+	var status_text := _resolve_onboarding_status_text(step).strip_edges()
+	if status_text == "":
+		status_text = _resolve_onboarding_hint_text(step)
 	var progress_template := _tr_or_fallback("HUD_ONBOARDING_PROGRESS", "Step %d/%d")
 	var progress_text := ""
 	if progress_template.find("%") == -1:
@@ -1974,7 +2122,7 @@ func _refresh_onboarding_hud() -> void:
 	else:
 		progress_text = progress_template % [onboarding_step_index + 1, ONBOARDING_STEPS.size()]
 	var title_text := _tr_or_fallback("HUD_ONBOARDING_TITLE", "Quick Onboarding")
-	hud.set_onboarding_state(true, title_text, step_text, progress_text, true, true)
+	hud.set_onboarding_state(true, title_text, step_text, status_text, progress_text, true, true)
 
 func _on_player_health_changed() -> void:
 	_update_hud()
