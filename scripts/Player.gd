@@ -589,6 +589,7 @@ var throw_tech_buffer_time := 0.0
 var throw_tech_input_source := ""
 var throw_tech_window_type := ""
 var last_training_info := {}
+var last_directional_influence_input := Vector2.ZERO
 var training_dummy_enabled := false
 var training_dummy_mode := "stand"
 var training_throw_tech_enabled := false
@@ -4687,6 +4688,7 @@ func _apply_knockback_growth(base_knockback: Vector2, hp_before_hit: int) -> Vec
 	return base_knockback * growth_scale
 
 func _apply_directional_influence(base_knockback: Vector2, attack_meta: Dictionary) -> Vector2:
+	last_directional_influence_input = Vector2.ZERO
 	if not _uses_directional_influence():
 		return base_knockback
 	if base_knockback.length() < DI_MIN_KNOCKBACK_SPEED:
@@ -4694,6 +4696,7 @@ func _apply_directional_influence(base_knockback: Vector2, attack_meta: Dictiona
 	var di_input := _resolve_directional_influence_input(base_knockback, attack_meta)
 	if di_input.length() < DI_INPUT_DEADZONE:
 		return base_knockback
+	last_directional_influence_input = di_input
 	var base_angle := base_knockback.angle()
 	var target_angle := di_input.angle()
 	var max_delta := deg_to_rad(DI_MAX_ANGLE_DEGREES)
@@ -4908,6 +4911,9 @@ func get_current_attack_block_type() -> String:
 func get_last_training_info() -> Dictionary:
 	return last_training_info.duplicate(true)
 
+func get_last_directional_influence_input() -> Vector2:
+	return last_directional_influence_input
+
 func get_hype_meter() -> float:
 	return hype_meter
 
@@ -4963,6 +4969,7 @@ func force_respawn(spawn_position: Vector2, facing_direction: int = 1) -> void:
 	shield_broken = false
 	tech_slide_time = 0.0
 	tech_slide_speed = 0.0
+	last_directional_influence_input = Vector2.ZERO
 	is_ledge_hanging = false
 	ledge_side = 0
 	ledge_hold_time = 0.0
@@ -5005,6 +5012,7 @@ func apply_training_state_patch(patch: Dictionary) -> void:
 		if ledge_side_value != 0:
 			_release_occupied_ledge()
 			_start_ledge_hang(ledge_side_value)
+	last_directional_influence_input = Vector2.ZERO
 	_update_facing()
 	_update_visual()
 	health_changed.emit()

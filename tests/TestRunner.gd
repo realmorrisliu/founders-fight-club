@@ -2073,6 +2073,21 @@ func _test_training_toggle_keeps_dummy_non_ai() -> void:
 			)
 			var whiff_label := str(hud.call("_resolve_training_event_label", "throw_whiff"))
 			_assert_true(whiff_log.findn(whiff_label) != -1, "training log line surfaces throw whiff events")
+			var drill_log := str(
+				hud.call("_resolve_training_log_line", {
+					"event_type": "drill_result",
+					"training_drill_id": "ledge_escape",
+					"training_drill_result": "success",
+					"training_drill_reason": "stage_reclaim",
+					"metrics": {
+						"success_rate": 0.5,
+						"last_closest_blast_margin_px": 84.0,
+						"last_ledge_option": "roll"
+					}
+				})
+			)
+			var option_label := str(hud.call("_resolve_training_drill_option_label", "roll"))
+			_assert_true(drill_log.findn(option_label) != -1, "training log line surfaces Air & Edge option metrics")
 			var previous_locale := TranslationServer.get_locale()
 			TranslationServer.set_locale("zh")
 			hud.call("set_training_options", {
@@ -2106,6 +2121,9 @@ func _test_training_toggle_keeps_dummy_non_ai() -> void:
 			_assert_true(str(hud.call("_resolve_training_drill_reason_label", "stage_reclaim")) == "上台", "training drill stage reclaim reason localizes to Chinese")
 			_assert_true(str(hud.call("_resolve_training_drill_reason_label", "survived_launch")) == "存活", "training drill survival reason localizes to Chinese")
 			_assert_true(str(hud.call("_resolve_training_drill_reason_label", "launch_denied")) == "击飞被化解", "training drill denied-launch reason localizes to Chinese")
+			_assert_true(str(hud.call("_resolve_training_drill_label", "ledge_escape")) == "抓边脱困", "training drill label localizes to Chinese")
+			_assert_true(str(hud.call("_resolve_training_drill_di_direction_label", "left_up")) == "左上", "training drill DI direction localizes to Chinese")
+			_assert_true(str(hud.call("_resolve_training_drill_option_label", "roll")) == "翻滚", "training drill ledge option localizes to Chinese")
 			TranslationServer.set_locale(previous_locale)
 	if is_instance_valid(training_node):
 		training_node.queue_free()
@@ -2253,6 +2271,7 @@ func _test_air_edge_drills_have_rep_behaviors() -> void:
 	await process_frame
 	await process_frame
 	var p1 := training_node.get_node_or_null("Player1") as CharacterBody2D
+	var hud := training_node.get_node_or_null("Hud")
 	var stage_right_x := float(training_node.get("stage_right_x"))
 	var stage_floor_y := float(training_node.get("stage_floor_y"))
 	_assert_true(p1 != null, "Air & Edge drill behavior test resolves player1")
@@ -2260,7 +2279,7 @@ func _test_air_edge_drills_have_rep_behaviors() -> void:
 		training_node.call("_on_hud_training_options_changed", {
 			"enabled": true,
 			"dummy_mode": "stand",
-			"show_detail": false,
+			"show_detail": true,
 			"ruleset_profile": "platform",
 			"drill_id": "recovery_route"
 		})
@@ -2271,13 +2290,54 @@ func _test_air_edge_drills_have_rep_behaviors() -> void:
 		await process_frame
 		await process_frame
 		var recovery_state := training_node.get("training_drill_state") as Dictionary
+		var recovery_metrics := recovery_state.get("metrics", {}) as Dictionary
 		_assert_true(str(recovery_state.get("last_result", "")) == "success", "recovery drill records success after a ledge grab")
 		_assert_true(str(recovery_state.get("success_reason", "")) == "ledge_recovery", "recovery drill records ledge recovery as the success reason")
+		_assert_true(int(recovery_metrics.get("success_count", 0)) == 1, "recovery drill metrics count a successful rep")
+		_assert_true(absf(float(recovery_metrics.get("success_rate", 0.0)) - 1.0) < 0.001, "recovery drill metrics surface a 100% success rate after the opening rep")
+		_assert_true(float(recovery_metrics.get("last_closest_blast_margin_px", -1.0)) >= 0.0, "recovery drill metrics capture the nearest blast-zone distance")
+		if hud != null:
+			hud.call("set_training_data", {
+				"event_type": "block",
+				"attack_kind": "heavy",
+				"attacker_key": "p1",
+				"training_drill_rep_index": 0,
+				"stun_frames": 12,
+				"recovery_frames": 9,
+				"advantage_frames": -3
+			})
+			await process_frame
+			var stun_label := hud.get_node_or_null("TrainingPanel/TrainingStunLabel") as Label
+			var recovery_label := hud.get_node_or_null("TrainingPanel/TrainingRecoveryLabel") as Label
+			var advantage_label := hud.get_node_or_null("TrainingPanel/TrainingAdvantageLabel") as Label
+			var detail_label := hud.get_node_or_null("TrainingPanel/TrainingDetailLabel") as Label
+			if stun_label != null:
+				_assert_true(stun_label.text == str(hud.call("_resolve_training_drill_rate_label")), "Air & Edge HUD surfaces success-rate metrics instead of stale frame data")
+			if recovery_label != null:
+				_assert_true(recovery_label.text == str(hud.call("_resolve_training_drill_streak_label")), "Air & Edge HUD surfaces drill streak metrics")
+			if advantage_label != null:
+				_assert_true(advantage_label.text == str(hud.call("_resolve_training_drill_edge_label")), "Air & Edge HUD surfaces blast-margin metrics instead of frame advantage")
+			if detail_label != null:
+				var finish_label := str(hud.call("_resolve_training_drill_finish_label", "ledge"))
+				_assert_true(detail_label.text.findn(finish_label) != -1, "Air & Edge detail surfaces recovery finish-state metrics")
+		p1.position = Vector2(1400.0, 300.0)
+		await process_frame
+		await process_frame
+		var recovery_fail_state := training_node.get("training_drill_state") as Dictionary
+		var recovery_fail_metrics := recovery_fail_state.get("metrics", {}) as Dictionary
+		_assert_true(int(recovery_fail_metrics.get("rep_total", 0)) == 2, "recovery drill metrics count both successful and failed reps")
+		_assert_true(absf(float(recovery_fail_metrics.get("success_rate", 0.0)) - 0.5) < 0.001, "recovery drill metrics surface a mixed success rate after one success and one fail")
+		_assert_true(str(recovery_fail_metrics.get("last_finish_state", "")) == "", "recovery drill clears the previous finish-state metric after a fail rep with no finish")
+		if hud != null:
+			var recovery_detail_label := hud.get_node_or_null("TrainingPanel/TrainingDetailLabel") as Label
+			if recovery_detail_label != null:
+				var stale_finish_label := str(hud.call("_resolve_training_drill_finish_label", "ledge"))
+				_assert_true(recovery_detail_label.text.findn(stale_finish_label) == -1, "Air & Edge detail does not leak the previous finish-state metric into the latest fail rep")
 
 		training_node.call("_on_hud_training_options_changed", {
 			"enabled": true,
 			"dummy_mode": "stand",
-			"show_detail": false,
+			"show_detail": true,
 			"ruleset_profile": "platform",
 			"drill_id": "ledge_escape"
 		})
@@ -2302,7 +2362,7 @@ func _test_air_edge_drills_have_rep_behaviors() -> void:
 		training_node.call("_on_hud_training_options_changed", {
 			"enabled": true,
 			"dummy_mode": "stand",
-			"show_detail": false,
+			"show_detail": true,
 			"ruleset_profile": "platform",
 			"drill_id": "ledge_escape"
 		})
@@ -2316,13 +2376,21 @@ func _test_air_edge_drills_have_rep_behaviors() -> void:
 			if str(current_ledge_state.get("last_result", "")) == "success":
 				break
 		var ledge_state := training_node.get("training_drill_state") as Dictionary
+		var ledge_metrics := ledge_state.get("metrics", {}) as Dictionary
 		_assert_true(str(ledge_state.get("last_result", "")) == "success", "ledge escape drill records success after reclaiming stage")
 		_assert_true(str(ledge_state.get("success_reason", "")) == "stage_reclaim", "ledge escape drill records stage reclaim as the success reason")
+		_assert_true(str(ledge_metrics.get("last_ledge_option", "")) == "roll", "ledge escape drill metrics remember the last ledge option that reclaimed stage")
+		if hud != null:
+			await process_frame
+			var detail_label := hud.get_node_or_null("TrainingPanel/TrainingDetailLabel") as Label
+			if detail_label != null:
+				var option_label := str(hud.call("_resolve_training_drill_option_label", "roll"))
+				_assert_true(detail_label.text.findn(option_label) != -1, "ledge escape detail surfaces the ledge-option outcome")
 
 		training_node.call("_on_hud_training_options_changed", {
 			"enabled": true,
 			"dummy_mode": "stand",
-			"show_detail": false,
+			"show_detail": true,
 			"ruleset_profile": "platform",
 			"drill_id": "di_survival"
 		})
@@ -2340,13 +2408,20 @@ func _test_air_edge_drills_have_rep_behaviors() -> void:
 			training_node.call("_update_di_survival_drill")
 			await process_frame
 			var di_state := training_node.get("training_drill_state") as Dictionary
+			var di_metrics := di_state.get("metrics", {}) as Dictionary
 			_assert_true(str(di_state.get("last_result", "")) == "success", "DI survival drill records success after surviving the launch")
 			_assert_true(str(di_state.get("success_reason", "")) == "survived_launch", "DI survival drill records survived launch as the success reason")
+			_assert_true(str(di_metrics.get("last_di_direction", "")) == "neutral", "DI survival drill metrics record the last DI direction snapshot")
+			if hud != null:
+				var detail_label := hud.get_node_or_null("TrainingPanel/TrainingDetailLabel") as Label
+				if detail_label != null:
+					var di_label := str(hud.call("_resolve_training_drill_di_direction_label", "neutral"))
+					_assert_true(detail_label.text.findn(di_label) != -1, "DI survival detail surfaces the DI direction metric")
 
 		training_node.call("_on_hud_training_options_changed", {
 			"enabled": true,
 			"dummy_mode": "stand",
-			"show_detail": false,
+			"show_detail": true,
 			"ruleset_profile": "platform",
 			"drill_id": "di_survival"
 		})
