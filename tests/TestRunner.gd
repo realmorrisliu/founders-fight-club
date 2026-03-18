@@ -2101,6 +2101,8 @@ func _test_training_and_onboarding_metrics_emit_funnel_events() -> void:
 					var guard_funnel := guard_funnel_value as Dictionary
 					_assert_true(int(guard_funnel.get("retry_start_count", 0)) >= 1, "lesson funnel counts retry starts")
 					_assert_true(int(guard_funnel.get("success_count", 0)) >= 1, "lesson funnel counts successful retries")
+					_assert_true(is_equal_approx(float(guard_funnel.get("completion_rate", 0.0)), 1.0), "lesson funnel completion rate measures finished attempts instead of successful attempts")
+					_assert_true(is_equal_approx(float(guard_funnel.get("success_rate", 0.0)), 0.5), "lesson funnel success rate stays separate from completion rate after one fail and one success")
 					var fail_reason_counts_value: Variant = guard_funnel.get("fail_reason_counts", {})
 					_assert_true(typeof(fail_reason_counts_value) == TYPE_DICTIONARY, "lesson funnel exposes fail reason breakdowns")
 					if typeof(fail_reason_counts_value) == TYPE_DICTIONARY:

@@ -879,6 +879,7 @@ func _make_onboarding_lesson_funnel_entry(lesson_id: String) -> Dictionary:
 		"success_count": 0,
 		"fail_count": 0,
 		"completion_rate": 0.0,
+		"success_rate": 0.0,
 		"avg_attempt_seconds": 0.0,
 		"avg_success_seconds": 0.0,
 		"avg_fail_seconds": 0.0,
@@ -1009,7 +1010,8 @@ func _build_onboarding_lesson_funnels() -> Dictionary:
 		var result_count := int(funnel.get("result_count", 0))
 		var success_count := int(funnel.get("success_count", 0))
 		var fail_count := int(funnel.get("fail_count", 0))
-		funnel["completion_rate"] = float(success_count) / float(start_count) if start_count > 0 else 0.0
+		funnel["completion_rate"] = float(result_count) / float(start_count) if start_count > 0 else 0.0
+		funnel["success_rate"] = float(success_count) / float(result_count) if result_count > 0 else 0.0
 		funnel["avg_attempt_seconds"] = float(funnel.get("avg_attempt_seconds", 0.0)) / float(result_count) if result_count > 0 else 0.0
 		funnel["avg_success_seconds"] = float(funnel.get("avg_success_seconds", 0.0)) / float(success_count) if success_count > 0 else 0.0
 		funnel["avg_fail_seconds"] = float(funnel.get("avg_fail_seconds", 0.0)) / float(fail_count) if fail_count > 0 else 0.0
