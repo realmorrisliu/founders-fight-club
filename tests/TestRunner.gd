@@ -70,6 +70,7 @@ func _run_smoke_suite() -> void:
 	await _test_loadout_item_evolution_boundaries()
 	await _test_loadout_wave1_tuning_profiles_present()
 	await _test_generated_signature_profiles_are_normalized()
+	await _test_generated_signature_profiles_stay_within_balance_bands()
 	await _test_generated_signature_builder_uses_role_skeletons()
 	await _test_round_tuning_intermission_flow()
 	await _test_round_tuning_simultaneous_stock_fairness()
@@ -1662,6 +1663,90 @@ func _test_generated_signature_profiles_are_normalized() -> void:
 			_assert_true(str(contract.get("role", "")) == str(entry.get("role", "")), "%s slot contract role matches entry for %s" % [character_id, slot_key])
 			_assert_true(str(contract.get("skeleton", "")) == str(entry.get("skeleton", "")), "%s slot contract skeleton matches entry for %s" % [character_id, slot_key])
 
+func _test_generated_signature_profiles_stay_within_balance_bands() -> void:
+	for character_id_variant in GeneratedSkillProfilesStore.PROFILE_BY_CHARACTER.keys():
+		var character_id := str(character_id_variant)
+		var profile := GeneratedSkillProfilesStore.get_profile(character_id)
+		for slot_key in ["signature_a", "signature_b", "signature_c", "ultimate"]:
+			var entry_value: Variant = profile.get(slot_key, {})
+			if typeof(entry_value) != TYPE_DICTIONARY:
+				continue
+			var entry := entry_value as Dictionary
+			var role := str(entry.get("role", ""))
+			var band_value: Variant = GeneratedSkillProfilesStore.ROLE_BALANCE_BANDS.get(role, {})
+			_assert_true(typeof(band_value) == TYPE_DICTIONARY, "%s %s resolves a balance band" % [character_id, slot_key])
+			if typeof(band_value) != TYPE_DICTIONARY:
+				continue
+			var band := band_value as Dictionary
+			_assert_float_band(
+				float(entry.get("damage_scale", 0.0)),
+				float(band.get("damage_scale_min", 0.0)),
+				float(band.get("damage_scale_max", 99.0)),
+				"%s %s stays inside the %s damage band" % [character_id, slot_key, role]
+			)
+			_assert_float_band(
+				float(entry.get("cooldown", 0.0)),
+				float(band.get("cooldown_min", 0.0)),
+				float(band.get("cooldown_max", 99.0)),
+				"%s %s stays inside the %s cooldown band" % [character_id, slot_key, role]
+			)
+			var control_value: Variant = entry.get("control", {})
+			if typeof(control_value) == TYPE_DICTIONARY:
+				var control := control_value as Dictionary
+				_assert_control_payload_limits(control, "%s %s control payload stays bounded" % [character_id, slot_key])
+			var effect_value: Variant = entry.get("effect", {})
+			if typeof(effect_value) != TYPE_DICTIONARY:
+				continue
+			var effect := effect_value as Dictionary
+			var effect_type := str(effect.get("type", ""))
+			match effect_type:
+				"mobility":
+					var mode := str(effect.get("mode", ""))
+					var limits_value: Variant = GeneratedSkillProfilesStore.MOBILITY_EFFECT_LIMITS.get(mode, {})
+					_assert_true(typeof(limits_value) == TYPE_DICTIONARY, "%s %s mobility effect resolves %s limits" % [character_id, slot_key, mode])
+					if typeof(limits_value) == TYPE_DICTIONARY:
+						var limits := limits_value as Dictionary
+						match mode:
+							"dash":
+								_assert_float_band(
+									float(effect.get("speed", 0.0)),
+									float(limits.get("speed_min", 0.0)),
+									float(limits.get("speed_max", 999.0)),
+									"%s %s dash speed stays inside the approach band" % [character_id, slot_key]
+								)
+							"teleport":
+								_assert_float_band(
+									float(effect.get("distance", 0.0)),
+									float(limits.get("distance_min", 0.0)),
+									float(limits.get("distance_max", 999.0)),
+									"%s %s teleport distance stays inside the approach band" % [character_id, slot_key]
+								)
+							"rising":
+								_assert_float_band(
+									float(effect.get("rise_speed", 0.0)),
+									float(limits.get("rise_speed_min", 0.0)),
+									float(limits.get("rise_speed_max", 999.0)),
+									"%s %s rising speed stays inside the anti-air band" % [character_id, slot_key]
+								)
+								_assert_float_band(
+									float(effect.get("forward_speed", 0.0)),
+									float(limits.get("forward_speed_min", 0.0)),
+									float(limits.get("forward_speed_max", 999.0)),
+									"%s %s rising forward speed stays inside the anti-air band" % [character_id, slot_key]
+								)
+				"projectile":
+					_assert_effect_band(effect, GeneratedSkillProfilesStore.PROJECTILE_EFFECT_LIMITS, character_id, slot_key)
+				"summon":
+					_assert_effect_band(effect, GeneratedSkillProfilesStore.SUMMON_EFFECT_LIMITS, character_id, slot_key)
+				"trap":
+					_assert_effect_band(effect, GeneratedSkillProfilesStore.TRAP_EFFECT_LIMITS, character_id, slot_key)
+				"buff":
+					var buff_limits: Dictionary = GeneratedSkillProfilesStore.ULTIMATE_BUFF_LIMITS if slot_key == "ultimate" else GeneratedSkillProfilesStore.SIGNATURE_BUFF_LIMITS
+					var buff_value: Variant = effect.get("buff", {})
+					_assert_true(typeof(buff_value) == TYPE_DICTIONARY, "%s %s buff effect keeps a buff payload" % [character_id, slot_key])
+					if typeof(buff_value) == TYPE_DICTIONARY:
+						_assert_buff_payload_limits(buff_value as Dictionary, buff_limits, character_id, slot_key)
+
 func _test_generated_signature_builder_uses_role_skeletons() -> void:
 	var special_base_value: Variant = PlayerDataStore.ATTACK_DATA.get("special", {})
 	_assert_true(typeof(special_base_value) == TYPE_DICTIONARY, "builder regression test resolves special base data")
@@ -1724,6 +1809,95 @@ func _signature_attack_fingerprint(entry: Dictionary) -> String:
 		str(entry.get("knockback_ground", Vector2.ZERO)),
 		str(entry.get("cancel_options", []))
 	]
+
+func _assert_effect_band(effect: Dictionary, limits: Dictionary, character_id: String, slot_key: String) -> void:
+	for key in ["speed", "duration", "spawn_delay"]:
+		var min_key := "%s_min" % key
+		var max_key := "%s_max" % key
+		if effect.has(key) and limits.has(min_key) and limits.has(max_key):
+			_assert_float_band(
+				float(effect.get(key, 0.0)),
+				float(limits.get(min_key, 0.0)),
+				float(limits.get(max_key, 999.0)),
+				"%s %s %s stays inside its tuned range" % [character_id, slot_key, key]
+			)
+	if effect.has("size") and limits.has("size_min") and limits.has("size_max"):
+		var size_value: Variant = effect.get("size", Vector2.ZERO)
+		if size_value is Vector2:
+			var min_size: Variant = limits.get("size_min", Vector2.ZERO)
+			var max_size: Variant = limits.get("size_max", Vector2.ZERO)
+			_assert_vector2_band(
+				size_value as Vector2,
+				min_size as Vector2,
+				max_size as Vector2,
+				"%s %s size stays inside its tuned range" % [character_id, slot_key]
+			)
+
+func _assert_control_payload_limits(control: Dictionary, message_prefix: String) -> void:
+	if control.has("slow_seconds"):
+		_assert_float_band(
+			float(control.get("slow_seconds", 0.0)),
+			float(GeneratedSkillProfilesStore.CONTROL_PAYLOAD_LIMITS.get("slow_seconds_min", 0.0)),
+			float(GeneratedSkillProfilesStore.CONTROL_PAYLOAD_LIMITS.get("slow_seconds_max", 99.0)),
+			"%s slow duration stays inside the control band" % message_prefix
+		)
+	if control.has("slow_factor"):
+		_assert_float_band(
+			float(control.get("slow_factor", 0.0)),
+			float(GeneratedSkillProfilesStore.CONTROL_PAYLOAD_LIMITS.get("slow_factor_min", 0.0)),
+			float(GeneratedSkillProfilesStore.CONTROL_PAYLOAD_LIMITS.get("slow_factor_max", 1.0)),
+			"%s slow factor stays inside the control band" % message_prefix
+		)
+	if control.has("root_seconds"):
+		_assert_true(
+			float(control.get("root_seconds", 0.0)) <= float(GeneratedSkillProfilesStore.CONTROL_PAYLOAD_LIMITS.get("root_seconds_max", 0.0)) + 0.0001,
+			"%s root duration stays capped" % message_prefix
+		)
+	if control.has("silence_seconds"):
+		_assert_true(
+			float(control.get("silence_seconds", 0.0)) <= float(GeneratedSkillProfilesStore.CONTROL_PAYLOAD_LIMITS.get("silence_seconds_max", 0.0)) + 0.0001,
+			"%s silence duration stays capped" % message_prefix
+		)
+
+func _assert_buff_payload_limits(buff: Dictionary, limits: Dictionary, character_id: String, slot_key: String) -> void:
+	_assert_float_band(
+		float(buff.get("duration", 0.0)),
+		float(limits.get("duration_min", 0.0)),
+		float(limits.get("duration_max", 99.0)),
+		"%s %s buff duration stays inside its tuned range" % [character_id, slot_key]
+	)
+	if buff.has("damage_multiplier"):
+		_assert_true(
+			float(buff.get("damage_multiplier", 1.0)) <= float(limits.get("damage_multiplier_max", 1.0)) + 0.0001,
+			"%s %s buff damage multiplier stays capped" % [character_id, slot_key]
+		)
+	if buff.has("speed_multiplier"):
+		_assert_true(
+			float(buff.get("speed_multiplier", 1.0)) <= float(limits.get("speed_multiplier_max", 1.0)) + 0.0001,
+			"%s %s buff speed multiplier stays capped" % [character_id, slot_key]
+		)
+	if buff.has("startup_multiplier"):
+		_assert_true(
+			float(buff.get("startup_multiplier", 1.0)) >= float(limits.get("startup_multiplier_min", 1.0)) - 0.0001,
+			"%s %s buff startup multiplier stays above the haste floor" % [character_id, slot_key]
+		)
+	if buff.has("chip_bonus"):
+		_assert_true(
+			float(buff.get("chip_bonus", 0.0)) <= float(limits.get("chip_bonus_max", 0.0)) + 0.0001,
+			"%s %s buff chip bonus stays capped" % [character_id, slot_key]
+		)
+
+func _assert_float_band(value: float, minimum: float, maximum: float, message: String) -> void:
+	_assert_true(value >= minimum - 0.0001 and value <= maximum + 0.0001, message)
+
+func _assert_vector2_band(value: Vector2, minimum: Vector2, maximum: Vector2, message: String) -> void:
+	_assert_true(
+		value.x >= minimum.x - 0.0001
+		and value.x <= maximum.x + 0.0001
+		and value.y >= minimum.y - 0.0001
+		and value.y <= maximum.y + 0.0001,
+		message
+	)
 
 func _test_match_metrics_telemetry_schema() -> void:
 	var metrics_path := ProjectSettings.globalize_path("user://match_metrics.jsonl")
