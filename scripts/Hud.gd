@@ -1308,6 +1308,16 @@ func _resolve_training_drill_reason_label(reason: String) -> String:
 			return _tr_or_fallback("HUD_TRAINING_DRILL_REASON_RING_OUT", "Ring Out")
 		"ko":
 			return _tr_or_fallback("HUD_TRAINING_DRILL_REASON_KO", "KO Reset")
+		"launch_denied":
+			return _tr_or_fallback("HUD_TRAINING_DRILL_REASON_LAUNCH_DENIED", "Launch Denied")
+		"ledge_recovery":
+			return _tr_or_fallback("HUD_TRAINING_DRILL_REASON_LEDGE_RECOVERY", "Ledge")
+		"stage_recovery":
+			return _tr_or_fallback("HUD_TRAINING_DRILL_REASON_STAGE_RECOVERY", "Stage")
+		"stage_reclaim":
+			return _tr_or_fallback("HUD_TRAINING_DRILL_REASON_STAGE_RECLAIM", "Reclaim")
+		"survived_launch":
+			return _tr_or_fallback("HUD_TRAINING_DRILL_REASON_SURVIVED_LAUNCH", "Survived")
 		_:
 			return ""
 
