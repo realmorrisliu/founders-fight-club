@@ -2033,6 +2033,13 @@ func _test_training_toggle_keeps_dummy_non_ai() -> void:
 			if detail_label != null:
 				var tech_prefix := str(hud.call("_tr_or_fallback", "HUD_TRAINING_DETAIL_TECH_LABEL", "Tech"))
 				_assert_true(detail_label.text.findn(tech_prefix) != -1, "training detail label localizes throw-tech prefix")
+			_assert_true(str(hud.call("_resolve_training_drill_reason_label", "ring_out")) == "出界", "training drill ring-out reason localizes to Chinese")
+			_assert_true(str(hud.call("_resolve_training_drill_reason_label", "ko")) == "KO 重置", "training drill KO reason localizes to Chinese")
+			_assert_true(str(hud.call("_resolve_training_drill_reason_label", "ledge_recovery")) == "抓边", "training drill ledge recovery reason localizes to Chinese")
+			_assert_true(str(hud.call("_resolve_training_drill_reason_label", "stage_recovery")) == "回台", "training drill stage recovery reason localizes to Chinese")
+			_assert_true(str(hud.call("_resolve_training_drill_reason_label", "stage_reclaim")) == "上台", "training drill stage reclaim reason localizes to Chinese")
+			_assert_true(str(hud.call("_resolve_training_drill_reason_label", "survived_launch")) == "存活", "training drill survival reason localizes to Chinese")
+			_assert_true(str(hud.call("_resolve_training_drill_reason_label", "launch_denied")) == "击飞被化解", "training drill denied-launch reason localizes to Chinese")
 			TranslationServer.set_locale(previous_locale)
 	if is_instance_valid(training_node):
 		training_node.queue_free()
