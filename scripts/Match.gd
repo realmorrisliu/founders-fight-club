@@ -851,6 +851,174 @@ func _end_match(result_key: String) -> void:
 	_queue_story_progression(result_key)
 	_trigger_victory_dialogue(result_key)
 
+func _make_training_drill_funnel_entry(drill_id: String) -> Dictionary:
+	return {
+		"drill_id": drill_id,
+		"rep_start_count": 0,
+		"rep_result_count": 0,
+		"success_count": 0,
+		"fail_count": 0,
+		"reset_count": 0,
+		"completion_rate": 0.0,
+		"success_rate": 0.0,
+		"avg_result_seconds": 0.0,
+		"avg_success_seconds": 0.0,
+		"avg_fail_seconds": 0.0,
+		"avg_closest_blast_margin_px": -1.0,
+		"last_result": "",
+		"last_reason": "",
+		"reason_counts": {}
+	}
+
+func _make_onboarding_lesson_funnel_entry(lesson_id: String) -> Dictionary:
+	return {
+		"lesson_id": lesson_id,
+		"start_count": 0,
+		"retry_start_count": 0,
+		"result_count": 0,
+		"success_count": 0,
+		"fail_count": 0,
+		"completion_rate": 0.0,
+		"success_rate": 0.0,
+		"avg_attempt_seconds": 0.0,
+		"avg_success_seconds": 0.0,
+		"avg_fail_seconds": 0.0,
+		"avg_attempt_index_on_success": 0.0,
+		"last_result": "",
+		"last_reason": "",
+		"fail_reason_counts": {},
+		"success_reason_counts": {}
+	}
+
+func _increment_telemetry_reason_count(counts: Dictionary, reason: String) -> void:
+	var normalized_reason := str(reason).strip_edges().to_lower()
+	if normalized_reason == "":
+		return
+	counts[normalized_reason] = int(counts.get(normalized_reason, 0)) + 1
+
+func _build_training_drill_funnels() -> Dictionary:
+	var funnels := {}
+	for event_value in telemetry_training_drill_events:
+		if typeof(event_value) != TYPE_DICTIONARY:
+			continue
+		var event := (event_value as Dictionary).duplicate(true)
+		var drill_id := str(event.get("drill_id", "")).strip_edges().to_lower()
+		if drill_id == "":
+			continue
+		var funnel_value: Variant = funnels.get(drill_id, _make_training_drill_funnel_entry(drill_id))
+		var funnel := (funnel_value as Dictionary).duplicate(true)
+		var event_type := str(event.get("event_type", "")).strip_edges().to_lower()
+		if event_type == "rep_start":
+			funnel["rep_start_count"] = int(funnel.get("rep_start_count", 0)) + 1
+		elif event_type == "rep_result":
+			funnel["rep_result_count"] = int(funnel.get("rep_result_count", 0)) + 1
+			var result := str(event.get("result", "")).strip_edges().to_lower()
+			match result:
+				"success":
+					funnel["success_count"] = int(funnel.get("success_count", 0)) + 1
+				"fail":
+					funnel["fail_count"] = int(funnel.get("fail_count", 0)) + 1
+				_:
+					funnel["reset_count"] = int(funnel.get("reset_count", 0)) + 1
+			var rep_elapsed_seconds := maxf(0.0, float(event.get("rep_elapsed_seconds", 0.0)))
+			funnel["avg_result_seconds"] = float(funnel.get("avg_result_seconds", 0.0)) + rep_elapsed_seconds
+			if result == "success":
+				funnel["avg_success_seconds"] = float(funnel.get("avg_success_seconds", 0.0)) + rep_elapsed_seconds
+			elif result == "fail":
+				funnel["avg_fail_seconds"] = float(funnel.get("avg_fail_seconds", 0.0)) + rep_elapsed_seconds
+			var closest_margin := float(event.get("closest_blast_margin_px", -1.0))
+			if closest_margin >= 0.0:
+				var margin_sum := float(funnel.get("_closest_margin_sum", 0.0)) + closest_margin
+				funnel["_closest_margin_sum"] = margin_sum
+				funnel["_closest_margin_count"] = int(funnel.get("_closest_margin_count", 0)) + 1
+			var reason_counts_value: Variant = funnel.get("reason_counts", {})
+			var reason_counts := (reason_counts_value as Dictionary).duplicate(true)
+			_increment_telemetry_reason_count(reason_counts, str(event.get("reason", "")))
+			funnel["reason_counts"] = reason_counts
+			funnel["last_result"] = result
+			funnel["last_reason"] = str(event.get("reason", "")).strip_edges().to_lower()
+		funnels[drill_id] = funnel
+	for drill_key_value in funnels.keys():
+		var drill_key := str(drill_key_value)
+		var funnel_value: Variant = funnels.get(drill_key, {})
+		if typeof(funnel_value) != TYPE_DICTIONARY:
+			continue
+		var funnel := (funnel_value as Dictionary).duplicate(true)
+		var rep_start_count := int(funnel.get("rep_start_count", 0))
+		var rep_result_count := int(funnel.get("rep_result_count", 0))
+		var success_count := int(funnel.get("success_count", 0))
+		var fail_count := int(funnel.get("fail_count", 0))
+		var closest_margin_count := int(funnel.get("_closest_margin_count", 0))
+		funnel["completion_rate"] = float(rep_result_count) / float(rep_start_count) if rep_start_count > 0 else 0.0
+		funnel["success_rate"] = float(success_count) / float(rep_result_count) if rep_result_count > 0 else 0.0
+		funnel["avg_result_seconds"] = float(funnel.get("avg_result_seconds", 0.0)) / float(rep_result_count) if rep_result_count > 0 else 0.0
+		funnel["avg_success_seconds"] = float(funnel.get("avg_success_seconds", 0.0)) / float(success_count) if success_count > 0 else 0.0
+		funnel["avg_fail_seconds"] = float(funnel.get("avg_fail_seconds", 0.0)) / float(fail_count) if fail_count > 0 else 0.0
+		funnel["avg_closest_blast_margin_px"] = float(funnel.get("_closest_margin_sum", 0.0)) / float(closest_margin_count) if closest_margin_count > 0 else -1.0
+		funnel.erase("_closest_margin_sum")
+		funnel.erase("_closest_margin_count")
+		funnels[drill_key] = funnel
+	return funnels
+
+func _build_onboarding_lesson_funnels() -> Dictionary:
+	var funnels := {}
+	for event_value in telemetry_onboarding_lesson_events:
+		if typeof(event_value) != TYPE_DICTIONARY:
+			continue
+		var event := (event_value as Dictionary).duplicate(true)
+		var lesson_id := str(event.get("lesson_id", "")).strip_edges()
+		if lesson_id == "":
+			continue
+		var funnel_value: Variant = funnels.get(lesson_id, _make_onboarding_lesson_funnel_entry(lesson_id))
+		var funnel := (funnel_value as Dictionary).duplicate(true)
+		var event_type := str(event.get("event_type", "")).strip_edges().to_lower()
+		if event_type == "lesson_start":
+			funnel["start_count"] = int(funnel.get("start_count", 0)) + 1
+			if bool(event.get("is_retry", false)):
+				funnel["retry_start_count"] = int(funnel.get("retry_start_count", 0)) + 1
+		elif event_type == "lesson_result":
+			funnel["result_count"] = int(funnel.get("result_count", 0)) + 1
+			var result := str(event.get("result", "")).strip_edges().to_lower()
+			var elapsed_seconds := maxf(0.0, float(event.get("elapsed_seconds", 0.0)))
+			var attempt_index := maxi(1, int(event.get("attempt_index", 1)))
+			funnel["avg_attempt_seconds"] = float(funnel.get("avg_attempt_seconds", 0.0)) + elapsed_seconds
+			if result == "success":
+				funnel["success_count"] = int(funnel.get("success_count", 0)) + 1
+				funnel["avg_success_seconds"] = float(funnel.get("avg_success_seconds", 0.0)) + elapsed_seconds
+				funnel["avg_attempt_index_on_success"] = float(funnel.get("avg_attempt_index_on_success", 0.0)) + float(attempt_index)
+				var success_reason_counts_value: Variant = funnel.get("success_reason_counts", {})
+				var success_reason_counts := (success_reason_counts_value as Dictionary).duplicate(true)
+				_increment_telemetry_reason_count(success_reason_counts, str(event.get("reason", "")))
+				funnel["success_reason_counts"] = success_reason_counts
+			else:
+				funnel["fail_count"] = int(funnel.get("fail_count", 0)) + 1
+				funnel["avg_fail_seconds"] = float(funnel.get("avg_fail_seconds", 0.0)) + elapsed_seconds
+				var fail_reason_counts_value: Variant = funnel.get("fail_reason_counts", {})
+				var fail_reason_counts := (fail_reason_counts_value as Dictionary).duplicate(true)
+				_increment_telemetry_reason_count(fail_reason_counts, str(event.get("reason", "")))
+				funnel["fail_reason_counts"] = fail_reason_counts
+			funnel["last_result"] = result
+			funnel["last_reason"] = str(event.get("reason", "")).strip_edges().to_lower()
+		funnels[lesson_id] = funnel
+	for lesson_key_value in funnels.keys():
+		var lesson_key := str(lesson_key_value)
+		var funnel_value: Variant = funnels.get(lesson_key, {})
+		if typeof(funnel_value) != TYPE_DICTIONARY:
+			continue
+		var funnel := (funnel_value as Dictionary).duplicate(true)
+		var start_count := int(funnel.get("start_count", 0))
+		var result_count := int(funnel.get("result_count", 0))
+		var success_count := int(funnel.get("success_count", 0))
+		var fail_count := int(funnel.get("fail_count", 0))
+		funnel["completion_rate"] = float(result_count) / float(start_count) if start_count > 0 else 0.0
+		funnel["success_rate"] = float(success_count) / float(result_count) if result_count > 0 else 0.0
+		funnel["avg_attempt_seconds"] = float(funnel.get("avg_attempt_seconds", 0.0)) / float(result_count) if result_count > 0 else 0.0
+		funnel["avg_success_seconds"] = float(funnel.get("avg_success_seconds", 0.0)) / float(success_count) if success_count > 0 else 0.0
+		funnel["avg_fail_seconds"] = float(funnel.get("avg_fail_seconds", 0.0)) / float(fail_count) if fail_count > 0 else 0.0
+		funnel["avg_attempt_index_on_success"] = float(funnel.get("avg_attempt_index_on_success", 0.0)) / float(success_count) if success_count > 0 else 0.0
+		funnels[lesson_key] = funnel
+	return funnels
+
 func _append_match_metrics_log(result_key: String, exit_reason: String = "match_end") -> void:
 	if telemetry_session_log_written:
 		return
@@ -886,7 +1054,9 @@ func _append_match_metrics_log(result_key: String, exit_reason: String = "match_
 		"item_activation_events": telemetry_item_activation_events.duplicate(true),
 		"item_evolution_events": telemetry_item_evolution_events.duplicate(true),
 		"training_drill_events": telemetry_training_drill_events.duplicate(true),
+		"training_drill_funnels": _build_training_drill_funnels(),
 		"onboarding_lesson_events": telemetry_onboarding_lesson_events.duplicate(true),
+		"onboarding_lesson_funnels": _build_onboarding_lesson_funnels(),
 		"item_evolution_expected_count": evolution_expected_count,
 		"item_evolution_success_count": evolution_success_count,
 		"item_evolution_success_rate": evolution_success_rate,
