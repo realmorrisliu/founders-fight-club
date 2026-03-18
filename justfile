@@ -16,3 +16,7 @@ run-scene scene:
 # Run automated headless tests (default: smoke suite).
 test suite="smoke":
 	@./scripts/test.sh "{{suite}}"
+
+# Review match telemetry funnels from the latest metrics log.
+review-funnels input="" limit="20" format="text":
+	@python3 ./scripts/tools/review_match_metrics.py --input "{{input}}" --limit {{limit}} --format "{{format}}"

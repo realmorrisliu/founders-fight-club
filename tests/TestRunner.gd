@@ -2091,6 +2091,7 @@ func _test_training_and_onboarding_metrics_emit_funnel_events() -> void:
 					var recovery_funnel := recovery_funnel_value as Dictionary
 					_assert_true(int(recovery_funnel.get("fail_count", 0)) >= 1, "drill funnel counts failed reps")
 					_assert_true(int(recovery_funnel.get("rep_start_count", 0)) >= 1, "drill funnel counts started reps")
+					_assert_true(int(recovery_funnel.get("closest_blast_margin_sample_count", 0)) >= 1, "drill funnel keeps a blast-margin sample count for cross-session review")
 			var lesson_funnels_value: Variant = record.get("onboarding_lesson_funnels", {})
 			_assert_true(typeof(lesson_funnels_value) == TYPE_DICTIONARY, "training telemetry exposes onboarding funnel summaries as a dictionary")
 			if typeof(lesson_funnels_value) == TYPE_DICTIONARY:
