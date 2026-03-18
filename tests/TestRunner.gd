@@ -895,10 +895,14 @@ func _test_onboarding_progress_tracks_actual_player_state() -> void:
 				guard_distance < strike_contact_distance,
 				"guard onboarding respawns fighters inside dummy heavy range"
 			)
+			_assert_true(
+				(strike_contact_distance - guard_distance) >= 16.0,
+				"guard onboarding keeps enough inside-range buffer for the dummy heavy to stay threatening"
+			)
 			var guard_runtime_value: Variant = training_node.get("onboarding_lesson_runtime")
 			if typeof(guard_runtime_value) == TYPE_DICTIONARY:
 				_assert_true(
-					float((guard_runtime_value as Dictionary).get("attack_delay_seconds", 0.0)) <= 0.20,
+					float((guard_runtime_value as Dictionary).get("attack_delay_seconds", 0.0)) <= 0.18,
 					"guard onboarding starts the dummy heavy quickly enough for classic retreat to stay in range"
 				)
 			_assert_true(
@@ -966,6 +970,10 @@ func _test_onboarding_progress_tracks_actual_player_state() -> void:
 				throw_distance < throw_contact_distance,
 				"throw onboarding respawns fighters inside throw range"
 			)
+			_assert_true(
+				(throw_contact_distance - throw_distance) >= 8.0,
+				"throw onboarding keeps enough inside-range buffer for a clean guard-break lesson"
+			)
 
 			player_1.set("attack_state", "throw")
 			training_node.call("_update_onboarding_progress", 0.05)
@@ -996,8 +1004,12 @@ func _test_onboarding_progress_tracks_actual_player_state() -> void:
 			var dodge_runtime_value: Variant = training_node.get("onboarding_lesson_runtime")
 			if typeof(dodge_runtime_value) == TYPE_DICTIONARY:
 				_assert_true(
-					float((dodge_runtime_value as Dictionary).get("attack_delay_seconds", 0.0)) <= 0.20,
+					float((dodge_runtime_value as Dictionary).get("attack_delay_seconds", 0.0)) <= 0.18,
 					"dodge onboarding starts the dummy heavy quickly enough for classic retreat to stay in range"
+				)
+				_assert_true(
+					float((dodge_runtime_value as Dictionary).get("punish_window_duration", 0.0)) >= 0.70,
+					"dodge onboarding keeps a readable punish window after the heavy whiffs"
 				)
 
 			player_1.set("dodge_state", "roll")
@@ -1041,6 +1053,10 @@ func _test_onboarding_progress_tracks_actual_player_state() -> void:
 			var special_runtime_value: Variant = training_node.get("onboarding_lesson_runtime")
 			if typeof(special_runtime_value) == TYPE_DICTIONARY:
 				var special_runtime := (special_runtime_value as Dictionary).duplicate(true)
+				_assert_true(
+					float(special_runtime.get("punish_window_duration", 0.0)) >= 0.84,
+					"special onboarding keeps a longer punish window for the cash-out lesson"
+				)
 				special_runtime["dummy_attack_started"] = true
 				training_node.set("onboarding_lesson_runtime", special_runtime)
 			var special_distance := absf(player_1.global_position.x - player_2.global_position.x)
@@ -2727,6 +2743,8 @@ func _test_air_edge_drills_have_rep_behaviors() -> void:
 		await process_frame
 		await process_frame
 		_assert_true(p1.global_position.x > stage_right_x + 40.0, "recovery drill starts player1 offstage to the side of the platform")
+		_assert_true(p1.global_position.x <= stage_right_x + 80.0, "recovery drill starts close enough to stage to teach routing instead of desperate scramble")
+		_assert_true(p1.global_position.y <= stage_floor_y - 96.0, "recovery drill starts high enough to avoid immediate panic falloffs")
 		p1.call("_start_ledge_hang", 1)
 		await process_frame
 		await process_frame
@@ -2838,7 +2856,8 @@ func _test_air_edge_drills_have_rep_behaviors() -> void:
 		await process_frame
 		await process_frame
 		var di_runtime := training_node.get("training_drill_runtime") as Dictionary
-		_assert_true(float(di_runtime.get("launch_delay_seconds", 0.0)) > 0.0, "DI survival drill exposes a positive launch delay configuration")
+		_assert_true(int(p1.get("current_hp")) == 44, "DI survival drill starts from a survivable mid-damage HP target")
+		_assert_true(float(di_runtime.get("launch_delay_seconds", 0.0)) >= 0.30, "DI survival drill gives the player a readable launch warning before the rep starts")
 		p1.set("wake_invuln_time", 0.0)
 		p1.set("is_blocking", false)
 		training_node.call("_trigger_di_survival_launch")
@@ -3623,6 +3642,7 @@ func _test_jump_leniency_and_fast_fall() -> void:
 	if p1 == null or host == null:
 		return
 
+	_prepare_airborne_jump_test_player(p1, 1)
 	p1.set("velocity", Vector2(0.0, 64.0))
 	p1.set("coyote_time", 0.08)
 	p1.set("jump_buffer_time", 0.10)
@@ -3660,6 +3680,7 @@ func _test_short_hop_jump_cut() -> void:
 	if p1 == null or host == null:
 		return
 
+	_prepare_airborne_jump_test_player(p1, 1)
 	p1.set("is_ai", false)
 	p1.set("velocity", Vector2.ZERO)
 	p1.set("coyote_time", 0.08)
@@ -3857,10 +3878,13 @@ func _test_double_jump_and_ledge_getup_options() -> void:
 	if p1 == null or host == null:
 		return
 
+	_prepare_airborne_jump_test_player(p1, 1)
 	p1.set("air_jumps_remaining", 1)
 	p1.set("coyote_time", 0.0)
 	p1.set("jump_buffer_time", 0.10)
 	p1.set("velocity", Vector2.ZERO)
+	_assert_true(bool(p1.call("_allows_air_jumps")), "double jump test keeps platform air-jump rules enabled")
+	_assert_true(bool(p1.call("_can_execute_jump")), "double jump test starts from a valid airborne jump state")
 	var first_air_jump := bool(p1.call("_try_consume_buffered_jump"))
 	_assert_true(first_air_jump, "air jump can be consumed when coyote is unavailable")
 	_assert_true(int(p1.get("air_jumps_remaining")) == 0, "air jump use decrements remaining jump resource")
@@ -3967,6 +3991,33 @@ func _spawn_test_players() -> Dictionary:
 	await process_frame
 	await process_frame
 	return {"host": host, "p1": p1, "p2": p2}
+
+func _prepare_airborne_jump_test_player(player: CharacterBody2D, air_jump_count: int = 1) -> void:
+	if player == null:
+		return
+	player.call("set_ruleset_profile", "platform")
+	player.set("position", Vector2(120.0, 160.0))
+	player.set("current_hp", 100)
+	player.set("shield_break_time", 0.0)
+	player.set("dodge_state", "")
+	player.set("dodge_time", 0.0)
+	player.set("dodge_cooldown_time", 0.0)
+	player.set("air_dodge_end_lag_time", 0.0)
+	player.set("air_dodge_available", true)
+	player.set("is_ledge_hanging", false)
+	player.set("ledge_side", 0)
+	player.set("ledge_hold_time", 0.0)
+	player.set("ledge_regrab_lock_time", 0.0)
+	player.set("landing_lag_time", 0.0)
+	player.set("status_root_time", 0.0)
+	player.set("is_knocked_down", false)
+	player.set("getup_time", 0.0)
+	player.set("hitstun_time", 0.0)
+	player.set("blockstun_time", 0.0)
+	player.set("jump_buffer_time", 0.0)
+	player.set("coyote_time", 0.0)
+	player.set("velocity", Vector2.ZERO)
+	player.set("air_jumps_remaining", clampi(air_jump_count, 0, 1))
 
 func _resolve_test_player_half_width(player: CharacterBody2D) -> float:
 	if player != null and player.has_node("CollisionShape2D"):
