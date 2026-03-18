@@ -865,6 +865,7 @@ func _make_training_drill_funnel_entry(drill_id: String) -> Dictionary:
 		"avg_success_seconds": 0.0,
 		"avg_fail_seconds": 0.0,
 		"avg_closest_blast_margin_px": -1.0,
+		"closest_blast_margin_sample_count": 0,
 		"last_result": "",
 		"last_reason": "",
 		"reason_counts": {}
@@ -955,6 +956,7 @@ func _build_training_drill_funnels() -> Dictionary:
 		funnel["avg_success_seconds"] = float(funnel.get("avg_success_seconds", 0.0)) / float(success_count) if success_count > 0 else 0.0
 		funnel["avg_fail_seconds"] = float(funnel.get("avg_fail_seconds", 0.0)) / float(fail_count) if fail_count > 0 else 0.0
 		funnel["avg_closest_blast_margin_px"] = float(funnel.get("_closest_margin_sum", 0.0)) / float(closest_margin_count) if closest_margin_count > 0 else -1.0
+		funnel["closest_blast_margin_sample_count"] = closest_margin_count
 		funnel.erase("_closest_margin_sum")
 		funnel.erase("_closest_margin_count")
 		funnels[drill_key] = funnel
