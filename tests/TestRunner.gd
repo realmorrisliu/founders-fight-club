@@ -1958,7 +1958,9 @@ func _test_match_metrics_telemetry_schema() -> void:
 			_assert_true(record.has("item_activation_events"), "telemetry record exposes item activation events")
 			_assert_true(record.has("item_evolution_events"), "telemetry record exposes item evolution events")
 			_assert_true(record.has("training_drill_events"), "telemetry record exposes drill funnel events")
+			_assert_true(record.has("training_drill_funnels"), "telemetry record exposes drill funnel summaries")
 			_assert_true(record.has("onboarding_lesson_events"), "telemetry record exposes onboarding funnel events")
+			_assert_true(record.has("onboarding_lesson_funnels"), "telemetry record exposes onboarding funnel summaries")
 			_assert_true(record.has("item_evolution_success_rate"), "telemetry record exposes evolution success rate")
 			_assert_true(record.has("item_evolution_avg_trigger_time_seconds"), "telemetry record exposes evolution trigger timing")
 			_assert_true(record.has("onboarding"), "telemetry record exposes onboarding flow summary")
@@ -2079,6 +2081,31 @@ func _test_training_and_onboarding_metrics_emit_funnel_events() -> void:
 				_assert_true(start_count >= 2, "training telemetry records onboarding lesson retries as repeated starts")
 				_assert_true(saw_fail, "training telemetry records onboarding fail reasons")
 				_assert_true(saw_success, "training telemetry records onboarding success reasons")
+			var drill_funnels_value: Variant = record.get("training_drill_funnels", {})
+			_assert_true(typeof(drill_funnels_value) == TYPE_DICTIONARY, "training telemetry exposes drill funnel summaries as a dictionary")
+			if typeof(drill_funnels_value) == TYPE_DICTIONARY:
+				var drill_funnels := drill_funnels_value as Dictionary
+				var recovery_funnel_value: Variant = drill_funnels.get("recovery_route", {})
+				_assert_true(typeof(recovery_funnel_value) == TYPE_DICTIONARY, "training telemetry keeps a recovery-route drill funnel")
+				if typeof(recovery_funnel_value) == TYPE_DICTIONARY:
+					var recovery_funnel := recovery_funnel_value as Dictionary
+					_assert_true(int(recovery_funnel.get("fail_count", 0)) >= 1, "drill funnel counts failed reps")
+					_assert_true(int(recovery_funnel.get("rep_start_count", 0)) >= 1, "drill funnel counts started reps")
+			var lesson_funnels_value: Variant = record.get("onboarding_lesson_funnels", {})
+			_assert_true(typeof(lesson_funnels_value) == TYPE_DICTIONARY, "training telemetry exposes onboarding funnel summaries as a dictionary")
+			if typeof(lesson_funnels_value) == TYPE_DICTIONARY:
+				var lesson_funnels := lesson_funnels_value as Dictionary
+				var guard_funnel_value: Variant = lesson_funnels.get("guard", {})
+				_assert_true(typeof(guard_funnel_value) == TYPE_DICTIONARY, "training telemetry keeps a guard lesson funnel")
+				if typeof(guard_funnel_value) == TYPE_DICTIONARY:
+					var guard_funnel := guard_funnel_value as Dictionary
+					_assert_true(int(guard_funnel.get("retry_start_count", 0)) >= 1, "lesson funnel counts retry starts")
+					_assert_true(int(guard_funnel.get("success_count", 0)) >= 1, "lesson funnel counts successful retries")
+					var fail_reason_counts_value: Variant = guard_funnel.get("fail_reason_counts", {})
+					_assert_true(typeof(fail_reason_counts_value) == TYPE_DICTIONARY, "lesson funnel exposes fail reason breakdowns")
+					if typeof(fail_reason_counts_value) == TYPE_DICTIONARY:
+						var fail_reason_counts := fail_reason_counts_value as Dictionary
+						_assert_true(int(fail_reason_counts.get("got_hit", 0)) >= 1, "lesson funnel tracks concrete fail reasons")
 	if is_instance_valid(training_node):
 		training_node.queue_free()
 	await process_frame
