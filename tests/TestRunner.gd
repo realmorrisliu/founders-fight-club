@@ -2062,6 +2062,12 @@ func _replace_action_keyboard_keys(action_name: String, keycodes: Array) -> void
 		key_event.physical_keycode = keycode
 		InputMap.action_add_event(action_name, key_event)
 
+func _wait_wall_clock_seconds(seconds: float) -> void:
+	var wait_msec := maxi(0, int(ceil(seconds * 1000.0)))
+	var deadline := Time.get_ticks_msec() + wait_msec
+	while Time.get_ticks_msec() < deadline:
+		await process_frame
+
 func _test_hitstop_overlap_recovery() -> void:
 	var packed := load("res://scenes/Main.tscn")
 	_assert_true(packed is PackedScene, "main scene loads for hitstop overlap test")
@@ -2078,7 +2084,7 @@ func _test_hitstop_overlap_recovery() -> void:
 	match_node.call("_apply_hitstop", 0.09)
 	if p1 != null and p2 != null:
 		_assert_true(bool(p1.get("hitstop_active")) and bool(p2.get("hitstop_active")), "overlapping hitstop requests freeze both fighters")
-	await create_timer(0.14, true, false, true).timeout
+	await _wait_wall_clock_seconds(0.14)
 	await process_frame
 	if p1 != null and p2 != null:
 		_assert_true(not bool(p1.get("hitstop_active")) and not bool(p2.get("hitstop_active")), "overlapping hitstop requests recover fighter motion state")
