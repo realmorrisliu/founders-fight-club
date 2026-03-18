@@ -1960,6 +1960,61 @@ func _test_training_toggle_keeps_dummy_non_ai() -> void:
 			_assert_true(bool(arena_node.get("side_platforms_enabled")), "training ruleset toggle enables side platforms")
 		training_node.call("_on_hud_training_options_changed", {
 			"enabled": true,
+			"dummy_mode": "stand",
+			"show_detail": false,
+			"ruleset_profile": "platform",
+			"drill_id": "di_survival",
+			"throw_tech_assist_mode": "button_assist"
+		})
+		await process_frame
+		var stale_runtime := {
+			"drill_id": "di_survival",
+			"elapsed_seconds": 0.41,
+			"launch_attempted": true,
+			"launch_triggered": true,
+			"launch_delay_seconds": 0.24,
+			"success_armed": true
+		}
+		training_node.set("training_drill_runtime", stale_runtime)
+		training_node.set("training_drill_state", training_node.call("_build_training_drill_state", "di_survival", {
+			"ruleset_profile": "platform",
+			"rep_index": 2,
+			"rep_status": "active",
+			"last_result": "success",
+			"success_reason": "survived_launch"
+		}))
+		training_node.call("_on_hud_training_options_changed", {
+			"enabled": false,
+			"dummy_mode": "stand",
+			"show_detail": false,
+			"ruleset_profile": "platform",
+			"drill_id": "di_survival",
+			"throw_tech_assist_mode": "button_assist"
+		})
+		await process_frame
+		var disabled_runtime := training_node.get("training_drill_runtime") as Dictionary
+		var disabled_state := training_node.get("training_drill_state") as Dictionary
+		_assert_true(disabled_runtime.is_empty(), "disabling training clears stale Air & Edge drill runtime")
+		_assert_true(str(disabled_state.get("rep_status", "")) == "idle", "disabling training idles the drill state")
+		_assert_true(str(disabled_state.get("last_result", "")) == "", "disabling training clears stale drill outcomes")
+		training_node.call("_on_hud_training_options_changed", {
+			"enabled": true,
+			"dummy_mode": "stand",
+			"show_detail": false,
+			"ruleset_profile": "platform",
+			"drill_id": "di_survival",
+			"throw_tech_assist_mode": "button_assist"
+		})
+		await process_frame
+		var restored_runtime := training_node.get("training_drill_runtime") as Dictionary
+		var restored_state := training_node.get("training_drill_state") as Dictionary
+		_assert_true(str(restored_runtime.get("drill_id", "")) == "di_survival", "re-enabling training starts a fresh Air & Edge drill rep")
+		_assert_true(float(restored_runtime.get("elapsed_seconds", 99.0)) < 0.05, "re-enabling training resets the drill timer")
+		_assert_true(not bool(restored_runtime.get("launch_triggered", false)), "re-enabling training clears stale launch flags")
+		_assert_true(not bool(restored_runtime.get("success_armed", false)), "re-enabling training clears stale success arming")
+		_assert_true(str(restored_state.get("last_result", "")) == "", "re-enabling training keeps the drill summary clean for the new rep")
+		training_node.call("_on_hud_training_options_changed", {
+			"enabled": true,
 			"dummy_mode": "random_block",
 			"show_detail": true,
 			"ruleset_profile": "duel",

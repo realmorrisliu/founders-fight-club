@@ -1158,6 +1158,8 @@ func _complete_training_drill_rep(reason: String, metrics: Dictionary = {}) -> v
 
 func _update_training_drill_behaviors(delta: float) -> void:
 	if not bool(training_options.get("enabled", true)):
+		if not training_drill_runtime.is_empty():
+			training_drill_runtime.clear()
 		return
 	var drill_id := str(training_options.get("drill_id", TRAINING_DRILL_DUEL_CORE))
 	if drill_id == TRAINING_DRILL_DUEL_CORE:
@@ -2204,9 +2206,11 @@ func _apply_training_options() -> void:
 	training_options["throw_tech_assist_mode"] = throw_tech_assist_mode
 	if hud and hud.has_method("set_training_options"):
 		hud.set_training_options(training_options)
-	_refresh_training_drill_state()
+	_refresh_training_drill_state(training_scene_enabled and not enabled)
 	if training_scene_enabled:
-		if drill_id == TRAINING_DRILL_DUEL_CORE:
+		if not enabled:
+			training_drill_runtime.clear()
+		elif drill_id == TRAINING_DRILL_DUEL_CORE:
 			training_drill_runtime.clear()
 		elif training_drill_runtime.is_empty() or str(training_drill_runtime.get("drill_id", "")) != drill_id:
 			_prepare_training_drill_rep(["p1", "p2"])
