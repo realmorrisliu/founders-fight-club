@@ -213,26 +213,36 @@ autowrap_mode = 2
 clip_text = true
 text = "Move left / right to continue."
 
+[node name="StatusLabel" type="Label" parent="OnboardingPanel"]
+offset_left = 12.0
+offset_top = 68.0
+offset_right = 380.0
+offset_bottom = 90.0
+theme_override_colors/font_color = Color(0.98, 0.90, 0.70, 1)
+autowrap_mode = 2
+clip_text = true
+text = "Movement opens every other lesson."
+
 [node name="ProgressLabel" type="Label" parent="OnboardingPanel"]
 offset_left = 12.0
-offset_top = 76.0
+offset_top = 92.0
 offset_right = 190.0
-offset_bottom = 96.0
+offset_bottom = 112.0
 theme_override_colors/font_color = Color(0.98, 0.90, 0.70, 1)
 text = "Step 1/6"
 
 [node name="SkipButton" type="Button" parent="OnboardingPanel"]
 offset_left = 214.0
-offset_top = 76.0
+offset_top = 92.0
 offset_right = 294.0
-offset_bottom = 102.0
+offset_bottom = 118.0
 text = "Skip"
 
 [node name="ReplayButton" type="Button" parent="OnboardingPanel"]
 offset_left = 304.0
-offset_top = 76.0
+offset_top = 92.0
 offset_right = 384.0
-offset_bottom = 102.0
+offset_bottom = 118.0
 text = "Replay"
 
 [node name="TrainingPanel" type="Panel" parent="."]
