@@ -1298,6 +1298,13 @@ func _refresh_training_drill_state(reset_result: bool = false) -> void:
 	training_drill_state = next_state
 	_sync_training_drill_state_to_hud()
 
+func _resolve_next_training_drill_rep_index(drill_id: String) -> int:
+	var resolved_drill_id := _normalize_training_drill_id(drill_id, str(training_options.get("ruleset_profile", ruleset_profile)))
+	var current_drill_id := str(training_drill_state.get("drill_id", "")).strip_edges().to_lower()
+	if current_drill_id != resolved_drill_id:
+		return 1
+	return maxi(1, int(training_drill_state.get("rep_index", 0)) + 1)
+
 func _record_training_drill_event(event_type: String, drill_id: String, patch: Dictionary = {}) -> void:
 	var resolved_drill_id := _normalize_training_drill_id(drill_id, str(training_options.get("ruleset_profile", ruleset_profile)))
 	var event := {
@@ -1305,7 +1312,7 @@ func _record_training_drill_event(event_type: String, drill_id: String, patch: D
 		"drill_id": resolved_drill_id,
 		"ruleset_profile": _resolve_ruleset_for_training_drill(resolved_drill_id),
 		"match_elapsed_seconds": match_elapsed_seconds,
-		"rep_index": maxi(1, int(training_drill_state.get("rep_index", 0)) + 1)
+		"rep_index": _resolve_next_training_drill_rep_index(resolved_drill_id)
 	}
 	for key in patch.keys():
 		event[str(key)] = patch[key]
@@ -1405,7 +1412,7 @@ func _prepare_training_drill_rep(player_keys: Array[String]) -> void:
 		"rep_start",
 		drill_id,
 		{
-			"rep_index": maxi(1, int(training_drill_state.get("rep_index", 0)) + 1),
+			"rep_index": _resolve_next_training_drill_rep_index(drill_id),
 			"entry_side": str(training_drill_runtime.get("entry_side", "")),
 			"launch_delay_seconds": float(training_drill_runtime.get("launch_delay_seconds", 0.0))
 		}

@@ -79,6 +79,7 @@ func _run_smoke_suite() -> void:
 	await _test_round_tuning_max_charges_patch_grants_charges()
 	await _test_match_metrics_telemetry_schema()
 	await _test_training_and_onboarding_metrics_emit_funnel_events()
+	await _test_training_drill_switch_resets_telemetry_rep_index()
 	await _test_directional_attack_variants()
 	await _test_local_dual_gamepad_input_actions()
 	await _test_forward_tap_triggers_ground_dash()
@@ -2078,6 +2079,65 @@ func _test_training_and_onboarding_metrics_emit_funnel_events() -> void:
 				_assert_true(start_count >= 2, "training telemetry records onboarding lesson retries as repeated starts")
 				_assert_true(saw_fail, "training telemetry records onboarding fail reasons")
 				_assert_true(saw_success, "training telemetry records onboarding success reasons")
+	if is_instance_valid(training_node):
+		training_node.queue_free()
+	await process_frame
+
+func _test_training_drill_switch_resets_telemetry_rep_index() -> void:
+	var packed := load("res://scenes/Training.tscn")
+	_assert_true(packed is PackedScene, "training scene loads for drill-switch telemetry test")
+	if packed is not PackedScene:
+		return
+	var training_node := (packed as PackedScene).instantiate()
+	get_root().add_child(training_node)
+	await process_frame
+	await process_frame
+	training_node.call(
+		"_on_hud_training_options_changed",
+		{
+			"enabled": true,
+			"dummy_mode": "stand",
+			"show_detail": false,
+			"ruleset_profile": "platform",
+			"drill_id": "recovery_route",
+			"throw_tech_assist_mode": "throw_only"
+		}
+	)
+	var seeded_state_value: Variant = training_node.call(
+		"_build_training_drill_state",
+		"recovery_route",
+		{
+			"ruleset_profile": "platform",
+			"rep_index": 4
+		}
+	)
+	if typeof(seeded_state_value) == TYPE_DICTIONARY:
+		training_node.set("training_drill_state", seeded_state_value)
+	training_node.set("telemetry_training_drill_events", [])
+	training_node.call(
+		"_on_hud_training_options_changed",
+		{
+			"enabled": true,
+			"dummy_mode": "stand",
+			"show_detail": false,
+			"ruleset_profile": "platform",
+			"drill_id": "di_survival",
+			"throw_tech_assist_mode": "throw_only"
+		}
+	)
+	var drill_events_value: Variant = training_node.get("telemetry_training_drill_events")
+	_assert_true(typeof(drill_events_value) == TYPE_ARRAY, "drill-switch telemetry test records drill events")
+	if typeof(drill_events_value) == TYPE_ARRAY:
+		var drill_events := drill_events_value as Array
+		var found_switch_start := false
+		for event_value in drill_events:
+			if typeof(event_value) != TYPE_DICTIONARY:
+				continue
+			var event := event_value as Dictionary
+			if str(event.get("event_type", "")) == "rep_start" and str(event.get("drill_id", "")) == "di_survival":
+				found_switch_start = true
+				_assert_true(int(event.get("rep_index", -1)) == 1, "switching drills resets the first rep-start telemetry index back to 1")
+		_assert_true(found_switch_start, "switching drills emits a rep-start telemetry event for the new drill")
 	if is_instance_valid(training_node):
 		training_node.queue_free()
 	await process_frame
