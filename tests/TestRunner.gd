@@ -887,6 +887,18 @@ func _test_onboarding_progress_tracks_actual_player_state() -> void:
 				(step_label as Label).text.findn("back") != -1,
 				"classic onboarding guard copy explains back-to-block"
 			)
+			var guard_distance := absf(player_1.global_position.x - player_2.global_position.x)
+			var strike_contact_distance := _resolve_test_attack_contact_distance(player_2, player_1, "heavy")
+			_assert_true(
+				guard_distance < strike_contact_distance,
+				"guard onboarding respawns fighters inside dummy heavy range"
+			)
+			var guard_runtime_value: Variant = training_node.get("onboarding_lesson_runtime")
+			if typeof(guard_runtime_value) == TYPE_DICTIONARY:
+				_assert_true(
+					float((guard_runtime_value as Dictionary).get("attack_delay_seconds", 0.0)) <= 0.20,
+					"guard onboarding starts the dummy heavy quickly enough for classic retreat to stay in range"
+				)
 			_assert_true(
 				(status_label as Label).text.findn("Guard") != -1 or (status_label as Label).text.findn("strikes") != -1,
 				"onboarding status copy explains the guard lesson goal"
@@ -946,6 +958,12 @@ func _test_onboarding_progress_tracks_actual_player_state() -> void:
 				(step_label as Label).text.findn("throw") != -1,
 				"onboarding throw lesson now follows the defense lesson"
 			)
+			var throw_distance := absf(player_1.global_position.x - player_2.global_position.x)
+			var throw_contact_distance := _resolve_test_attack_contact_distance(player_1, player_2, "throw")
+			_assert_true(
+				throw_distance < throw_contact_distance,
+				"throw onboarding respawns fighters inside throw range"
+			)
 
 			player_1.set("attack_state", "throw")
 			training_node.call("_update_onboarding_progress", 0.05)
@@ -968,6 +986,17 @@ func _test_onboarding_progress_tracks_actual_player_state() -> void:
 				(step_label as Label).text.findn("dash") != -1,
 				"classic onboarding dodge copy explains back-plus-dash"
 			)
+			var dodge_distance := absf(player_1.global_position.x - player_2.global_position.x)
+			_assert_true(
+				dodge_distance < strike_contact_distance,
+				"dodge onboarding respawns fighters inside dummy heavy range"
+			)
+			var dodge_runtime_value: Variant = training_node.get("onboarding_lesson_runtime")
+			if typeof(dodge_runtime_value) == TYPE_DICTIONARY:
+				_assert_true(
+					float((dodge_runtime_value as Dictionary).get("attack_delay_seconds", 0.0)) <= 0.20,
+					"dodge onboarding starts the dummy heavy quickly enough for classic retreat to stay in range"
+				)
 
 			player_1.set("dodge_state", "roll")
 			player_1.set("dodge_time", 0.12)
@@ -977,7 +1006,6 @@ func _test_onboarding_progress_tracks_actual_player_state() -> void:
 				"dodge onboarding no longer advances from dodge state alone"
 			)
 
-			var dodge_runtime_value: Variant = training_node.get("onboarding_lesson_runtime")
 			if typeof(dodge_runtime_value) == TYPE_DICTIONARY:
 				var dodge_runtime := (dodge_runtime_value as Dictionary).duplicate(true)
 				dodge_runtime["dummy_attack_started"] = true
@@ -1013,6 +1041,11 @@ func _test_onboarding_progress_tracks_actual_player_state() -> void:
 				var special_runtime := (special_runtime_value as Dictionary).duplicate(true)
 				special_runtime["dummy_attack_started"] = true
 				training_node.set("onboarding_lesson_runtime", special_runtime)
+			var special_distance := absf(player_1.global_position.x - player_2.global_position.x)
+			_assert_true(
+				special_distance < strike_contact_distance,
+				"special onboarding respawns fighters inside dummy heavy range"
+			)
 			training_node.call("_on_hit_landed", player_1, player_2, "special", false, 1)
 			player_2.set("attack_state", "heavy")
 			player_2.set("attack_phase", "recovery")
@@ -3656,6 +3689,26 @@ func _spawn_test_players() -> Dictionary:
 	await process_frame
 	await process_frame
 	return {"host": host, "p1": p1, "p2": p2}
+
+func _resolve_test_player_half_width(player: CharacterBody2D) -> float:
+	if player != null and player.has_node("CollisionShape2D"):
+		var shape_node := player.get_node("CollisionShape2D") as CollisionShape2D
+		if shape_node != null and shape_node.shape is RectangleShape2D:
+			return (shape_node.shape as RectangleShape2D).size.x * 0.5
+	return 12.0
+
+func _resolve_test_attack_contact_distance(attacker: CharacterBody2D, target: CharacterBody2D, attack_kind: String) -> float:
+	if attacker == null or target == null:
+		return 0.0
+	var attack_value: Variant = attacker.call("_get_attack_data", attack_kind)
+	if typeof(attack_value) != TYPE_DICTIONARY:
+		return 0.0
+	var attack_data := attack_value as Dictionary
+	var hitbox_size_value: Variant = attack_data.get("hitbox_size_ground", Vector2(26, 18))
+	var hitbox_offset_value: Variant = attack_data.get("hitbox_offset_ground", Vector2(22, 0))
+	var hitbox_size := hitbox_size_value as Vector2 if hitbox_size_value is Vector2 else Vector2(26, 18)
+	var hitbox_offset := hitbox_offset_value as Vector2 if hitbox_offset_value is Vector2 else Vector2(22, 0)
+	return absf(hitbox_offset.x) + (hitbox_size.x * 0.5) + _resolve_test_player_half_width(target)
 
 func _reset_throw_tech_target_state(player: CharacterBody2D) -> void:
 	if player == null:

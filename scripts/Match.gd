@@ -223,8 +223,11 @@ const MATCH_METRICS_SCHEMA_VERSION := 2
 const ONBOARDING_SEQUENCE_VERSION := 3
 const ONBOARDING_FEEDBACK_SECONDS := 0.8
 const ONBOARDING_STAGE_CENTER_OFFSET := 88.0
+const ONBOARDING_SCENARIO_BODY_GAP := 4.0
+const ONBOARDING_STRIKE_RETREAT_BUFFER := 28.0
+const ONBOARDING_THROW_CONTACT_BUFFER := 6.0
 const ONBOARDING_SPECIAL_HP := 42
-const ONBOARDING_DUMMY_ATTACK_DELAY_SECONDS := 0.42
+const ONBOARDING_DUMMY_ATTACK_DELAY_SECONDS := 0.20
 const ONBOARDING_GUARD_TIMEOUT_SECONDS := 1.8
 const ONBOARDING_THROW_TIMEOUT_SECONDS := 2.2
 const ONBOARDING_DODGE_PUNISH_WINDOW_SECONDS := 0.62
@@ -2019,6 +2022,42 @@ func _reset_onboarding_player(player_key: String, patch: Dictionary) -> void:
 	if fighter.has_method("apply_training_state_patch"):
 		fighter.call("apply_training_state_patch", patch)
 
+func _resolve_onboarding_fighter_half_width(fighter: CharacterBody2D) -> float:
+	if fighter != null and fighter.has_node("CollisionShape2D"):
+		var shape_node := fighter.get_node("CollisionShape2D") as CollisionShape2D
+		if shape_node != null and shape_node.shape is RectangleShape2D:
+			return (shape_node.shape as RectangleShape2D).size.x * 0.5
+	return 12.0
+
+func _resolve_onboarding_attack_ground_reach(fighter: CharacterBody2D, attack_kind: String) -> float:
+	if fighter == null or not fighter.has_method("_get_attack_data"):
+		return 0.0
+	var attack_value: Variant = fighter.call("_get_attack_data", attack_kind)
+	if typeof(attack_value) != TYPE_DICTIONARY:
+		return 0.0
+	var attack_data := attack_value as Dictionary
+	var hitbox_size_value: Variant = attack_data.get("hitbox_size_ground", Vector2(26, 18))
+	var hitbox_offset_value: Variant = attack_data.get("hitbox_offset_ground", Vector2(22, 0))
+	var hitbox_size := hitbox_size_value as Vector2 if hitbox_size_value is Vector2 else Vector2(26, 18)
+	var hitbox_offset := hitbox_offset_value as Vector2 if hitbox_offset_value is Vector2 else Vector2(22, 0)
+	return absf(hitbox_offset.x) + (hitbox_size.x * 0.5)
+
+func _resolve_onboarding_contact_center_distance(attacker: CharacterBody2D, target: CharacterBody2D, attack_kind: String) -> float:
+	return _resolve_onboarding_attack_ground_reach(attacker, attack_kind) + _resolve_onboarding_fighter_half_width(target)
+
+func _resolve_onboarding_setup_center_distance(setup: String) -> float:
+	var default_distance := ONBOARDING_STAGE_CENTER_OFFSET * 2.0
+	var body_distance := _resolve_onboarding_fighter_half_width(player_1) + _resolve_onboarding_fighter_half_width(player_2) + ONBOARDING_SCENARIO_BODY_GAP
+	match setup:
+		"throw_guard_break":
+			var throw_distance := _resolve_onboarding_contact_center_distance(player_1, player_2, "throw") - ONBOARDING_THROW_CONTACT_BUFFER
+			return clampf(maxf(body_distance, throw_distance), body_distance, default_distance)
+		"guard_response", "dodge_punish", "special_punish":
+			var strike_distance := _resolve_onboarding_contact_center_distance(player_2, player_1, "heavy") - ONBOARDING_STRIKE_RETREAT_BUFFER
+			return clampf(maxf(body_distance, strike_distance), body_distance, default_distance)
+		_:
+			return default_distance
+
 func _prepare_onboarding_lesson(step: Dictionary) -> void:
 	if step.is_empty():
 		onboarding_lesson_state.clear()
@@ -2028,21 +2067,23 @@ func _prepare_onboarding_lesson(step: Dictionary) -> void:
 	onboarding_lesson_state = _build_onboarding_lesson_state(step)
 	onboarding_lesson_runtime = _build_onboarding_lesson_runtime(step)
 	var stage_center_x := (stage_left_x + stage_right_x) * 0.5
+	var setup := str(step.get("setup", "neutral")).strip_edges().to_lower()
+	var center_distance := _resolve_onboarding_setup_center_distance(setup)
+	var center_offset := center_distance * 0.5
 	var p1_patch := {
-		"position": Vector2(stage_center_x - ONBOARDING_STAGE_CENTER_OFFSET, stage_floor_y),
+		"position": Vector2(stage_center_x - center_offset, stage_floor_y),
 		"facing": 1,
 		"current_hp": 100,
 		"air_jumps": 1,
 		"air_dodge_ready": true
 	}
 	var p2_patch := {
-		"position": Vector2(stage_center_x + ONBOARDING_STAGE_CENTER_OFFSET, stage_floor_y),
+		"position": Vector2(stage_center_x + center_offset, stage_floor_y),
 		"facing": -1,
 		"current_hp": 100,
 		"air_jumps": 1,
 		"air_dodge_ready": true
 	}
-	var setup := str(step.get("setup", "neutral")).strip_edges().to_lower()
 	var dummy_mode := "stand"
 	match setup:
 		"throw_guard_break":
