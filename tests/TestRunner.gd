@@ -2327,6 +2327,12 @@ func _test_air_edge_drills_have_rep_behaviors() -> void:
 		var recovery_fail_metrics := recovery_fail_state.get("metrics", {}) as Dictionary
 		_assert_true(int(recovery_fail_metrics.get("rep_total", 0)) == 2, "recovery drill metrics count both successful and failed reps")
 		_assert_true(absf(float(recovery_fail_metrics.get("success_rate", 0.0)) - 0.5) < 0.001, "recovery drill metrics surface a mixed success rate after one success and one fail")
+		_assert_true(str(recovery_fail_metrics.get("last_finish_state", "")) == "", "recovery drill clears the previous finish-state metric after a fail rep with no finish")
+		if hud != null:
+			var recovery_detail_label := hud.get_node_or_null("TrainingPanel/TrainingDetailLabel") as Label
+			if recovery_detail_label != null:
+				var stale_finish_label := str(hud.call("_resolve_training_drill_finish_label", "ledge"))
+				_assert_true(recovery_detail_label.text.findn(stale_finish_label) == -1, "Air & Edge detail does not leak the previous finish-state metric into the latest fail rep")
 
 		training_node.call("_on_hud_training_options_changed", {
 			"enabled": true,

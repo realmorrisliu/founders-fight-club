@@ -1080,12 +1080,9 @@ func _merge_training_drill_metrics(
 	metrics["last_rep_seconds"] = maxf(0.0, float(rep_metrics.get("elapsed_seconds", 0.0)))
 	if rep_metrics.has("closest_blast_margin_px"):
 		metrics["last_closest_blast_margin_px"] = maxf(0.0, float(rep_metrics.get("closest_blast_margin_px", 0.0)))
-	if rep_metrics.has("finish_state"):
-		metrics["last_finish_state"] = str(rep_metrics.get("finish_state", "")).strip_edges().to_lower()
-	if rep_metrics.has("ledge_option"):
-		metrics["last_ledge_option"] = str(rep_metrics.get("ledge_option", "")).strip_edges().to_lower()
-	if rep_metrics.has("di_direction"):
-		metrics["last_di_direction"] = str(rep_metrics.get("di_direction", "neutral")).strip_edges().to_lower()
+	metrics["last_finish_state"] = str(rep_metrics.get("finish_state", "")).strip_edges().to_lower()
+	metrics["last_ledge_option"] = str(rep_metrics.get("ledge_option", "")).strip_edges().to_lower()
+	metrics["last_di_direction"] = str(rep_metrics.get("di_direction", "neutral")).strip_edges().to_lower()
 	if str(metrics.get("last_di_direction", "")) == "":
 		metrics["last_di_direction"] = "neutral"
 	metrics["last_reason"] = reason
