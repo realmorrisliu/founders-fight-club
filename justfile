@@ -17,6 +17,10 @@ run-scene scene:
 test suite="smoke":
 	@./scripts/test.sh "{{suite}}"
 
-# Review match telemetry funnels from the latest metrics log.
-review-funnels input="" limit="20" format="text":
+# Review match telemetry funnels from the default metrics log.
+review-funnels limit="20":
+	@python3 ./scripts/tools/review_match_metrics.py --limit {{limit}}
+
+# Review match telemetry funnels from an explicit metrics log path.
+review-funnels-file input limit="20" format="text":
 	@python3 ./scripts/tools/review_match_metrics.py --input "{{input}}" --limit {{limit}} --format "{{format}}"
