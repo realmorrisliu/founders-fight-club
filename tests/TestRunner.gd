@@ -871,16 +871,17 @@ func _test_onboarding_progress_tracks_actual_player_state() -> void:
 		await process_frame
 		await process_frame
 		var player_1 := training_node.get_node_or_null("Player1")
+		var player_2 := training_node.get_node_or_null("Player2")
 		var step_label := training_node.get_node_or_null("Hud/OnboardingPanel/StepLabel")
 		var status_label := training_node.get_node_or_null("Hud/OnboardingPanel/StatusLabel")
 		_assert_true(player_1 != null, "onboarding runtime state test resolves player1")
+		_assert_true(player_2 != null, "onboarding runtime state test resolves player2")
 		_assert_true(step_label is Label, "onboarding runtime state test resolves step label")
 		_assert_true(status_label is Label, "onboarding runtime state test resolves status label")
-		if player_1 != null and step_label is Label and status_label is Label:
+		if player_1 != null and player_2 != null and step_label is Label and status_label is Label:
 			training_node.call("_start_onboarding_sequence")
 			training_node.set("onboarding_step_index", 2)
-			training_node.call("_sync_current_onboarding_lesson_state")
-			training_node.call("_refresh_onboarding_hud")
+			training_node.call("_prepare_onboarding_lesson", training_node.call("_resolve_onboarding_step", 2))
 			await process_frame
 			_assert_true(
 				(step_label as Label).text.findn("back") != -1,
@@ -903,14 +904,33 @@ func _test_onboarding_progress_tracks_actual_player_state() -> void:
 			_assert_true(not _action_has_any_keyboard_key("block"), "classic preset still removes keyboard block action during onboarding")
 
 			player_1.set("is_blocking", true)
-			training_node.call("_update_onboarding_progress")
+			training_node.call("_update_onboarding_progress", 0.05)
 			_assert_true(
-				int(training_node.get("onboarding_step_index")) == 3,
-				"guard onboarding advances from actual blocking state"
+				int(training_node.get("onboarding_step_index")) == 2,
+				"guard onboarding no longer advances from holding block alone"
 			)
 
 			player_1.set("is_blocking", false)
-			training_node.call("_refresh_onboarding_hud")
+			training_node.call("_on_hit_landed", player_2, player_1, "heavy", false, 1)
+			training_node.call("_update_onboarding_progress", 0.05)
+			_assert_true(
+				(status_label as Label).text.findn("clipped") != -1,
+				"guard onboarding surfaces fail feedback when the dummy strike lands"
+			)
+			training_node.call("_update_onboarding_progress", 1.0)
+			_assert_true(
+				int(training_node.get("onboarding_step_index")) == 2,
+				"guard onboarding retries the same lesson after a failed rep"
+			)
+
+			training_node.call("_on_block_landed", player_2, player_1, "heavy")
+			training_node.call("_update_onboarding_progress", 0.05)
+			training_node.call("_update_onboarding_progress", 1.0)
+			_assert_true(
+				int(training_node.get("onboarding_step_index")) == 3,
+				"guard onboarding advances only after the dummy strike is actually blocked"
+			)
+
 			await process_frame
 			_assert_true(
 				(step_label as Label).text.findn("throw") != -1,
@@ -918,14 +938,21 @@ func _test_onboarding_progress_tracks_actual_player_state() -> void:
 			)
 
 			player_1.set("attack_state", "throw")
-			training_node.call("_update_onboarding_progress")
+			training_node.call("_update_onboarding_progress", 0.05)
 			_assert_true(
-				int(training_node.get("onboarding_step_index")) == 4,
-				"throw onboarding advances from actual throw state"
+				int(training_node.get("onboarding_step_index")) == 3,
+				"throw onboarding no longer advances from input state alone"
 			)
 
 			player_1.set("attack_state", "")
-			training_node.call("_refresh_onboarding_hud")
+			training_node.call("_on_hit_landed", player_1, player_2, "throw", false, 1)
+			training_node.call("_update_onboarding_progress", 0.05)
+			training_node.call("_update_onboarding_progress", 1.0)
+			_assert_true(
+				int(training_node.get("onboarding_step_index")) == 4,
+				"throw onboarding advances only after a real throw lands on guard"
+			)
+
 			await process_frame
 			_assert_true(
 				(step_label as Label).text.findn("dash") != -1,
@@ -934,10 +961,54 @@ func _test_onboarding_progress_tracks_actual_player_state() -> void:
 
 			player_1.set("dodge_state", "roll")
 			player_1.set("dodge_time", 0.12)
-			training_node.call("_update_onboarding_progress")
+			training_node.call("_update_onboarding_progress", 0.05)
+			_assert_true(
+				int(training_node.get("onboarding_step_index")) == 4,
+				"dodge onboarding no longer advances from dodge state alone"
+			)
+
+			var dodge_runtime_value: Variant = training_node.get("onboarding_lesson_runtime")
+			if typeof(dodge_runtime_value) == TYPE_DICTIONARY:
+				var dodge_runtime := (dodge_runtime_value as Dictionary).duplicate(true)
+				dodge_runtime["dummy_attack_started"] = true
+				training_node.set("onboarding_lesson_runtime", dodge_runtime)
+			player_2.set("attack_state", "heavy")
+			player_2.set("attack_phase", "recovery")
+			training_node.call("_update_onboarding_progress", 0.05)
+			training_node.call("_on_hit_landed", player_1, player_2, "light", false, 1)
+			training_node.call("_update_onboarding_progress", 0.05)
+			training_node.call("_update_onboarding_progress", 1.0)
 			_assert_true(
 				int(training_node.get("onboarding_step_index")) == 5,
-				"dodge onboarding advances from actual dodge state"
+				"dodge onboarding requires the dodge into punish sequence"
+			)
+
+			player_1.set("attack_state", "special")
+			training_node.call("_update_onboarding_progress", 0.05)
+			_assert_true(
+				int(training_node.get("onboarding_step_index")) == 5,
+				"special onboarding no longer advances from special input alone"
+			)
+
+			player_1.set("attack_state", "")
+			var special_runtime_value: Variant = training_node.get("onboarding_lesson_runtime")
+			if typeof(special_runtime_value) == TYPE_DICTIONARY:
+				var special_runtime := (special_runtime_value as Dictionary).duplicate(true)
+				special_runtime["dummy_attack_started"] = true
+				training_node.set("onboarding_lesson_runtime", special_runtime)
+			player_2.set("attack_state", "heavy")
+			player_2.set("attack_phase", "recovery")
+			training_node.call("_update_onboarding_progress", 0.05)
+			training_node.call("_on_hit_landed", player_1, player_2, "special", false, 1)
+			training_node.call("_update_onboarding_progress", 0.05)
+			training_node.call("_update_onboarding_progress", 1.0)
+			_assert_true(
+				bool(training_node.get("onboarding_completed")),
+				"special onboarding completes after a real opening is punished with a special"
+			)
+			_assert_true(
+				not bool(training_node.get("onboarding_active")),
+				"onboarding deactivates after the situational lesson sequence completes"
 			)
 		if is_instance_valid(training_node):
 			training_node.queue_free()
@@ -1928,9 +1999,16 @@ func _test_camera_vertical_framing_response() -> void:
 	await process_frame
 
 func _test_training_toggle_keeps_dummy_non_ai() -> void:
+	var previous_settings := GameSettingsStore.get_onboarding_settings()
+	var previous_completed := bool(previous_settings.get("completed", false))
+	var previous_hints_enabled := bool(previous_settings.get("hints_enabled", true))
+	GameSettingsStore.set_onboarding_completed(true)
+	GameSettingsStore.set_onboarding_hints_enabled(false)
 	var packed := load("res://scenes/Training.tscn")
 	_assert_true(packed is PackedScene, "training scene loads for dummy ai toggle test")
 	if packed is not PackedScene:
+		GameSettingsStore.set_onboarding_completed(previous_completed)
+		GameSettingsStore.set_onboarding_hints_enabled(previous_hints_enabled)
 		return
 	var training_node := (packed as PackedScene).instantiate()
 	get_root().add_child(training_node)
@@ -2143,11 +2221,20 @@ func _test_training_toggle_keeps_dummy_non_ai() -> void:
 	if is_instance_valid(training_node):
 		training_node.queue_free()
 	await process_frame
+	GameSettingsStore.set_onboarding_completed(previous_completed)
+	GameSettingsStore.set_onboarding_hints_enabled(previous_hints_enabled)
 
 func _test_training_sandbox_resets_on_ko_and_ring_out() -> void:
+	var previous_settings := GameSettingsStore.get_onboarding_settings()
+	var previous_completed := bool(previous_settings.get("completed", false))
+	var previous_hints_enabled := bool(previous_settings.get("hints_enabled", true))
+	GameSettingsStore.set_onboarding_completed(true)
+	GameSettingsStore.set_onboarding_hints_enabled(false)
 	var packed := load("res://scenes/Training.tscn")
 	_assert_true(packed is PackedScene, "training scene loads for sandbox reset test")
 	if packed is not PackedScene:
+		GameSettingsStore.set_onboarding_completed(previous_completed)
+		GameSettingsStore.set_onboarding_hints_enabled(previous_hints_enabled)
 		return
 	var training_node := (packed as PackedScene).instantiate()
 	get_root().add_child(training_node)
@@ -2275,11 +2362,20 @@ func _test_training_sandbox_resets_on_ko_and_ring_out() -> void:
 	if is_instance_valid(training_node):
 		training_node.queue_free()
 	await process_frame
+	GameSettingsStore.set_onboarding_completed(previous_completed)
+	GameSettingsStore.set_onboarding_hints_enabled(previous_hints_enabled)
 
 func _test_air_edge_drills_have_rep_behaviors() -> void:
+	var previous_settings := GameSettingsStore.get_onboarding_settings()
+	var previous_completed := bool(previous_settings.get("completed", false))
+	var previous_hints_enabled := bool(previous_settings.get("hints_enabled", true))
+	GameSettingsStore.set_onboarding_completed(true)
+	GameSettingsStore.set_onboarding_hints_enabled(false)
 	var packed := load("res://scenes/Training.tscn")
 	_assert_true(packed is PackedScene, "training scene loads for Air & Edge drill behavior test")
 	if packed is not PackedScene:
+		GameSettingsStore.set_onboarding_completed(previous_completed)
+		GameSettingsStore.set_onboarding_hints_enabled(previous_hints_enabled)
 		return
 	var training_node := (packed as PackedScene).instantiate()
 	get_root().add_child(training_node)
@@ -2456,6 +2552,8 @@ func _test_air_edge_drills_have_rep_behaviors() -> void:
 	if is_instance_valid(training_node):
 		training_node.queue_free()
 	await process_frame
+	GameSettingsStore.set_onboarding_completed(previous_completed)
+	GameSettingsStore.set_onboarding_hints_enabled(previous_hints_enabled)
 
 func _test_character_visual_readability_tinting() -> void:
 	var setup: Dictionary = await _spawn_test_players()
