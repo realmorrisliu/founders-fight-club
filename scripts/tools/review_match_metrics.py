@@ -139,6 +139,7 @@ def _make_onboarding_aggregate(lesson_id: str) -> dict[str, Any]:
         "success_count": 0,
         "fail_count": 0,
         "completion_rate": 0.0,
+        "success_rate": 0.0,
         "avg_attempt_seconds": 0.0,
         "avg_success_seconds": 0.0,
         "avg_fail_seconds": 0.0,
@@ -263,7 +264,8 @@ def _aggregate_onboarding_funnels(records: list[dict[str, Any]]) -> dict[str, di
         result_count = int(aggregate["result_count"])
         success_count = int(aggregate["success_count"])
         fail_count = int(aggregate["fail_count"])
-        aggregate["completion_rate"] = success_count / start_count if start_count else 0.0
+        aggregate["completion_rate"] = result_count / start_count if start_count else 0.0
+        aggregate["success_rate"] = success_count / result_count if result_count else 0.0
         aggregate["avg_attempt_seconds"] = aggregate["_attempt_seconds_sum"] / result_count if result_count else 0.0
         aggregate["avg_success_seconds"] = aggregate["_success_seconds_sum"] / success_count if success_count else 0.0
         aggregate["avg_fail_seconds"] = aggregate["_fail_seconds_sum"] / fail_count if fail_count else 0.0
@@ -343,6 +345,7 @@ def _text_report(
                     f"- {funnel['lesson_id']}: sessions={funnel['session_count']} starts={funnel['start_count']} "
                     f"retries={funnel['retry_start_count']} results={funnel['result_count']} success={funnel['success_count']} "
                     f"fail={funnel['fail_count']} completion={_format_rate(float(funnel['completion_rate']))} "
+                    f"success_rate={_format_rate(float(funnel['success_rate']))} "
                     f"avg_attempt={_format_seconds(float(funnel['avg_attempt_seconds']))} "
                     f"avg_success={_format_seconds(float(funnel['avg_success_seconds']))} "
                     f"avg_success_attempt={float(funnel['avg_attempt_index_on_success']):.2f} "
