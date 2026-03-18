@@ -220,8 +220,18 @@ const DIALOGUE_PACK_PATH := "res://assets/data/dialogue/DialoguePackV1.json"
 const DIALOGUE_LINE_DELAY_SECONDS := 0.45
 const MATCH_METRICS_LOG_PATH := "user://match_metrics.jsonl"
 const MATCH_METRICS_SCHEMA_VERSION := 2
-const ONBOARDING_SEQUENCE_VERSION := 2
+const ONBOARDING_SEQUENCE_VERSION := 3
 const ONBOARDING_FEEDBACK_SECONDS := 0.8
+const ONBOARDING_STAGE_CENTER_OFFSET := 88.0
+const ONBOARDING_SCENARIO_BODY_GAP := 4.0
+const ONBOARDING_STRIKE_RETREAT_BUFFER := 28.0
+const ONBOARDING_THROW_CONTACT_BUFFER := 6.0
+const ONBOARDING_SPECIAL_HP := 42
+const ONBOARDING_DUMMY_ATTACK_DELAY_SECONDS := 0.20
+const ONBOARDING_GUARD_TIMEOUT_SECONDS := 1.8
+const ONBOARDING_THROW_TIMEOUT_SECONDS := 2.2
+const ONBOARDING_DODGE_PUNISH_WINDOW_SECONDS := 0.62
+const ONBOARDING_SPECIAL_PUNISH_WINDOW_SECONDS := 0.74
 const ONBOARDING_STEPS := [
 	{
 		"id": "move",
@@ -1401,6 +1411,10 @@ func _complete_training_drill_rep(reason: String, metrics: Dictionary = {}) -> v
 	_reset_training_sandbox_players(["p1", "p2"], "success", reason, metrics)
 
 func _update_training_drill_behaviors(delta: float) -> void:
+	if _is_training_sandbox_suspended_for_onboarding():
+		if not training_drill_runtime.is_empty():
+			training_drill_runtime.clear()
+		return
 	if not bool(training_options.get("enabled", true)):
 		if not training_drill_runtime.is_empty():
 			training_drill_runtime.clear()
@@ -1521,6 +1535,9 @@ func _uses_platform_ruleset() -> bool:
 func _uses_training_sandbox() -> bool:
 	return training_scene_enabled
 
+func _is_training_sandbox_suspended_for_onboarding() -> bool:
+	return training_scene_enabled and onboarding_active
+
 func _uses_training_platform_sandbox() -> bool:
 	return _uses_training_sandbox() and _uses_platform_ruleset() and not _uses_stock_rule()
 
@@ -1550,6 +1567,8 @@ func _reset_stocks() -> void:
 	stocks["p2"] = initial
 
 func _update_training_platform_ring_out_state() -> void:
+	if _is_training_sandbox_suspended_for_onboarding():
+		return
 	var reset_keys: Array[String] = []
 	if player_1 and _is_outside_blast_zone(player_1.global_position):
 		reset_keys.append("p1")
@@ -1936,8 +1955,13 @@ func _start_onboarding_sequence() -> void:
 	onboarding_completed_seconds = -1.0
 	onboarding_lesson_state.clear()
 	onboarding_lesson_runtime.clear()
-	_sync_current_onboarding_lesson_state()
-	_refresh_onboarding_hud()
+	if training_scene_enabled:
+		training_drill_runtime.clear()
+		if hud and hud.has_method("set_training_data"):
+			hud.set_training_data({})
+		if hud and hud.has_method("clear_training_log"):
+			hud.clear_training_log()
+	_prepare_onboarding_lesson(_resolve_onboarding_step(onboarding_step_index))
 
 func _resolve_onboarding_step(step_index: int) -> Dictionary:
 	if step_index < 0 or step_index >= ONBOARDING_STEPS.size():
@@ -1972,8 +1996,250 @@ func _build_onboarding_lesson_runtime(step: Dictionary) -> Dictionary:
 		"goal": str(step.get("goal", "")).strip_edges().to_lower(),
 		"phase": "active",
 		"feedback_timer": 0.0,
-		"last_result": ""
+		"last_result": "",
+		"elapsed_seconds": 0.0,
+		"dummy_attack_started": false,
+		"dummy_blocked_player": false,
+		"dummy_hit_player": false,
+		"player_hit_dummy": false,
+		"player_special_hit": false,
+		"player_hit_dummy_during_opening": false,
+		"player_special_hit_during_opening": false,
+		"player_throw_hit": false,
+		"player_attack_blocked": false,
+		"last_player_hit_kind": "",
+		"last_blocked_attack_kind": "",
+		"dodge_confirmed": false,
+		"punish_window_active": false,
+		"punish_window_seconds": 0.0,
+		"failure_timeout_seconds": 0.0
 	}
+
+func _apply_onboarding_dummy_mode(mode: String) -> void:
+	if player_1 and player_1.has_method("set_training_dummy_options"):
+		player_1.call("set_training_dummy_options", false, "stand")
+	if player_2 and player_2.has_method("set_training_dummy_options"):
+		player_2.call("set_training_dummy_options", true, mode if mode in ["stand", "force_block", "random_block"] else "stand")
+	if player_1 and player_1.has_method("set_training_throw_tech_options"):
+		player_1.call("set_training_throw_tech_options", false, "throw_only")
+	if player_2 and player_2.has_method("set_training_throw_tech_options"):
+		player_2.call("set_training_throw_tech_options", false, "throw_only")
+
+func _reset_onboarding_player(player_key: String, patch: Dictionary) -> void:
+	var fighter := _get_player_by_key(player_key)
+	if fighter == null:
+		return
+	var position_value: Variant = patch.get("position", spawn_points.get(player_key, Vector2.ZERO))
+	var spawn_position := position_value as Vector2 if position_value is Vector2 else Vector2.ZERO
+	var facing_direction := 1 if int(patch.get("facing", 1 if player_key == "p1" else -1)) >= 0 else -1
+	if fighter.has_method("force_respawn"):
+		fighter.call("force_respawn", spawn_position, facing_direction)
+	if fighter.has_method("apply_training_state_patch"):
+		fighter.call("apply_training_state_patch", patch)
+
+func _resolve_onboarding_fighter_half_width(fighter: CharacterBody2D) -> float:
+	if fighter != null and fighter.has_node("CollisionShape2D"):
+		var shape_node := fighter.get_node("CollisionShape2D") as CollisionShape2D
+		if shape_node != null and shape_node.shape is RectangleShape2D:
+			return (shape_node.shape as RectangleShape2D).size.x * 0.5
+	return 12.0
+
+func _resolve_onboarding_attack_ground_reach(fighter: CharacterBody2D, attack_kind: String) -> float:
+	if fighter == null or not fighter.has_method("_get_attack_data"):
+		return 0.0
+	var attack_value: Variant = fighter.call("_get_attack_data", attack_kind)
+	if typeof(attack_value) != TYPE_DICTIONARY:
+		return 0.0
+	var attack_data := attack_value as Dictionary
+	var hitbox_size_value: Variant = attack_data.get("hitbox_size_ground", Vector2(26, 18))
+	var hitbox_offset_value: Variant = attack_data.get("hitbox_offset_ground", Vector2(22, 0))
+	var hitbox_size := hitbox_size_value as Vector2 if hitbox_size_value is Vector2 else Vector2(26, 18)
+	var hitbox_offset := hitbox_offset_value as Vector2 if hitbox_offset_value is Vector2 else Vector2(22, 0)
+	return absf(hitbox_offset.x) + (hitbox_size.x * 0.5)
+
+func _resolve_onboarding_contact_center_distance(attacker: CharacterBody2D, target: CharacterBody2D, attack_kind: String) -> float:
+	return _resolve_onboarding_attack_ground_reach(attacker, attack_kind) + _resolve_onboarding_fighter_half_width(target)
+
+func _resolve_onboarding_setup_center_distance(setup: String) -> float:
+	var default_distance := ONBOARDING_STAGE_CENTER_OFFSET * 2.0
+	var body_distance := _resolve_onboarding_fighter_half_width(player_1) + _resolve_onboarding_fighter_half_width(player_2) + ONBOARDING_SCENARIO_BODY_GAP
+	match setup:
+		"throw_guard_break":
+			var throw_distance := _resolve_onboarding_contact_center_distance(player_1, player_2, "throw") - ONBOARDING_THROW_CONTACT_BUFFER
+			return clampf(maxf(body_distance, throw_distance), body_distance, default_distance)
+		"guard_response", "dodge_punish", "special_punish":
+			var strike_distance := _resolve_onboarding_contact_center_distance(player_2, player_1, "heavy") - ONBOARDING_STRIKE_RETREAT_BUFFER
+			return clampf(maxf(body_distance, strike_distance), body_distance, default_distance)
+		_:
+			return default_distance
+
+func _prepare_onboarding_lesson(step: Dictionary) -> void:
+	if step.is_empty():
+		onboarding_lesson_state.clear()
+		onboarding_lesson_runtime.clear()
+		_refresh_onboarding_hud()
+		return
+	onboarding_lesson_state = _build_onboarding_lesson_state(step)
+	onboarding_lesson_runtime = _build_onboarding_lesson_runtime(step)
+	var stage_center_x := (stage_left_x + stage_right_x) * 0.5
+	var setup := str(step.get("setup", "neutral")).strip_edges().to_lower()
+	var center_distance := _resolve_onboarding_setup_center_distance(setup)
+	var center_offset := center_distance * 0.5
+	var p1_patch := {
+		"position": Vector2(stage_center_x - center_offset, stage_floor_y),
+		"facing": 1,
+		"current_hp": 100,
+		"air_jumps": 1,
+		"air_dodge_ready": true
+	}
+	var p2_patch := {
+		"position": Vector2(stage_center_x + center_offset, stage_floor_y),
+		"facing": -1,
+		"current_hp": 100,
+		"air_jumps": 1,
+		"air_dodge_ready": true
+	}
+	var dummy_mode := "stand"
+	match setup:
+		"throw_guard_break":
+			dummy_mode = "force_block"
+			onboarding_lesson_runtime["failure_timeout_seconds"] = ONBOARDING_THROW_TIMEOUT_SECONDS
+		"guard_response":
+			onboarding_lesson_runtime["failure_timeout_seconds"] = ONBOARDING_GUARD_TIMEOUT_SECONDS
+			onboarding_lesson_runtime["attack_delay_seconds"] = ONBOARDING_DUMMY_ATTACK_DELAY_SECONDS
+		"dodge_punish":
+			onboarding_lesson_runtime["failure_timeout_seconds"] = ONBOARDING_GUARD_TIMEOUT_SECONDS
+			onboarding_lesson_runtime["attack_delay_seconds"] = ONBOARDING_DUMMY_ATTACK_DELAY_SECONDS
+			onboarding_lesson_runtime["punish_window_duration"] = ONBOARDING_DODGE_PUNISH_WINDOW_SECONDS
+		"special_punish":
+			onboarding_lesson_runtime["failure_timeout_seconds"] = ONBOARDING_GUARD_TIMEOUT_SECONDS
+			onboarding_lesson_runtime["attack_delay_seconds"] = ONBOARDING_DUMMY_ATTACK_DELAY_SECONDS
+			onboarding_lesson_runtime["punish_window_duration"] = ONBOARDING_SPECIAL_PUNISH_WINDOW_SECONDS
+			p2_patch["current_hp"] = ONBOARDING_SPECIAL_HP
+		_:
+			pass
+	_apply_onboarding_dummy_mode(dummy_mode)
+	_reset_onboarding_player("p1", p1_patch)
+	_reset_onboarding_player("p2", p2_patch)
+	if hud and hud.has_method("set_training_data"):
+		hud.set_training_data({})
+	if hud and hud.has_method("clear_training_log"):
+		hud.clear_training_log()
+	_refresh_onboarding_hud()
+
+func _queue_onboarding_lesson_outcome(step: Dictionary, result: String, message_key: String, fallback: String) -> void:
+	if onboarding_lesson_runtime.is_empty():
+		return
+	if str(onboarding_lesson_runtime.get("phase", "active")) != "active":
+		return
+	onboarding_lesson_runtime["phase"] = "feedback"
+	onboarding_lesson_runtime["feedback_timer"] = ONBOARDING_FEEDBACK_SECONDS
+	onboarding_lesson_runtime["last_result"] = result
+	onboarding_lesson_state = _build_onboarding_lesson_state(
+		step,
+		{
+			"status": result,
+			"status_key": message_key,
+			"status_fallback": fallback
+		}
+	)
+	_refresh_onboarding_hud()
+
+func _is_onboarding_special_attack_kind(kind: String) -> bool:
+	var normalized := str(kind).strip_edges().to_lower()
+	return normalized == "special" or normalized == "ultimate" or normalized.begins_with("signature_")
+
+func _start_onboarding_dummy_attack(kind: String) -> bool:
+	if player_2 == null or not player_2.has_method("_can_start_attack"):
+		return false
+	if not bool(player_2.call("_can_start_attack")):
+		return false
+	player_2.call("_start_attack", kind)
+	onboarding_lesson_runtime["dummy_attack_started"] = true
+	return true
+
+func _update_onboarding_scenario_lesson(step: Dictionary, delta: float) -> void:
+	if onboarding_lesson_runtime.is_empty():
+		return
+	onboarding_lesson_runtime["elapsed_seconds"] = float(onboarding_lesson_runtime.get("elapsed_seconds", 0.0)) + maxf(0.0, delta)
+	var setup := str(step.get("setup", "neutral")).strip_edges().to_lower()
+	var elapsed := float(onboarding_lesson_runtime.get("elapsed_seconds", 0.0))
+	var attack_delay := float(onboarding_lesson_runtime.get("attack_delay_seconds", ONBOARDING_DUMMY_ATTACK_DELAY_SECONDS))
+	if setup in ["guard_response", "dodge_punish", "special_punish"]:
+		if not bool(onboarding_lesson_runtime.get("dummy_attack_started", false)) and elapsed >= attack_delay:
+			_start_onboarding_dummy_attack("heavy")
+	if setup in ["dodge_punish", "special_punish"]:
+		if player_1 != null and player_2 != null and bool(onboarding_lesson_runtime.get("dummy_attack_started", false)):
+			var attack_state := str(player_2.get("attack_state")).strip_edges().to_lower()
+			var attack_phase := str(player_2.get("attack_phase")).strip_edges().to_lower()
+			if (str(player_1.get("dodge_state")) != "" or float(player_1.get("dodge_time")) > 0.0) and attack_state == "heavy" and attack_phase != "recovery":
+				onboarding_lesson_runtime["dodge_confirmed"] = true
+			if not bool(onboarding_lesson_runtime.get("punish_window_active", false)) and attack_state == "heavy" and attack_phase == "recovery":
+				onboarding_lesson_runtime["punish_window_active"] = true
+				onboarding_lesson_runtime["punish_window_seconds"] = float(
+					onboarding_lesson_runtime.get("punish_window_duration", ONBOARDING_DODGE_PUNISH_WINDOW_SECONDS)
+				)
+				onboarding_lesson_runtime["player_hit_dummy_during_opening"] = false
+				onboarding_lesson_runtime["player_special_hit_during_opening"] = false
+			if bool(onboarding_lesson_runtime.get("punish_window_active", false)):
+				onboarding_lesson_runtime["punish_window_seconds"] = maxf(
+					0.0,
+					float(onboarding_lesson_runtime.get("punish_window_seconds", 0.0)) - maxf(0.0, delta)
+				)
+	match setup:
+		"guard_response":
+			if bool(onboarding_lesson_runtime.get("dummy_blocked_player", false)):
+				_queue_onboarding_lesson_outcome(step, "success", "HUD_ONBOARDING_FEEDBACK_GUARD_SUCCESS", "Blocked. Guard beats strikes.")
+				return
+			if bool(onboarding_lesson_runtime.get("dummy_hit_player", false)):
+				_queue_onboarding_lesson_outcome(step, "fail", "HUD_ONBOARDING_FEEDBACK_GUARD_FAIL", "You got clipped. Guard before the hit lands.")
+				return
+		"throw_guard_break":
+			if bool(onboarding_lesson_runtime.get("player_throw_hit", false)):
+				_queue_onboarding_lesson_outcome(step, "success", "HUD_ONBOARDING_FEEDBACK_THROW_SUCCESS", "Throw landed. Throw beats guard.")
+				return
+			if bool(onboarding_lesson_runtime.get("player_attack_blocked", false)):
+				_queue_onboarding_lesson_outcome(step, "fail", "HUD_ONBOARDING_FEEDBACK_THROW_FAIL", "That was blocked. Throw is the answer to guarding.")
+				return
+		"dodge_punish":
+			if bool(onboarding_lesson_runtime.get("dummy_hit_player", false)):
+				_queue_onboarding_lesson_outcome(step, "fail", "HUD_ONBOARDING_FEEDBACK_DODGE_FAIL_HIT", "Too slow. Dodge before the heavy lands.")
+				return
+			if bool(onboarding_lesson_runtime.get("dummy_blocked_player", false)):
+				_queue_onboarding_lesson_outcome(step, "fail", "HUD_ONBOARDING_FEEDBACK_DODGE_FAIL_BLOCK", "Guard survived, but dodge creates the punish.")
+				return
+			if bool(onboarding_lesson_runtime.get("dodge_confirmed", false)) and bool(onboarding_lesson_runtime.get("player_hit_dummy_during_opening", false)):
+				_queue_onboarding_lesson_outcome(step, "success", "HUD_ONBOARDING_FEEDBACK_DODGE_SUCCESS", "Clean punish. Dodge beats commitment.")
+				return
+			if bool(onboarding_lesson_runtime.get("punish_window_active", false)) and float(onboarding_lesson_runtime.get("punish_window_seconds", 0.0)) <= 0.0:
+				_queue_onboarding_lesson_outcome(step, "fail", "HUD_ONBOARDING_FEEDBACK_DODGE_FAIL_TIMEOUT", "The punish window closed. Dodge first, then hit back.")
+				return
+		"special_punish":
+			if bool(onboarding_lesson_runtime.get("dummy_hit_player", false)):
+				_queue_onboarding_lesson_outcome(step, "fail", "HUD_ONBOARDING_FEEDBACK_SPECIAL_FAIL_HIT", "You got clipped. Wait for the opening first.")
+				return
+			if bool(onboarding_lesson_runtime.get("punish_window_active", false)) and bool(onboarding_lesson_runtime.get("player_special_hit_during_opening", false)):
+				_queue_onboarding_lesson_outcome(step, "success", "HUD_ONBOARDING_FEEDBACK_SPECIAL_SUCCESS", "Special confirmed. Save it for clear openings.")
+				return
+			if bool(onboarding_lesson_runtime.get("punish_window_active", false)) and bool(onboarding_lesson_runtime.get("player_hit_dummy_during_opening", false)) and not bool(onboarding_lesson_runtime.get("player_special_hit_during_opening", false)):
+				_queue_onboarding_lesson_outcome(step, "fail", "HUD_ONBOARDING_FEEDBACK_SPECIAL_FAIL_WRONG", "The opening was real, but this lesson wants a special cash-out.")
+				return
+			if bool(onboarding_lesson_runtime.get("punish_window_active", false)) and float(onboarding_lesson_runtime.get("punish_window_seconds", 0.0)) <= 0.0:
+				_queue_onboarding_lesson_outcome(step, "fail", "HUD_ONBOARDING_FEEDBACK_SPECIAL_FAIL_TIMEOUT", "The opening closed. Wait for the whiff, then cash out.")
+				return
+		_:
+			pass
+	var timeout_seconds := float(onboarding_lesson_runtime.get("failure_timeout_seconds", 0.0))
+	if timeout_seconds > 0.0 and elapsed >= timeout_seconds and str(onboarding_lesson_runtime.get("phase", "active")) == "active":
+		match setup:
+			"guard_response":
+				_queue_onboarding_lesson_outcome(step, "fail", "HUD_ONBOARDING_FEEDBACK_GUARD_FAIL", "You got clipped. Guard before the hit lands.")
+			"throw_guard_break":
+				_queue_onboarding_lesson_outcome(step, "fail", "HUD_ONBOARDING_FEEDBACK_THROW_FAIL", "That was blocked. Throw is the answer to guarding.")
+			"dodge_punish":
+				_queue_onboarding_lesson_outcome(step, "fail", "HUD_ONBOARDING_FEEDBACK_DODGE_FAIL_TIMEOUT", "The punish window closed. Dodge first, then hit back.")
+			"special_punish":
+				_queue_onboarding_lesson_outcome(step, "fail", "HUD_ONBOARDING_FEEDBACK_SPECIAL_FAIL_TIMEOUT", "The opening closed. Wait for the whiff, then cash out.")
 
 func _sync_current_onboarding_lesson_state() -> void:
 	var step := _resolve_onboarding_step(onboarding_step_index)
@@ -1987,11 +2253,6 @@ func _sync_current_onboarding_lesson_state() -> void:
 func _update_onboarding_progress(delta: float = 0.0) -> void:
 	if not onboarding_active:
 		return
-	if not onboarding_lesson_runtime.is_empty():
-		onboarding_lesson_runtime["feedback_timer"] = maxf(
-			0.0,
-			float(onboarding_lesson_runtime.get("feedback_timer", 0.0)) - maxf(0.0, delta)
-		)
 	if onboarding_step_index < 0 or onboarding_step_index >= ONBOARDING_STEPS.size():
 		_complete_onboarding(false)
 		return
@@ -1999,18 +2260,56 @@ func _update_onboarding_progress(delta: float = 0.0) -> void:
 	var step_id := str(step.get("id", "")).strip_edges()
 	if step_id == "":
 		onboarding_step_index += 1
-		_sync_current_onboarding_lesson_state()
-		_refresh_onboarding_hud()
+		if onboarding_step_index >= ONBOARDING_STEPS.size():
+			_complete_onboarding(false)
+			return
+		_prepare_onboarding_lesson(_resolve_onboarding_step(onboarding_step_index))
 		return
-	if not _is_onboarding_step_completed(step_id):
+	if onboarding_lesson_runtime.is_empty() or str(onboarding_lesson_runtime.get("lesson_id", "")).strip_edges() != step_id:
+		_prepare_onboarding_lesson(step)
+	if onboarding_lesson_runtime.is_empty():
 		return
-	onboarding_steps_completed.append(step_id)
-	onboarding_step_index += 1
-	if onboarding_step_index >= ONBOARDING_STEPS.size():
-		_complete_onboarding(false)
+	var phase := str(onboarding_lesson_runtime.get("phase", "active")).strip_edges().to_lower()
+	if phase == "feedback":
+		onboarding_lesson_runtime["feedback_timer"] = maxf(
+			0.0,
+			float(onboarding_lesson_runtime.get("feedback_timer", 0.0)) - maxf(0.0, delta)
+		)
+		if float(onboarding_lesson_runtime.get("feedback_timer", 0.0)) > 0.0:
+			return
+		if str(onboarding_lesson_runtime.get("last_result", "")).strip_edges().to_lower() == "success":
+			if not onboarding_steps_completed.has(step_id):
+				onboarding_steps_completed.append(step_id)
+			onboarding_step_index += 1
+			if onboarding_step_index >= ONBOARDING_STEPS.size():
+				_complete_onboarding(false)
+				return
+			_prepare_onboarding_lesson(_resolve_onboarding_step(onboarding_step_index))
+			return
+		_prepare_onboarding_lesson(step)
 		return
-	_sync_current_onboarding_lesson_state()
-	_refresh_onboarding_hud()
+	var lesson_type := str(step.get("lesson_type", "movement")).strip_edges().to_lower()
+	match lesson_type:
+		"movement":
+			if _is_onboarding_step_completed(step_id):
+				if not onboarding_steps_completed.has(step_id):
+					onboarding_steps_completed.append(step_id)
+				onboarding_step_index += 1
+				if onboarding_step_index >= ONBOARDING_STEPS.size():
+					_complete_onboarding(false)
+					return
+				_prepare_onboarding_lesson(_resolve_onboarding_step(onboarding_step_index))
+		"scenario":
+			_update_onboarding_scenario_lesson(step, delta)
+		_:
+			if _is_onboarding_step_completed(step_id):
+				if not onboarding_steps_completed.has(step_id):
+					onboarding_steps_completed.append(step_id)
+				onboarding_step_index += 1
+				if onboarding_step_index >= ONBOARDING_STEPS.size():
+					_complete_onboarding(false)
+					return
+				_prepare_onboarding_lesson(_resolve_onboarding_step(onboarding_step_index))
 
 func _get_active_control_preset() -> String:
 	var preset_value := str(Engine.get_meta(GameSettingsStore.ENGINE_META_KEY, ""))
@@ -2069,29 +2368,13 @@ func _resolve_onboarding_status_text(step: Dictionary) -> String:
 func _is_onboarding_step_completed(step_id: String) -> bool:
 	if player_1 == null:
 		return false
-	var attack_state := str(player_1.attack_state)
 	match step_id:
 		"move":
 			return absf(player_1.velocity.x) >= 24.0
 		"jump":
 			return not player_1.is_on_floor() and player_1.velocity.y <= -24.0
-		"guard":
-			return bool(player_1.is_blocking)
-		"dodge":
-			return str(player_1.dodge_state) != "" or float(player_1.dodge_time) > 0.0
-		"attack":
-			return (
-				attack_state.begins_with("light")
-				or attack_state.begins_with("heavy")
-			)
-		"throw":
-			return attack_state == "throw"
-		"special":
-			return (
-				attack_state == "special"
-				or attack_state == "ultimate"
-				or attack_state.begins_with("signature_")
-			)
+		_:
+			return false
 	return false
 
 func _complete_onboarding(skipped: bool) -> void:
@@ -2101,6 +2384,8 @@ func _complete_onboarding(skipped: bool) -> void:
 	onboarding_completed_seconds = match_elapsed_seconds
 	onboarding_lesson_state.clear()
 	onboarding_lesson_runtime.clear()
+	if training_scene_enabled:
+		_apply_training_options(bool(training_options.get("enabled", true)))
 	GameSettingsStore.set_onboarding_completed(true)
 	_refresh_onboarding_hud()
 
@@ -2214,7 +2499,33 @@ func _refresh_result_text() -> void:
 			hint_key = "RESULT_STORY_FAIL_HINT"
 	hud.set_result(tr(result_text_key) + tr(hint_key))
 
+func _record_onboarding_combat_event(attacker, target, attack_kind: String, is_block_event: bool) -> void:
+	if not onboarding_active or onboarding_lesson_runtime.is_empty():
+		return
+	if str(onboarding_lesson_runtime.get("phase", "active")).strip_edges().to_lower() != "active":
+		return
+	var normalized_kind := str(attack_kind).strip_edges().to_lower()
+	if attacker == player_2 and target == player_1:
+		if is_block_event:
+			onboarding_lesson_runtime["dummy_blocked_player"] = true
+		else:
+			onboarding_lesson_runtime["dummy_hit_player"] = true
+		return
+	if attacker == player_1 and target == player_2:
+		if is_block_event:
+			onboarding_lesson_runtime["player_attack_blocked"] = true
+			onboarding_lesson_runtime["last_blocked_attack_kind"] = normalized_kind
+			return
+		onboarding_lesson_runtime["player_hit_dummy"] = true
+		onboarding_lesson_runtime["last_player_hit_kind"] = normalized_kind
+		onboarding_lesson_runtime["player_throw_hit"] = normalized_kind == "throw"
+		onboarding_lesson_runtime["player_special_hit"] = _is_onboarding_special_attack_kind(normalized_kind)
+		if bool(onboarding_lesson_runtime.get("punish_window_active", false)):
+			onboarding_lesson_runtime["player_hit_dummy_during_opening"] = true
+			onboarding_lesson_runtime["player_special_hit_during_opening"] = bool(onboarding_lesson_runtime.get("player_special_hit_during_opening", false)) or _is_onboarding_special_attack_kind(normalized_kind)
+
 func _on_hit_landed(_attacker, _target, _kind, _is_counter: bool, _combo_count: int) -> void:
+	_record_onboarding_combat_event(_attacker, _target, _kind, false)
 	var hitstop := _resolve_hitstop_duration(_kind, _is_counter, _combo_count)
 	_apply_hitstop(hitstop)
 	_play_attack_sfx("hit", _kind)
@@ -2237,6 +2548,7 @@ func _on_hit_landed(_attacker, _target, _kind, _is_counter: bool, _combo_count: 
 	_show_hit_type_feedback(training_info, false)
 
 func _on_block_landed(_attacker, target, _kind) -> void:
+	_record_onboarding_combat_event(_attacker, target, _kind, true)
 	var blockstop := _resolve_blockstop_duration(_kind)
 	_apply_hitstop(blockstop)
 	_play_attack_sfx("block", _kind)
@@ -2475,6 +2787,8 @@ func _show_combo_callout(combo_count: int) -> void:
 
 func _push_training_info(fighter: Node) -> Dictionary:
 	if not bool(training_options.get("enabled", true)):
+		return {}
+	if _is_training_sandbox_suspended_for_onboarding():
 		return {}
 	if not hud or not hud.has_method("set_training_data"):
 		return {}

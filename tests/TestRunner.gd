@@ -59,6 +59,7 @@ func _run_smoke_suite() -> void:
 	await _test_onboarding_settings_and_guided_start_surface()
 	await _test_story_mode_skips_first_run_onboarding_overlay()
 	await _test_onboarding_progress_tracks_actual_player_state()
+	await _test_onboarding_suspends_active_training_drills()
 	await _test_menu_focus_path_and_summary_cards()
 	await _test_control_preset_profiles()
 	await _test_video_settings_profiles()
@@ -871,21 +872,34 @@ func _test_onboarding_progress_tracks_actual_player_state() -> void:
 		await process_frame
 		await process_frame
 		var player_1 := training_node.get_node_or_null("Player1")
+		var player_2 := training_node.get_node_or_null("Player2")
 		var step_label := training_node.get_node_or_null("Hud/OnboardingPanel/StepLabel")
 		var status_label := training_node.get_node_or_null("Hud/OnboardingPanel/StatusLabel")
 		_assert_true(player_1 != null, "onboarding runtime state test resolves player1")
+		_assert_true(player_2 != null, "onboarding runtime state test resolves player2")
 		_assert_true(step_label is Label, "onboarding runtime state test resolves step label")
 		_assert_true(status_label is Label, "onboarding runtime state test resolves status label")
-		if player_1 != null and step_label is Label and status_label is Label:
+		if player_1 != null and player_2 != null and step_label is Label and status_label is Label:
 			training_node.call("_start_onboarding_sequence")
 			training_node.set("onboarding_step_index", 2)
-			training_node.call("_sync_current_onboarding_lesson_state")
-			training_node.call("_refresh_onboarding_hud")
+			training_node.call("_prepare_onboarding_lesson", training_node.call("_resolve_onboarding_step", 2))
 			await process_frame
 			_assert_true(
 				(step_label as Label).text.findn("back") != -1,
 				"classic onboarding guard copy explains back-to-block"
 			)
+			var guard_distance := absf(player_1.global_position.x - player_2.global_position.x)
+			var strike_contact_distance := _resolve_test_attack_contact_distance(player_2, player_1, "heavy")
+			_assert_true(
+				guard_distance < strike_contact_distance,
+				"guard onboarding respawns fighters inside dummy heavy range"
+			)
+			var guard_runtime_value: Variant = training_node.get("onboarding_lesson_runtime")
+			if typeof(guard_runtime_value) == TYPE_DICTIONARY:
+				_assert_true(
+					float((guard_runtime_value as Dictionary).get("attack_delay_seconds", 0.0)) <= 0.20,
+					"guard onboarding starts the dummy heavy quickly enough for classic retreat to stay in range"
+				)
 			_assert_true(
 				(status_label as Label).text.findn("Guard") != -1 or (status_label as Label).text.findn("strikes") != -1,
 				"onboarding status copy explains the guard lesson goal"
@@ -903,41 +917,248 @@ func _test_onboarding_progress_tracks_actual_player_state() -> void:
 			_assert_true(not _action_has_any_keyboard_key("block"), "classic preset still removes keyboard block action during onboarding")
 
 			player_1.set("is_blocking", true)
-			training_node.call("_update_onboarding_progress")
+			training_node.call("_update_onboarding_progress", 0.05)
 			_assert_true(
-				int(training_node.get("onboarding_step_index")) == 3,
-				"guard onboarding advances from actual blocking state"
+				int(training_node.get("onboarding_step_index")) == 2,
+				"guard onboarding no longer advances from holding block alone"
 			)
 
 			player_1.set("is_blocking", false)
-			training_node.call("_refresh_onboarding_hud")
+			training_node.call("_on_hit_landed", player_2, player_1, "heavy", false, 1)
+			training_node.call("_update_onboarding_progress", 0.05)
+			_assert_true(
+				(status_label as Label).text.findn("clipped") != -1,
+				"guard onboarding surfaces fail feedback when the dummy strike lands"
+			)
+			TranslationServer.set_locale("zh")
+			training_node.call("_on_locale_changed", "zh")
+			await process_frame
+			_assert_true(
+				(status_label as Label).text.findn("被打中") != -1 or (status_label as Label).text.findn("攻击落下") != -1,
+				"onboarding feedback copy refreshes when locale changes during lesson feedback"
+			)
+			TranslationServer.set_locale("en")
+			training_node.call("_on_locale_changed", "en")
+			await process_frame
+			training_node.call("_update_onboarding_progress", 1.0)
+			_assert_true(
+				int(training_node.get("onboarding_step_index")) == 2,
+				"guard onboarding retries the same lesson after a failed rep"
+			)
+
+			training_node.call("_on_block_landed", player_2, player_1, "heavy")
+			training_node.call("_update_onboarding_progress", 0.05)
+			training_node.call("_update_onboarding_progress", 1.0)
+			_assert_true(
+				int(training_node.get("onboarding_step_index")) == 3,
+				"guard onboarding advances only after the dummy strike is actually blocked"
+			)
+
 			await process_frame
 			_assert_true(
 				(step_label as Label).text.findn("throw") != -1,
 				"onboarding throw lesson now follows the defense lesson"
 			)
+			var throw_distance := absf(player_1.global_position.x - player_2.global_position.x)
+			var throw_contact_distance := _resolve_test_attack_contact_distance(player_1, player_2, "throw")
+			_assert_true(
+				throw_distance < throw_contact_distance,
+				"throw onboarding respawns fighters inside throw range"
+			)
 
 			player_1.set("attack_state", "throw")
-			training_node.call("_update_onboarding_progress")
+			training_node.call("_update_onboarding_progress", 0.05)
 			_assert_true(
-				int(training_node.get("onboarding_step_index")) == 4,
-				"throw onboarding advances from actual throw state"
+				int(training_node.get("onboarding_step_index")) == 3,
+				"throw onboarding no longer advances from input state alone"
 			)
 
 			player_1.set("attack_state", "")
-			training_node.call("_refresh_onboarding_hud")
+			training_node.call("_on_hit_landed", player_1, player_2, "throw", false, 1)
+			training_node.call("_update_onboarding_progress", 0.05)
+			training_node.call("_update_onboarding_progress", 1.0)
+			_assert_true(
+				int(training_node.get("onboarding_step_index")) == 4,
+				"throw onboarding advances only after a real throw lands on guard"
+			)
+
 			await process_frame
 			_assert_true(
 				(step_label as Label).text.findn("dash") != -1,
 				"classic onboarding dodge copy explains back-plus-dash"
 			)
+			var dodge_distance := absf(player_1.global_position.x - player_2.global_position.x)
+			_assert_true(
+				dodge_distance < strike_contact_distance,
+				"dodge onboarding respawns fighters inside dummy heavy range"
+			)
+			var dodge_runtime_value: Variant = training_node.get("onboarding_lesson_runtime")
+			if typeof(dodge_runtime_value) == TYPE_DICTIONARY:
+				_assert_true(
+					float((dodge_runtime_value as Dictionary).get("attack_delay_seconds", 0.0)) <= 0.20,
+					"dodge onboarding starts the dummy heavy quickly enough for classic retreat to stay in range"
+				)
 
 			player_1.set("dodge_state", "roll")
 			player_1.set("dodge_time", 0.12)
-			training_node.call("_update_onboarding_progress")
+			training_node.call("_update_onboarding_progress", 0.05)
+			_assert_true(
+				int(training_node.get("onboarding_step_index")) == 4,
+				"dodge onboarding no longer advances from dodge state alone"
+			)
+
+			if typeof(dodge_runtime_value) == TYPE_DICTIONARY:
+				var dodge_runtime := (dodge_runtime_value as Dictionary).duplicate(true)
+				dodge_runtime["dummy_attack_started"] = true
+				training_node.set("onboarding_lesson_runtime", dodge_runtime)
+			training_node.call("_on_hit_landed", player_1, player_2, "light", false, 1)
+			player_2.set("attack_state", "heavy")
+			player_2.set("attack_phase", "active")
+			training_node.call("_update_onboarding_progress", 0.05)
+			player_2.set("attack_phase", "recovery")
+			training_node.call("_update_onboarding_progress", 0.05)
+			_assert_true(
+				int(training_node.get("onboarding_step_index")) == 4,
+				"dodge onboarding ignores hits that happened before the punish opening"
+			)
+			training_node.call("_on_hit_landed", player_1, player_2, "light", false, 1)
+			training_node.call("_update_onboarding_progress", 0.05)
+			training_node.call("_update_onboarding_progress", 1.0)
 			_assert_true(
 				int(training_node.get("onboarding_step_index")) == 5,
-				"dodge onboarding advances from actual dodge state"
+				"dodge onboarding requires the dodge into punish sequence"
+			)
+
+			player_1.set("attack_state", "special")
+			training_node.call("_update_onboarding_progress", 0.05)
+			_assert_true(
+				int(training_node.get("onboarding_step_index")) == 5,
+				"special onboarding no longer advances from special input alone"
+			)
+
+			player_1.set("attack_state", "")
+			var special_runtime_value: Variant = training_node.get("onboarding_lesson_runtime")
+			if typeof(special_runtime_value) == TYPE_DICTIONARY:
+				var special_runtime := (special_runtime_value as Dictionary).duplicate(true)
+				special_runtime["dummy_attack_started"] = true
+				training_node.set("onboarding_lesson_runtime", special_runtime)
+			var special_distance := absf(player_1.global_position.x - player_2.global_position.x)
+			_assert_true(
+				special_distance < strike_contact_distance,
+				"special onboarding respawns fighters inside dummy heavy range"
+			)
+			training_node.call("_on_hit_landed", player_1, player_2, "special", false, 1)
+			player_2.set("attack_state", "heavy")
+			player_2.set("attack_phase", "recovery")
+			training_node.call("_update_onboarding_progress", 0.05)
+			_assert_true(
+				not bool(training_node.get("onboarding_completed")),
+				"special onboarding ignores special hits that happened before the punish opening"
+			)
+			training_node.call("_on_hit_landed", player_1, player_2, "special", false, 1)
+			training_node.call("_update_onboarding_progress", 0.05)
+			training_node.call("_update_onboarding_progress", 1.0)
+			_assert_true(
+				bool(training_node.get("onboarding_completed")),
+				"special onboarding completes after a real opening is punished with a special"
+			)
+			_assert_true(
+				not bool(training_node.get("onboarding_active")),
+				"onboarding deactivates after the situational lesson sequence completes"
+			)
+		if is_instance_valid(training_node):
+			training_node.queue_free()
+		await process_frame
+
+	GameSettingsStore.apply_control_preset(previous_preset)
+	TranslationServer.set_locale(previous_locale)
+	await process_frame
+
+func _test_onboarding_suspends_active_training_drills() -> void:
+	var previous_preset := GameSettingsStore.get_control_preset()
+	var previous_locale := TranslationServer.get_locale()
+	TranslationServer.set_locale("en")
+	GameSettingsStore.apply_control_preset(GameSettingsStore.CONTROL_PRESET_CLASSIC)
+
+	var training_packed := load("res://scenes/Training.tscn")
+	_assert_true(training_packed is PackedScene, "training scene loads for onboarding drill-suspension test")
+	if training_packed is PackedScene:
+		var training_node := (training_packed as PackedScene).instantiate()
+		get_root().add_child(training_node)
+		await process_frame
+		await process_frame
+		var player_1 := training_node.get_node_or_null("Player1") as CharacterBody2D
+		var player_2 := training_node.get_node_or_null("Player2") as CharacterBody2D
+		var hud := training_node.get_node_or_null("Hud")
+		_assert_true(player_1 != null, "onboarding drill-suspension test resolves player1")
+		_assert_true(player_2 != null, "onboarding drill-suspension test resolves player2")
+		_assert_true(hud != null, "onboarding drill-suspension test resolves hud")
+		if player_1 != null and player_2 != null and hud != null:
+			training_node.call("_on_hud_training_options_changed", {
+				"enabled": true,
+				"dummy_mode": "stand",
+				"show_detail": false,
+				"ruleset_profile": "platform",
+				"drill_id": "di_survival",
+				"throw_tech_assist_mode": "throw_only"
+			})
+			await process_frame
+			training_node.set("training_drill_runtime", {
+				"drill_id": "di_survival",
+				"elapsed_seconds": 0.41,
+				"launch_attempted": true,
+				"launch_triggered": true,
+				"launch_delay_seconds": 0.24,
+				"success_armed": true
+			})
+			hud.call("set_training_data", {
+				"event_type": "hit",
+				"attack_kind": "heavy",
+				"advantage_frames": 6,
+				"damage_total": 12,
+				"combo_damage": 12,
+				"hp_before": 100,
+				"hp_after": 88
+			})
+			hud.call("add_training_log_entry", {
+				"event_type": "hit",
+				"attack_kind": "heavy",
+				"advantage_frames": 6,
+				"damage_total": 12,
+				"combo_damage": 12,
+				"hp_before": 100,
+				"hp_after": 88
+			})
+			training_node.call("_start_onboarding_sequence")
+			training_node.set("onboarding_step_index", 2)
+			training_node.call("_prepare_onboarding_lesson", training_node.call("_resolve_onboarding_step", 2))
+			await process_frame
+			var runtime_after_start := training_node.get("training_drill_runtime") as Dictionary
+			var cached_training_info := hud.get("cached_training_info") as Dictionary
+			var training_log_entries := hud.get("training_log_entries") as Array
+			_assert_true(runtime_after_start.is_empty(), "starting onboarding clears stale Air & Edge drill runtime")
+			_assert_true(cached_training_info.is_empty(), "starting onboarding clears stale training HUD payloads")
+			_assert_true(training_log_entries.is_empty(), "starting onboarding clears stale training log entries")
+			player_2.set("last_training_info", {
+				"event_type": "hit",
+				"attack_kind": "heavy",
+				"advantage_frames": 6,
+				"damage_total": 12,
+				"combo_damage": 12,
+				"hp_before": 100,
+				"hp_after": 88
+			})
+			var suppressed_info_value: Variant = training_node.call("_push_training_info", player_2)
+			var suppressed_info := suppressed_info_value as Dictionary if typeof(suppressed_info_value) == TYPE_DICTIONARY else {}
+			_assert_true(suppressed_info.is_empty(), "onboarding suppresses training HUD writes during active lessons")
+			var guard_p1_position: Vector2 = player_1.global_position
+			var guard_p2_position: Vector2 = player_2.global_position
+			training_node.call("_process", 0.25)
+			var runtime_after_tick := training_node.get("training_drill_runtime") as Dictionary
+			_assert_true(runtime_after_tick.is_empty(), "onboarding keeps non-core drill runtime suspended across process ticks")
+			_assert_true(
+				player_1.global_position.distance_to(guard_p1_position) < 0.01 and player_2.global_position.distance_to(guard_p2_position) < 0.01,
+				"onboarding lesson spacing is not overridden by suspended Air & Edge drill respawns"
 			)
 		if is_instance_valid(training_node):
 			training_node.queue_free()
@@ -1928,9 +2149,16 @@ func _test_camera_vertical_framing_response() -> void:
 	await process_frame
 
 func _test_training_toggle_keeps_dummy_non_ai() -> void:
+	var previous_settings := GameSettingsStore.get_onboarding_settings()
+	var previous_completed := bool(previous_settings.get("completed", false))
+	var previous_hints_enabled := bool(previous_settings.get("hints_enabled", true))
+	GameSettingsStore.set_onboarding_completed(true)
+	GameSettingsStore.set_onboarding_hints_enabled(false)
 	var packed := load("res://scenes/Training.tscn")
 	_assert_true(packed is PackedScene, "training scene loads for dummy ai toggle test")
 	if packed is not PackedScene:
+		GameSettingsStore.set_onboarding_completed(previous_completed)
+		GameSettingsStore.set_onboarding_hints_enabled(previous_hints_enabled)
 		return
 	var training_node := (packed as PackedScene).instantiate()
 	get_root().add_child(training_node)
@@ -2143,11 +2371,20 @@ func _test_training_toggle_keeps_dummy_non_ai() -> void:
 	if is_instance_valid(training_node):
 		training_node.queue_free()
 	await process_frame
+	GameSettingsStore.set_onboarding_completed(previous_completed)
+	GameSettingsStore.set_onboarding_hints_enabled(previous_hints_enabled)
 
 func _test_training_sandbox_resets_on_ko_and_ring_out() -> void:
+	var previous_settings := GameSettingsStore.get_onboarding_settings()
+	var previous_completed := bool(previous_settings.get("completed", false))
+	var previous_hints_enabled := bool(previous_settings.get("hints_enabled", true))
+	GameSettingsStore.set_onboarding_completed(true)
+	GameSettingsStore.set_onboarding_hints_enabled(false)
 	var packed := load("res://scenes/Training.tscn")
 	_assert_true(packed is PackedScene, "training scene loads for sandbox reset test")
 	if packed is not PackedScene:
+		GameSettingsStore.set_onboarding_completed(previous_completed)
+		GameSettingsStore.set_onboarding_hints_enabled(previous_hints_enabled)
 		return
 	var training_node := (packed as PackedScene).instantiate()
 	get_root().add_child(training_node)
@@ -2275,11 +2512,20 @@ func _test_training_sandbox_resets_on_ko_and_ring_out() -> void:
 	if is_instance_valid(training_node):
 		training_node.queue_free()
 	await process_frame
+	GameSettingsStore.set_onboarding_completed(previous_completed)
+	GameSettingsStore.set_onboarding_hints_enabled(previous_hints_enabled)
 
 func _test_air_edge_drills_have_rep_behaviors() -> void:
+	var previous_settings := GameSettingsStore.get_onboarding_settings()
+	var previous_completed := bool(previous_settings.get("completed", false))
+	var previous_hints_enabled := bool(previous_settings.get("hints_enabled", true))
+	GameSettingsStore.set_onboarding_completed(true)
+	GameSettingsStore.set_onboarding_hints_enabled(false)
 	var packed := load("res://scenes/Training.tscn")
 	_assert_true(packed is PackedScene, "training scene loads for Air & Edge drill behavior test")
 	if packed is not PackedScene:
+		GameSettingsStore.set_onboarding_completed(previous_completed)
+		GameSettingsStore.set_onboarding_hints_enabled(previous_hints_enabled)
 		return
 	var training_node := (packed as PackedScene).instantiate()
 	get_root().add_child(training_node)
@@ -2456,6 +2702,8 @@ func _test_air_edge_drills_have_rep_behaviors() -> void:
 	if is_instance_valid(training_node):
 		training_node.queue_free()
 	await process_frame
+	GameSettingsStore.set_onboarding_completed(previous_completed)
+	GameSettingsStore.set_onboarding_hints_enabled(previous_hints_enabled)
 
 func _test_character_visual_readability_tinting() -> void:
 	var setup: Dictionary = await _spawn_test_players()
@@ -3536,6 +3784,26 @@ func _spawn_test_players() -> Dictionary:
 	await process_frame
 	await process_frame
 	return {"host": host, "p1": p1, "p2": p2}
+
+func _resolve_test_player_half_width(player: CharacterBody2D) -> float:
+	if player != null and player.has_node("CollisionShape2D"):
+		var shape_node := player.get_node("CollisionShape2D") as CollisionShape2D
+		if shape_node != null and shape_node.shape is RectangleShape2D:
+			return (shape_node.shape as RectangleShape2D).size.x * 0.5
+	return 12.0
+
+func _resolve_test_attack_contact_distance(attacker: CharacterBody2D, target: CharacterBody2D, attack_kind: String) -> float:
+	if attacker == null or target == null:
+		return 0.0
+	var attack_value: Variant = attacker.call("_get_attack_data", attack_kind)
+	if typeof(attack_value) != TYPE_DICTIONARY:
+		return 0.0
+	var attack_data := attack_value as Dictionary
+	var hitbox_size_value: Variant = attack_data.get("hitbox_size_ground", Vector2(26, 18))
+	var hitbox_offset_value: Variant = attack_data.get("hitbox_offset_ground", Vector2(22, 0))
+	var hitbox_size := hitbox_size_value as Vector2 if hitbox_size_value is Vector2 else Vector2(26, 18)
+	var hitbox_offset := hitbox_offset_value as Vector2 if hitbox_offset_value is Vector2 else Vector2(22, 0)
+	return absf(hitbox_offset.x) + (hitbox_size.x * 0.5) + _resolve_test_player_half_width(target)
 
 func _reset_throw_tech_target_state(player: CharacterBody2D) -> void:
 	if player == null:
