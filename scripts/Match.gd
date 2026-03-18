@@ -38,6 +38,7 @@ const TRAINING_DRILL_DI_PLAYER_HP := 38
 const TRAINING_DRILL_DI_LAUNCH_DELAY_SECONDS := 0.24
 const TRAINING_DRILL_DI_DAMAGE := 18
 const TRAINING_DRILL_DI_KNOCKBACK := Vector2(248.0, -312.0)
+const TRAINING_DRILL_DIRECTION_AXIS_THRESHOLD := 0.35
 const DEFAULT_STAGE_LEFT_X := StageConfigStore.DEFAULT_LEFT_X
 const DEFAULT_STAGE_RIGHT_X := StageConfigStore.DEFAULT_RIGHT_X
 const DEFAULT_STAGE_FLOOR_Y := StageConfigStore.DEFAULT_FLOOR_Y
@@ -966,9 +967,7 @@ func _build_training_drill_state(drill_id: String, patch: Dictionary = {}) -> Di
 	var resolved_drill_id := _normalize_training_drill_id(drill_id, str(patch.get("ruleset_profile", ruleset_profile)))
 	var resolved_ruleset := _resolve_ruleset_for_training_drill(resolved_drill_id)
 	var metrics_value: Variant = patch.get("metrics", {})
-	var metrics := {}
-	if typeof(metrics_value) == TYPE_DICTIONARY:
-		metrics = (metrics_value as Dictionary).duplicate(true)
+	var metrics := _normalize_training_drill_metrics(resolved_drill_id, metrics_value)
 	var affected_players_value: Variant = patch.get("affected_players", [])
 	var affected_players := PackedStringArray()
 	if typeof(affected_players_value) == TYPE_ARRAY:
@@ -994,6 +993,170 @@ func _build_training_drill_state(drill_id: String, patch: Dictionary = {}) -> Di
 		"affected_players": affected_players,
 		"metrics": metrics
 	}
+
+func _build_default_training_drill_metrics(_drill_id: String) -> Dictionary:
+	return {
+		"rep_total": 0,
+		"success_count": 0,
+		"fail_count": 0,
+		"reset_count": 0,
+		"success_rate": 0.0,
+		"current_streak": 0,
+		"best_streak": 0,
+		"last_closest_blast_margin_px": -1.0,
+		"last_rep_seconds": 0.0,
+		"last_finish_state": "",
+		"last_ledge_option": "",
+		"last_di_direction": "neutral"
+	}
+
+func _normalize_training_drill_metrics(drill_id: String, metrics_value: Variant) -> Dictionary:
+	var metrics := _build_default_training_drill_metrics(drill_id)
+	if typeof(metrics_value) == TYPE_DICTIONARY:
+		for key in (metrics_value as Dictionary).keys():
+			metrics[key] = (metrics_value as Dictionary)[key]
+	metrics["rep_total"] = maxi(0, int(metrics.get("rep_total", 0)))
+	metrics["success_count"] = maxi(0, int(metrics.get("success_count", 0)))
+	metrics["fail_count"] = maxi(0, int(metrics.get("fail_count", 0)))
+	metrics["reset_count"] = maxi(0, int(metrics.get("reset_count", 0)))
+	metrics["current_streak"] = maxi(0, int(metrics.get("current_streak", 0)))
+	metrics["best_streak"] = maxi(int(metrics.get("current_streak", 0)), int(metrics.get("best_streak", 0)))
+	metrics["last_closest_blast_margin_px"] = maxf(-1.0, float(metrics.get("last_closest_blast_margin_px", -1.0)))
+	metrics["last_rep_seconds"] = maxf(0.0, float(metrics.get("last_rep_seconds", 0.0)))
+	metrics["last_finish_state"] = str(metrics.get("last_finish_state", "")).strip_edges().to_lower()
+	metrics["last_ledge_option"] = str(metrics.get("last_ledge_option", "")).strip_edges().to_lower()
+	metrics["last_di_direction"] = str(metrics.get("last_di_direction", "neutral")).strip_edges().to_lower()
+	if str(metrics.get("last_di_direction", "")) == "":
+		metrics["last_di_direction"] = "neutral"
+	var rep_total := int(metrics.get("rep_total", 0))
+	var success_count := int(metrics.get("success_count", 0))
+	metrics["success_rate"] = float(success_count) / float(rep_total) if rep_total > 0 else 0.0
+	return metrics
+
+func _collect_training_drill_result_metrics(rep_metrics: Dictionary = {}) -> Dictionary:
+	var collected := rep_metrics.duplicate(true)
+	collected["elapsed_seconds"] = maxf(
+		0.0,
+		float(collected.get("elapsed_seconds", training_drill_runtime.get("elapsed_seconds", 0.0)))
+	)
+	if not collected.has("closest_blast_margin_px") and training_drill_runtime.has("closest_blast_margin_px"):
+		collected["closest_blast_margin_px"] = maxf(0.0, float(training_drill_runtime.get("closest_blast_margin_px", 0.0)))
+	if not collected.has("ledge_option") and training_drill_runtime.has("ledge_option"):
+		collected["ledge_option"] = str(training_drill_runtime.get("ledge_option", "")).strip_edges().to_lower()
+	if not collected.has("di_direction") and training_drill_runtime.has("di_direction"):
+		collected["di_direction"] = str(training_drill_runtime.get("di_direction", "neutral")).strip_edges().to_lower()
+	return collected
+
+func _merge_training_drill_metrics(
+	drill_id: String,
+	current_metrics_value: Variant,
+	result: String,
+	reason: String,
+	rep_metrics: Dictionary
+) -> Dictionary:
+	var metrics := _normalize_training_drill_metrics(drill_id, current_metrics_value)
+	var rep_total := int(metrics.get("rep_total", 0)) + 1
+	var success_count := int(metrics.get("success_count", 0))
+	var fail_count := int(metrics.get("fail_count", 0))
+	var reset_count := int(metrics.get("reset_count", 0))
+	var current_streak := int(metrics.get("current_streak", 0))
+	match result:
+		"success":
+			success_count += 1
+			current_streak += 1
+		"fail":
+			fail_count += 1
+			current_streak = 0
+		_:
+			reset_count += 1
+			current_streak = 0
+	metrics["rep_total"] = rep_total
+	metrics["success_count"] = success_count
+	metrics["fail_count"] = fail_count
+	metrics["reset_count"] = reset_count
+	metrics["current_streak"] = current_streak
+	metrics["best_streak"] = maxi(int(metrics.get("best_streak", 0)), current_streak)
+	metrics["success_rate"] = float(success_count) / float(rep_total) if rep_total > 0 else 0.0
+	metrics["last_rep_seconds"] = maxf(0.0, float(rep_metrics.get("elapsed_seconds", 0.0)))
+	if rep_metrics.has("closest_blast_margin_px"):
+		metrics["last_closest_blast_margin_px"] = maxf(0.0, float(rep_metrics.get("closest_blast_margin_px", 0.0)))
+	if rep_metrics.has("finish_state"):
+		metrics["last_finish_state"] = str(rep_metrics.get("finish_state", "")).strip_edges().to_lower()
+	if rep_metrics.has("ledge_option"):
+		metrics["last_ledge_option"] = str(rep_metrics.get("ledge_option", "")).strip_edges().to_lower()
+	if rep_metrics.has("di_direction"):
+		metrics["last_di_direction"] = str(rep_metrics.get("di_direction", "neutral")).strip_edges().to_lower()
+	if str(metrics.get("last_di_direction", "")) == "":
+		metrics["last_di_direction"] = "neutral"
+	metrics["last_reason"] = reason
+	return _normalize_training_drill_metrics(drill_id, metrics)
+
+func _resolve_nearest_training_blast_margin(position: Vector2) -> float:
+	var left_margin := position.x - (stage_left_x - BLAST_ZONE_SIDE_MARGIN)
+	var right_margin := (stage_right_x + BLAST_ZONE_SIDE_MARGIN) - position.x
+	var top_margin := position.y - BLAST_ZONE_TOP_Y
+	var bottom_margin := BLAST_ZONE_BOTTOM_Y - position.y
+	return maxf(0.0, minf(minf(left_margin, right_margin), minf(top_margin, bottom_margin)))
+
+func _resolve_training_drill_direction_key(input_vector: Vector2) -> String:
+	if input_vector.length() < 0.01:
+		return "neutral"
+	var horizontal := ""
+	var vertical := ""
+	if input_vector.x <= -TRAINING_DRILL_DIRECTION_AXIS_THRESHOLD:
+		horizontal = "left"
+	elif input_vector.x >= TRAINING_DRILL_DIRECTION_AXIS_THRESHOLD:
+		horizontal = "right"
+	if input_vector.y <= -TRAINING_DRILL_DIRECTION_AXIS_THRESHOLD:
+		vertical = "up"
+	elif input_vector.y >= TRAINING_DRILL_DIRECTION_AXIS_THRESHOLD:
+		vertical = "down"
+	if horizontal != "" and vertical != "":
+		return "%s_%s" % [horizontal, vertical]
+	if horizontal != "":
+		return horizontal
+	if vertical != "":
+		return vertical
+	return "neutral"
+
+func _resolve_ledge_escape_option() -> String:
+	if player_1 == null or bool(player_1.get("is_ledge_hanging")):
+		return ""
+	var dodge_state := str(player_1.get("dodge_state")).strip_edges().to_lower()
+	if dodge_state == "roll":
+		return "roll"
+	var attack_state := str(player_1.get("attack_state")).strip_edges().to_lower()
+	if attack_state != "":
+		return "attack"
+	if player_1.is_on_floor():
+		return "neutral"
+	var velocity_value: Variant = player_1.get("velocity")
+	if velocity_value is Vector2:
+		var velocity := velocity_value as Vector2
+		if velocity.y < -18.0:
+			return "jump"
+		if velocity.y > 18.0:
+			return "drop"
+	return ""
+
+func _seed_training_drill_runtime_metrics() -> void:
+	if training_drill_runtime.is_empty() or player_1 == null:
+		return
+	training_drill_runtime["closest_blast_margin_px"] = _resolve_nearest_training_blast_margin(player_1.global_position)
+	training_drill_runtime["ledge_option"] = ""
+	training_drill_runtime["di_direction"] = "neutral"
+
+func _update_training_drill_runtime_metrics() -> void:
+	if training_drill_runtime.is_empty() or player_1 == null:
+		return
+	var current_margin := _resolve_nearest_training_blast_margin(player_1.global_position)
+	var previous_margin := float(training_drill_runtime.get("closest_blast_margin_px", current_margin))
+	training_drill_runtime["closest_blast_margin_px"] = minf(previous_margin, current_margin)
+	if str(training_drill_runtime.get("drill_id", "")) == TRAINING_DRILL_LEDGE_ESCAPE:
+		if str(training_drill_runtime.get("ledge_option", "")) == "":
+			var option := _resolve_ledge_escape_option()
+			if option != "":
+				training_drill_runtime["ledge_option"] = option
 
 func _sync_training_drill_state_to_hud() -> void:
 	if hud and hud.has_method("set_training_drill_state"):
@@ -1032,9 +1195,17 @@ func _record_training_drill_rep_result(result: String, reason: String, affected_
 	if not bool(training_options.get("enabled", true)):
 		return
 	var current := training_drill_state if typeof(training_drill_state) == TYPE_DICTIONARY else {}
+	var drill_id := str(current.get("drill_id", training_options.get("drill_id", TRAINING_DRILL_DUEL_CORE)))
 	var rep_index := int(current.get("rep_index", 0)) + 1
 	var normalized_result := str(result).strip_edges().to_lower()
 	var normalized_reason := str(reason).strip_edges().to_lower()
+	var merged_metrics := _merge_training_drill_metrics(
+		drill_id,
+		current.get("metrics", {}),
+		normalized_result,
+		normalized_reason,
+		_collect_training_drill_result_metrics(metrics)
+	)
 	var patch := {
 		"rep_index": rep_index,
 		"rep_status": TRAINING_DRILL_STATUS_ACTIVE,
@@ -1043,13 +1214,24 @@ func _record_training_drill_rep_result(result: String, reason: String, affected_
 		"fail_reason": normalized_reason if normalized_result == "fail" else "",
 		"reset_reason": normalized_reason if normalized_result not in ["success", "fail"] else "",
 		"affected_players": affected_players,
-		"metrics": metrics
+		"metrics": merged_metrics
 	}
 	training_drill_state = _build_training_drill_state(
-		str(current.get("drill_id", training_options.get("drill_id", TRAINING_DRILL_DUEL_CORE))),
+		drill_id,
 		patch
 	)
 	_sync_training_drill_state_to_hud()
+	if drill_id != TRAINING_DRILL_DUEL_CORE and hud and hud.has_method("add_training_log_entry"):
+		hud.add_training_log_entry(
+			{
+				"event_type": "drill_result",
+				"training_drill_id": drill_id,
+				"training_drill_result": normalized_result,
+				"training_drill_reason": normalized_reason,
+				"ruleset_profile": str(training_options.get("ruleset_profile", ruleset_profile)),
+				"metrics": merged_metrics
+			}
+		)
 
 func _reset_training_drill_runtime(drill_id: String) -> void:
 	training_drill_runtime = {
@@ -1083,6 +1265,7 @@ func _prepare_training_drill_rep(player_keys: Array[String]) -> void:
 			_setup_di_survival_drill(player_keys)
 		_:
 			training_drill_runtime.clear()
+	_seed_training_drill_runtime_metrics()
 
 func _setup_recovery_route_drill(_player_keys: Array[String]) -> void:
 	_apply_training_patch_to_player(
@@ -1169,6 +1352,7 @@ func _update_training_drill_behaviors(delta: float) -> void:
 	if training_drill_runtime.is_empty():
 		return
 	training_drill_runtime["elapsed_seconds"] = float(training_drill_runtime.get("elapsed_seconds", 0.0)) + maxf(0.0, delta)
+	_update_training_drill_runtime_metrics()
 	match drill_id:
 		TRAINING_DRILL_RECOVERY_ROUTE:
 			_update_recovery_route_drill()
@@ -1255,8 +1439,14 @@ func _trigger_di_survival_launch() -> void:
 			}
 		)
 		return
+	var di_input := Vector2.ZERO
+	if player_1.has_method("get_last_directional_influence_input"):
+		var di_value: Variant = player_1.call("get_last_directional_influence_input")
+		if di_value is Vector2:
+			di_input = di_value as Vector2
 	training_drill_runtime["launch_triggered"] = true
 	training_drill_runtime["success_armed"] = true
+	training_drill_runtime["di_direction"] = _resolve_training_drill_direction_key(di_input)
 
 func _normalize_throw_tech_assist_mode(mode: String) -> String:
 	var normalized := str(mode).strip_edges().to_lower()

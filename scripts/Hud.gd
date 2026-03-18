@@ -926,10 +926,16 @@ func _refresh_training_panel() -> void:
 	if _should_surface_training_drill_state():
 		var drill_summary := _resolve_training_drill_state_summary()
 		training_summary_label.text = drill_summary if drill_summary != "" else tr("HUD_TRAINING_NO_DATA")
-		training_stun_label.text = _format_stat(tr("HUD_TRAINING_STUN"), "Stun: %dF", 0)
-		training_recovery_label.text = _format_stat(tr("HUD_TRAINING_RECOVERY"), "Recovery: %dF", 0)
-		training_advantage_label.text = _format_advantage_label(0)
-		training_advantage_label.modulate = Color(0.92, 0.95, 1.0, 1.0)
+		if _should_surface_training_drill_metrics():
+			training_stun_label.text = _resolve_training_drill_rate_label()
+			training_recovery_label.text = _resolve_training_drill_streak_label()
+			training_advantage_label.text = _resolve_training_drill_edge_label()
+			training_advantage_label.modulate = _resolve_training_drill_metric_color()
+		else:
+			training_stun_label.text = _format_stat(tr("HUD_TRAINING_STUN"), "Stun: %dF", 0)
+			training_recovery_label.text = _format_stat(tr("HUD_TRAINING_RECOVERY"), "Recovery: %dF", 0)
+			training_advantage_label.text = _format_advantage_label(0)
+			training_advantage_label.modulate = Color(0.92, 0.95, 1.0, 1.0)
 		_refresh_training_detail_label()
 		_refresh_training_log_label()
 		return
@@ -1004,6 +1010,8 @@ func _refresh_training_option_buttons() -> void:
 func _should_surface_training_drill_state() -> bool:
 	if cached_training_drill_state.is_empty():
 		return cached_training_info.is_empty()
+	if _should_surface_training_drill_metrics():
+		return true
 	var last_result := str(cached_training_drill_state.get("last_result", "")).strip_edges().to_lower()
 	if cached_training_info.is_empty():
 		return true
@@ -1012,6 +1020,68 @@ func _should_surface_training_drill_state() -> bool:
 	var drill_rep_index := int(cached_training_drill_state.get("rep_index", 0))
 	var info_rep_index := int(cached_training_info.get("training_drill_rep_index", -1))
 	return drill_rep_index > info_rep_index
+
+func _should_surface_training_drill_metrics() -> bool:
+	if cached_training_drill_state.is_empty():
+		return false
+	var drill_id := _normalize_training_drill_id(
+		str(cached_training_drill_state.get("drill_id", "")),
+		str(cached_training_drill_state.get("ruleset_profile", "duel"))
+	)
+	return drill_id != "duel_core" and str(cached_training_drill_state.get("ruleset_profile", "duel")) == "platform"
+
+func _get_training_drill_metrics() -> Dictionary:
+	var metrics_value: Variant = cached_training_drill_state.get("metrics", {})
+	if typeof(metrics_value) == TYPE_DICTIONARY:
+		return (metrics_value as Dictionary).duplicate(true)
+	return {}
+
+func _format_training_drill_percentage(rate: float) -> String:
+	return "%d%%" % int(round(clampf(rate, 0.0, 1.0) * 100.0))
+
+func _format_training_drill_margin(value: float) -> String:
+	if value < 0.0:
+		return _tr_or_fallback("HUD_TRAINING_DRILL_METRIC_MARGIN_NONE", "--")
+	return "%dpx" % int(round(value))
+
+func _resolve_training_drill_rate_label() -> String:
+	return _resolve_training_drill_rate_label_from_metrics(_get_training_drill_metrics())
+
+func _resolve_training_drill_streak_label() -> String:
+	return _resolve_training_drill_streak_label_from_metrics(_get_training_drill_metrics())
+
+func _resolve_training_drill_edge_label() -> String:
+	return _resolve_training_drill_edge_label_from_metrics(_get_training_drill_metrics())
+
+func _resolve_training_drill_rate_label_from_metrics(metrics: Dictionary) -> String:
+	return _format_string_value(
+		_tr_or_fallback("HUD_TRAINING_DRILL_METRIC_RATE", "Rate %s"),
+		"Rate %s",
+		_format_training_drill_percentage(float(metrics.get("success_rate", 0.0)))
+	)
+
+func _resolve_training_drill_streak_label_from_metrics(metrics: Dictionary) -> String:
+	return _format_string_value(
+		_tr_or_fallback("HUD_TRAINING_DRILL_METRIC_STREAK", "Streak x%s"),
+		"Streak x%s",
+		str(maxi(0, int(metrics.get("current_streak", 0))))
+	)
+
+func _resolve_training_drill_edge_label_from_metrics(metrics: Dictionary) -> String:
+	return _format_string_value(
+		_tr_or_fallback("HUD_TRAINING_DRILL_METRIC_EDGE", "Edge %s"),
+		"Edge %s",
+		_format_training_drill_margin(float(metrics.get("last_closest_blast_margin_px", -1.0)))
+	)
+
+func _resolve_training_drill_metric_color() -> Color:
+	match str(cached_training_drill_state.get("last_result", "")).strip_edges().to_lower():
+		"success":
+			return Color(0.80, 1.0, 0.84, 1.0)
+		"fail":
+			return Color(1.0, 0.84, 0.80, 1.0)
+		_:
+			return Color(0.92, 0.95, 1.0, 1.0)
 
 func _refresh_training_detail_label() -> void:
 	if training_detail_label == null:
@@ -1166,6 +1236,8 @@ func _resolve_training_guard_label(guard_mode: String) -> String:
 	return tr("HUD_TRAINING_GUARD_MID")
 
 func _resolve_training_log_line(entry: Dictionary) -> String:
+	if str(entry.get("event_type", "")).strip_edges().to_lower() == "drill_result":
+		return _resolve_training_drill_log_line(entry)
 	var event_label := _resolve_training_event_label(str(entry.get("event_type", "")))
 	var move_label := _resolve_training_attack_label(
 		str(entry.get("attack_kind", "")),
@@ -1204,6 +1276,46 @@ func _resolve_training_log_line(entry: Dictionary) -> String:
 	if chip_damage > 0:
 		line += " %s%d" % [chip_short, chip_damage]
 	return line
+
+func _resolve_training_drill_log_line(entry: Dictionary) -> String:
+	var drill_id := _normalize_training_drill_id(
+		str(entry.get("training_drill_id", "")),
+		str(entry.get("ruleset_profile", "platform"))
+	)
+	var result_label := _resolve_training_drill_result_label(str(entry.get("training_drill_result", "")))
+	var reason_label := _resolve_training_drill_reason_label(str(entry.get("training_drill_reason", "")))
+	var metrics_value: Variant = entry.get("metrics", {})
+	var metrics := {}
+	if typeof(metrics_value) == TYPE_DICTIONARY:
+		metrics = (metrics_value as Dictionary).duplicate(true)
+	var parts := PackedStringArray([_resolve_training_drill_label(drill_id)])
+	if result_label != "":
+		parts.append(result_label)
+	if reason_label != "":
+		parts.append(reason_label)
+	parts.append(_resolve_training_drill_rate_label_from_metrics(metrics))
+	parts.append(_resolve_training_drill_edge_label_from_metrics(metrics))
+	if drill_id == "ledge_escape":
+		var option_label := _resolve_training_drill_option_label(str(metrics.get("last_ledge_option", "")))
+		if option_label != "":
+			parts.append(
+				_format_string_value(
+					_tr_or_fallback("HUD_TRAINING_DRILL_DETAIL_OPTION", "Option %s"),
+					"Option %s",
+					option_label
+				)
+			)
+	elif drill_id == "di_survival":
+		var di_label := _resolve_training_drill_di_direction_label(str(metrics.get("last_di_direction", "neutral")))
+		if di_label != "":
+			parts.append(
+				_format_string_value(
+					_tr_or_fallback("HUD_TRAINING_DRILL_DETAIL_DI", "DI %s"),
+					"DI %s",
+					di_label
+				)
+			)
+	return " ".join(parts)
 
 func _resolve_dummy_mode_label(mode: String) -> String:
 	match mode:
@@ -1368,7 +1480,90 @@ func _resolve_training_drill_state_detail() -> String:
 	])
 	if reason != "":
 		detail_parts.append(reason)
+	if _should_surface_training_drill_metrics():
+		var metrics := _get_training_drill_metrics()
+		var completed_reps := maxi(0, int(metrics.get("rep_total", 0)))
+		var finish_label := _resolve_training_drill_finish_label(str(metrics.get("last_finish_state", "")))
+		if finish_label != "":
+			detail_parts.append(
+				_format_string_value(
+					_tr_or_fallback("HUD_TRAINING_DRILL_DETAIL_FINISH", "Finish %s"),
+					"Finish %s",
+					finish_label
+				)
+			)
+		var drill_id := _normalize_training_drill_id(
+			str(cached_training_drill_state.get("drill_id", "")),
+			str(cached_training_drill_state.get("ruleset_profile", "platform"))
+		)
+		if drill_id == "ledge_escape":
+			var option_label := _resolve_training_drill_option_label(str(metrics.get("last_ledge_option", "")))
+			if option_label != "":
+				detail_parts.append(
+					_format_string_value(
+						_tr_or_fallback("HUD_TRAINING_DRILL_DETAIL_OPTION", "Option %s"),
+						"Option %s",
+						option_label
+					)
+				)
+		elif drill_id == "di_survival" and completed_reps > 0:
+			var di_label := _resolve_training_drill_di_direction_label(str(metrics.get("last_di_direction", "neutral")))
+			if di_label != "":
+				detail_parts.append(
+					_format_string_value(
+						_tr_or_fallback("HUD_TRAINING_DRILL_DETAIL_DI", "DI %s"),
+						"DI %s",
+						di_label
+					)
+				)
 	return " | ".join(detail_parts)
+
+func _resolve_training_drill_finish_label(finish_state: String) -> String:
+	match str(finish_state).strip_edges().to_lower():
+		"ledge":
+			return _tr_or_fallback("HUD_TRAINING_DRILL_FINISH_LEDGE", "Ledge")
+		"stage":
+			return _tr_or_fallback("HUD_TRAINING_DRILL_FINISH_STAGE", "Stage")
+		"ground":
+			return _tr_or_fallback("HUD_TRAINING_DRILL_FINISH_GROUND", "Ground")
+		_:
+			return ""
+
+func _resolve_training_drill_option_label(option: String) -> String:
+	match str(option).strip_edges().to_lower():
+		"neutral":
+			return _tr_or_fallback("HUD_TRAINING_DRILL_OPTION_NEUTRAL", "Neutral")
+		"roll":
+			return _tr_or_fallback("HUD_TRAINING_DRILL_OPTION_ROLL", "Roll")
+		"attack":
+			return _tr_or_fallback("HUD_TRAINING_DRILL_OPTION_ATTACK", "Attack")
+		"jump":
+			return _tr_or_fallback("HUD_TRAINING_DRILL_OPTION_JUMP", "Jump")
+		"drop":
+			return _tr_or_fallback("HUD_TRAINING_DRILL_OPTION_DROP", "Drop")
+		_:
+			return ""
+
+func _resolve_training_drill_di_direction_label(direction: String) -> String:
+	match str(direction).strip_edges().to_lower():
+		"left":
+			return _tr_or_fallback("HUD_TRAINING_DRILL_DI_LEFT", "Left")
+		"right":
+			return _tr_or_fallback("HUD_TRAINING_DRILL_DI_RIGHT", "Right")
+		"up":
+			return _tr_or_fallback("HUD_TRAINING_DRILL_DI_UP", "Up")
+		"down":
+			return _tr_or_fallback("HUD_TRAINING_DRILL_DI_DOWN", "Down")
+		"left_up":
+			return _tr_or_fallback("HUD_TRAINING_DRILL_DI_LEFT_UP", "Left-Up")
+		"right_up":
+			return _tr_or_fallback("HUD_TRAINING_DRILL_DI_RIGHT_UP", "Right-Up")
+		"left_down":
+			return _tr_or_fallback("HUD_TRAINING_DRILL_DI_LEFT_DOWN", "Left-Down")
+		"right_down":
+			return _tr_or_fallback("HUD_TRAINING_DRILL_DI_RIGHT_DOWN", "Right-Down")
+		_:
+			return _tr_or_fallback("HUD_TRAINING_DRILL_DI_NEUTRAL", "Neutral")
 
 func _update_language_buttons() -> void:
 	var locale := TranslationServer.get_locale()
