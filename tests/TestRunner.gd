@@ -2957,7 +2957,7 @@ func _test_throw_tech_and_ai_defense_windows() -> void:
 	_assert_true(str(tech_result.get("throw_tech_source", "")) == "throw", "throw tech records throw input as its source")
 	var defender_velocity_value: Variant = p2.get("velocity")
 	if defender_velocity_value is Vector2:
-		_assert_true(absf((defender_velocity_value as Vector2).x) >= 90.0, "throw tech pushback resets the defender out of throw range")
+		_assert_true(absf((defender_velocity_value as Vector2).x) >= 108.0, "throw tech pushback resets the defender deeper into mid-range")
 
 	_reset_throw_tech_target_state(p2)
 	p2.call("_clear_throw_tech_buffer")
@@ -2989,7 +2989,7 @@ func _test_throw_tech_and_ai_defense_windows() -> void:
 	p1.call("_update_attack", 0.08)
 	var throw_data := p1.call("_get_attack_data", "throw") as Dictionary
 	var whiff_recovery := float(p1.call("_get_attack_recovery_remaining_seconds", throw_data))
-	_assert_true(whiff_recovery >= 0.24, "whiffed duel throw leaves a punishable recovery window")
+	_assert_true(whiff_recovery >= 0.30, "whiffed duel throw leaves a clearly punishable recovery window")
 	var whiff_training_info: Dictionary = p1.call("get_last_training_info")
 	_assert_true(str(whiff_training_info.get("event_type", "")) == "throw_whiff", "throw whiff training event is recorded as soon as recovery starts")
 	_assert_true(int(whiff_training_info.get("advantage_frames", 0)) < 0, "throw whiff training event preserves negative advantage during recovery")
@@ -3021,6 +3021,8 @@ func _test_throw_tech_and_ai_defense_windows() -> void:
 	p1.call("_start_attack", "throw")
 	p1.call("_update_attack", 0.08)
 	p1.call("_on_attack_blocked", throw_data)
+	var tech_recovery := float(p1.call("_get_attack_recovery_remaining_seconds", throw_data))
+	_assert_true(tech_recovery >= 0.28, "teched duel throw leaves enough recovery to reset the read cleanly")
 	p1.call("_record_training_exchange", "throw_tech", "throw", throw_data, {
 		"throw_tech_source": "throw",
 		"throw_tech_window_type": "duel"
@@ -3612,7 +3614,7 @@ func _test_duel_ruleset_defense_profile() -> void:
 	_assert_true(bool(p1.call("_start_air_dodge", 1.0, 0.0)), "duel ruleset keeps a trimmed air dodge escape")
 	_assert_true(float(p1.get("dodge_time")) <= 0.18, "duel air dodge stays shorter than platform air dodge")
 	p1.call("_end_dodge_state")
-	_assert_true(float(p1.get("air_dodge_end_lag_time")) >= 0.24, "duel air dodge pays heavier recovery")
+	_assert_true(float(p1.get("air_dodge_end_lag_time")) >= 0.28, "duel air dodge pays heavier recovery")
 
 	p1.set("shield_meter", 80.0)
 	p1.set("shield_break_time", 0.0)
@@ -3629,6 +3631,7 @@ func _test_duel_ruleset_defense_profile() -> void:
 	p1.call("_start_roll_dodge", -1)
 	_assert_true(str(p1.get("dodge_state")) == "roll", "duel ruleset keeps a grounded dodge option")
 	_assert_true(float(p1.get("dodge_time")) <= 0.20, "duel grounded dodge stays shorter than platform dodge")
+	_assert_true(float(p1.get("dodge_cooldown_time")) >= 0.38, "duel grounded dodge commits to a longer cooldown")
 	var base_knockback := Vector2(180.0, -110.0)
 	var adjusted_knockback: Variant = p1.call("_apply_directional_influence", base_knockback, {"di_override": Vector2(-1.0, -0.35)})
 	if adjusted_knockback is Vector2:
