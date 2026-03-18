@@ -2078,7 +2078,8 @@ func _test_hitstop_overlap_recovery() -> void:
 	match_node.call("_apply_hitstop", 0.09)
 	if p1 != null and p2 != null:
 		_assert_true(bool(p1.get("hitstop_active")) and bool(p2.get("hitstop_active")), "overlapping hitstop requests freeze both fighters")
-	await create_timer(0.14, true, false, true).timeout
+	for _i in range(12):
+		await process_frame
 	await process_frame
 	if p1 != null and p2 != null:
 		_assert_true(not bool(p1.get("hitstop_active")) and not bool(p2.get("hitstop_active")), "overlapping hitstop requests recover fighter motion state")
