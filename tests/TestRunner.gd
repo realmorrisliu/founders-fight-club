@@ -3642,6 +3642,7 @@ func _test_jump_leniency_and_fast_fall() -> void:
 	if p1 == null or host == null:
 		return
 
+	_prepare_airborne_jump_test_player(p1, 1)
 	p1.set("velocity", Vector2(0.0, 64.0))
 	p1.set("coyote_time", 0.08)
 	p1.set("jump_buffer_time", 0.10)
@@ -3679,6 +3680,7 @@ func _test_short_hop_jump_cut() -> void:
 	if p1 == null or host == null:
 		return
 
+	_prepare_airborne_jump_test_player(p1, 1)
 	p1.set("is_ai", false)
 	p1.set("velocity", Vector2.ZERO)
 	p1.set("coyote_time", 0.08)
@@ -3876,10 +3878,13 @@ func _test_double_jump_and_ledge_getup_options() -> void:
 	if p1 == null or host == null:
 		return
 
+	_prepare_airborne_jump_test_player(p1, 1)
 	p1.set("air_jumps_remaining", 1)
 	p1.set("coyote_time", 0.0)
 	p1.set("jump_buffer_time", 0.10)
 	p1.set("velocity", Vector2.ZERO)
+	_assert_true(bool(p1.call("_allows_air_jumps")), "double jump test keeps platform air-jump rules enabled")
+	_assert_true(bool(p1.call("_can_execute_jump")), "double jump test starts from a valid airborne jump state")
 	var first_air_jump := bool(p1.call("_try_consume_buffered_jump"))
 	_assert_true(first_air_jump, "air jump can be consumed when coyote is unavailable")
 	_assert_true(int(p1.get("air_jumps_remaining")) == 0, "air jump use decrements remaining jump resource")
@@ -3986,6 +3991,33 @@ func _spawn_test_players() -> Dictionary:
 	await process_frame
 	await process_frame
 	return {"host": host, "p1": p1, "p2": p2}
+
+func _prepare_airborne_jump_test_player(player: CharacterBody2D, air_jump_count: int = 1) -> void:
+	if player == null:
+		return
+	player.call("set_ruleset_profile", "platform")
+	player.set("position", Vector2(120.0, 160.0))
+	player.set("current_hp", 100)
+	player.set("shield_break_time", 0.0)
+	player.set("dodge_state", "")
+	player.set("dodge_time", 0.0)
+	player.set("dodge_cooldown_time", 0.0)
+	player.set("air_dodge_end_lag_time", 0.0)
+	player.set("air_dodge_available", true)
+	player.set("is_ledge_hanging", false)
+	player.set("ledge_side", 0)
+	player.set("ledge_hold_time", 0.0)
+	player.set("ledge_regrab_lock_time", 0.0)
+	player.set("landing_lag_time", 0.0)
+	player.set("status_root_time", 0.0)
+	player.set("is_knocked_down", false)
+	player.set("getup_time", 0.0)
+	player.set("hitstun_time", 0.0)
+	player.set("blockstun_time", 0.0)
+	player.set("jump_buffer_time", 0.0)
+	player.set("coyote_time", 0.0)
+	player.set("velocity", Vector2.ZERO)
+	player.set("air_jumps_remaining", clampi(air_jump_count, 0, 1))
 
 func _resolve_test_player_half_width(player: CharacterBody2D) -> float:
 	if player != null and player.has_node("CollisionShape2D"):
