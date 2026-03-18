@@ -219,7 +219,7 @@ const SFX_VOLUME_DB := {
 const DIALOGUE_PACK_PATH := "res://assets/data/dialogue/DialoguePackV1.json"
 const DIALOGUE_LINE_DELAY_SECONDS := 0.45
 const MATCH_METRICS_LOG_PATH := "user://match_metrics.jsonl"
-const MATCH_METRICS_SCHEMA_VERSION := 2
+const MATCH_METRICS_SCHEMA_VERSION := 3
 const ONBOARDING_SEQUENCE_VERSION := 3
 const ONBOARDING_FEEDBACK_SECONDS := 0.8
 const ONBOARDING_STAGE_CENTER_OFFSET := 88.0
@@ -393,6 +393,7 @@ var onboarding_skipped := false
 var onboarding_forced_replay := false
 var onboarding_step_index := 0
 var onboarding_steps_completed := PackedStringArray()
+var onboarding_lesson_attempt_counts := {}
 var onboarding_completed_seconds := -1.0
 var onboarding_entry_point := "match_start"
 var onboarding_lesson_state := {}
@@ -400,7 +401,10 @@ var onboarding_lesson_runtime := {}
 var telemetry_round_tuning_picks: Array[Dictionary] = []
 var telemetry_item_activation_events: Array[Dictionary] = []
 var telemetry_item_evolution_events: Array[Dictionary] = []
+var telemetry_training_drill_events: Array[Dictionary] = []
+var telemetry_onboarding_lesson_events: Array[Dictionary] = []
 var telemetry_expected_item_evolution_count := 0
+var telemetry_session_log_written := false
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -507,6 +511,7 @@ func _exit_tree() -> void:
 		dialogue_timer.stop()
 	pending_dialogue_text = ""
 	pending_dialogue_duration = 0.0
+	_append_session_metrics_on_exit("scene_exit")
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("restart"):
@@ -842,11 +847,14 @@ func _end_match(result_key: String) -> void:
 	if hud and hud.has_method("set_pause_visible"):
 		hud.set_pause_visible(false)
 	_refresh_result_text()
-	_append_match_metrics_log(result_key)
+	_append_match_metrics_log(result_key, "match_end")
 	_queue_story_progression(result_key)
 	_trigger_victory_dialogue(result_key)
 
-func _append_match_metrics_log(result_key: String) -> void:
+func _append_match_metrics_log(result_key: String, exit_reason: String = "match_end") -> void:
+	if telemetry_session_log_written:
+		return
+	telemetry_session_log_written = true
 	var p1_loadout := (selected_character_loadouts.get("p1", {}) as Dictionary).duplicate(true)
 	var p2_loadout := (selected_character_loadouts.get("p2", {}) as Dictionary).duplicate(true)
 	var evolution_success_count := telemetry_item_evolution_events.size()
@@ -854,11 +862,18 @@ func _append_match_metrics_log(result_key: String) -> void:
 	var evolution_success_rate := 0.0
 	if evolution_expected_count > 0:
 		evolution_success_rate = float(evolution_success_count) / float(evolution_expected_count)
+	var normalized_result := str(result_key).strip_edges().to_lower()
+	if normalized_result == "":
+		normalized_result = "session_exit"
+	var normalized_exit_reason := str(exit_reason).strip_edges().to_lower()
+	if normalized_exit_reason == "":
+		normalized_exit_reason = "match_end"
 	var record := {
 		"schema_version": MATCH_METRICS_SCHEMA_VERSION,
 		"timestamp_utc": Time.get_datetime_string_from_system(true),
 		"match_mode": _resolve_active_match_mode(),
-		"result": result_key,
+		"result": normalized_result,
+		"exit_reason": normalized_exit_reason,
 		"match_elapsed_seconds": match_elapsed_seconds,
 		"p1_character_id": str(selected_character_ids.get("p1", "")),
 		"p2_character_id": str(selected_character_ids.get("p2", "")),
@@ -870,6 +885,8 @@ func _append_match_metrics_log(result_key: String) -> void:
 		"round_tuning_picks": telemetry_round_tuning_picks.duplicate(true),
 		"item_activation_events": telemetry_item_activation_events.duplicate(true),
 		"item_evolution_events": telemetry_item_evolution_events.duplicate(true),
+		"training_drill_events": telemetry_training_drill_events.duplicate(true),
+		"onboarding_lesson_events": telemetry_onboarding_lesson_events.duplicate(true),
 		"item_evolution_expected_count": evolution_expected_count,
 		"item_evolution_success_count": evolution_success_count,
 		"item_evolution_success_rate": evolution_success_rate,
@@ -898,6 +915,20 @@ func _append_match_metrics_log(result_key: String) -> void:
 	file.seek_end()
 	file.store_string("%s\n" % line)
 
+func _should_append_session_metrics_on_exit() -> bool:
+	if telemetry_session_log_written or match_over:
+		return false
+	if training_scene_enabled:
+		return true
+	if onboarding_started:
+		return true
+	return not telemetry_training_drill_events.is_empty() or not telemetry_onboarding_lesson_events.is_empty()
+
+func _append_session_metrics_on_exit(exit_reason: String) -> void:
+	if not _should_append_session_metrics_on_exit():
+		return
+	_append_match_metrics_log("", exit_reason)
+
 func _resolve_active_match_mode() -> String:
 	if training_scene_enabled:
 		return "training"
@@ -922,12 +953,16 @@ func _reset_match_telemetry() -> void:
 	onboarding_forced_replay = false
 	onboarding_step_index = 0
 	onboarding_steps_completed = PackedStringArray()
+	onboarding_lesson_attempt_counts.clear()
 	onboarding_completed_seconds = -1.0
 	onboarding_entry_point = "match_start"
 	telemetry_round_tuning_picks.clear()
 	telemetry_item_activation_events.clear()
 	telemetry_item_evolution_events.clear()
+	telemetry_training_drill_events.clear()
+	telemetry_onboarding_lesson_events.clear()
 	telemetry_expected_item_evolution_count = _count_expected_item_evolutions()
+	telemetry_session_log_written = false
 
 func _count_expected_item_evolutions() -> int:
 	var expected := 0
@@ -1006,6 +1041,7 @@ func _restart_match() -> void:
 		SessionStateStore.set_value(SessionKeysStore.STORY_ROUND_INDEX, 0)
 	_cancel_round_tuning_intermission()
 	_clear_hitstop()
+	_append_session_metrics_on_exit("restart")
 	get_tree().paused = false
 	get_tree().reload_current_scene()
 
@@ -1262,6 +1298,26 @@ func _refresh_training_drill_state(reset_result: bool = false) -> void:
 	training_drill_state = next_state
 	_sync_training_drill_state_to_hud()
 
+func _resolve_next_training_drill_rep_index(drill_id: String) -> int:
+	var resolved_drill_id := _normalize_training_drill_id(drill_id, str(training_options.get("ruleset_profile", ruleset_profile)))
+	var current_drill_id := str(training_drill_state.get("drill_id", "")).strip_edges().to_lower()
+	if current_drill_id != resolved_drill_id:
+		return 1
+	return maxi(1, int(training_drill_state.get("rep_index", 0)) + 1)
+
+func _record_training_drill_event(event_type: String, drill_id: String, patch: Dictionary = {}) -> void:
+	var resolved_drill_id := _normalize_training_drill_id(drill_id, str(training_options.get("ruleset_profile", ruleset_profile)))
+	var event := {
+		"event_type": str(event_type).strip_edges().to_lower(),
+		"drill_id": resolved_drill_id,
+		"ruleset_profile": _resolve_ruleset_for_training_drill(resolved_drill_id),
+		"match_elapsed_seconds": match_elapsed_seconds,
+		"rep_index": _resolve_next_training_drill_rep_index(resolved_drill_id)
+	}
+	for key in patch.keys():
+		event[str(key)] = patch[key]
+	telemetry_training_drill_events.append(event)
+
 func _record_training_drill_rep_result(result: String, reason: String, affected_players: Array[String], metrics: Dictionary = {}) -> void:
 	if not bool(training_options.get("enabled", true)):
 		return
@@ -1292,6 +1348,21 @@ func _record_training_drill_rep_result(result: String, reason: String, affected_
 		patch
 	)
 	_sync_training_drill_state_to_hud()
+	_record_training_drill_event(
+		"rep_result",
+		drill_id,
+		{
+			"rep_index": rep_index,
+			"result": normalized_result,
+			"reason": normalized_reason,
+			"affected_players": PackedStringArray(affected_players),
+			"rep_elapsed_seconds": float(merged_metrics.get("last_rep_seconds", 0.0)),
+			"closest_blast_margin_px": float(merged_metrics.get("last_closest_blast_margin_px", -1.0)),
+			"finish_state": str(merged_metrics.get("last_finish_state", "")),
+			"ledge_option": str(merged_metrics.get("last_ledge_option", "")),
+			"di_direction": str(merged_metrics.get("last_di_direction", "neutral"))
+		}
+	)
 	if drill_id != TRAINING_DRILL_DUEL_CORE and hud and hud.has_method("add_training_log_entry"):
 		hud.add_training_log_entry(
 			{
@@ -1337,6 +1408,15 @@ func _prepare_training_drill_rep(player_keys: Array[String]) -> void:
 		_:
 			training_drill_runtime.clear()
 	_seed_training_drill_runtime_metrics()
+	_record_training_drill_event(
+		"rep_start",
+		drill_id,
+		{
+			"rep_index": _resolve_next_training_drill_rep_index(drill_id),
+			"entry_side": str(training_drill_runtime.get("entry_side", "")),
+			"launch_delay_seconds": float(training_drill_runtime.get("launch_delay_seconds", 0.0))
+		}
+	)
 
 func _setup_recovery_route_drill(_player_keys: Array[String]) -> void:
 	_apply_training_patch_to_player(
@@ -1913,6 +1993,7 @@ func _initialize_onboarding_flow() -> void:
 	onboarding_skipped = false
 	onboarding_step_index = 0
 	onboarding_steps_completed = PackedStringArray()
+	onboarding_lesson_attempt_counts.clear()
 	onboarding_completed_seconds = -1.0
 	onboarding_forced_replay = false
 	onboarding_entry_point = "match_start"
@@ -1952,6 +2033,7 @@ func _start_onboarding_sequence() -> void:
 	onboarding_skipped = false
 	onboarding_step_index = 0
 	onboarding_steps_completed = PackedStringArray()
+	onboarding_lesson_attempt_counts.clear()
 	onboarding_completed_seconds = -1.0
 	onboarding_lesson_state.clear()
 	onboarding_lesson_runtime.clear()
@@ -1994,9 +2076,11 @@ func _build_onboarding_lesson_runtime(step: Dictionary) -> Dictionary:
 		"lesson_type": str(step.get("lesson_type", "movement")).strip_edges().to_lower(),
 		"setup": str(step.get("setup", "neutral")).strip_edges().to_lower(),
 		"goal": str(step.get("goal", "")).strip_edges().to_lower(),
+		"attempt_index": 0,
 		"phase": "active",
 		"feedback_timer": 0.0,
 		"last_result": "",
+		"outcome_reason": "",
 		"elapsed_seconds": 0.0,
 		"dummy_attack_started": false,
 		"dummy_blocked_player": false,
@@ -2014,6 +2098,24 @@ func _build_onboarding_lesson_runtime(step: Dictionary) -> Dictionary:
 		"punish_window_seconds": 0.0,
 		"failure_timeout_seconds": 0.0
 	}
+
+func _record_onboarding_lesson_event(event_type: String, lesson_id: String, patch: Dictionary = {}) -> void:
+	var normalized_lesson_id := str(lesson_id).strip_edges()
+	if normalized_lesson_id == "":
+		return
+	var event := {
+		"event_type": str(event_type).strip_edges().to_lower(),
+		"lesson_id": normalized_lesson_id,
+		"lesson_type": str(onboarding_lesson_runtime.get("lesson_type", onboarding_lesson_state.get("lesson_type", ""))).strip_edges().to_lower(),
+		"setup": str(onboarding_lesson_runtime.get("setup", onboarding_lesson_state.get("setup", ""))).strip_edges().to_lower(),
+		"goal": str(onboarding_lesson_runtime.get("goal", onboarding_lesson_state.get("goal", ""))).strip_edges().to_lower(),
+		"step_index": maxi(0, onboarding_step_index),
+		"match_elapsed_seconds": match_elapsed_seconds,
+		"attempt_index": maxi(1, int(onboarding_lesson_runtime.get("attempt_index", 1)))
+	}
+	for key in patch.keys():
+		event[str(key)] = patch[key]
+	telemetry_onboarding_lesson_events.append(event)
 
 func _apply_onboarding_dummy_mode(mode: String) -> void:
 	if player_1 and player_1.has_method("set_training_dummy_options"):
@@ -2079,8 +2181,12 @@ func _prepare_onboarding_lesson(step: Dictionary) -> void:
 		onboarding_lesson_runtime.clear()
 		_refresh_onboarding_hud()
 		return
+	var lesson_id := str(step.get("id", "")).strip_edges()
+	var attempt_index := int(onboarding_lesson_attempt_counts.get(lesson_id, 0)) + 1
+	onboarding_lesson_attempt_counts[lesson_id] = attempt_index
 	onboarding_lesson_state = _build_onboarding_lesson_state(step)
 	onboarding_lesson_runtime = _build_onboarding_lesson_runtime(step)
+	onboarding_lesson_runtime["attempt_index"] = attempt_index
 	var stage_center_x := (stage_left_x + stage_right_x) * 0.5
 	var setup := str(step.get("setup", "neutral")).strip_edges().to_lower()
 	var center_distance := _resolve_onboarding_setup_center_distance(setup)
@@ -2125,22 +2231,48 @@ func _prepare_onboarding_lesson(step: Dictionary) -> void:
 		hud.set_training_data({})
 	if hud and hud.has_method("clear_training_log"):
 		hud.clear_training_log()
+	_record_onboarding_lesson_event(
+		"lesson_start",
+		lesson_id,
+		{
+			"attempt_index": attempt_index,
+			"is_retry": attempt_index > 1,
+			"failure_timeout_seconds": float(onboarding_lesson_runtime.get("failure_timeout_seconds", 0.0)),
+			"punish_window_duration": float(onboarding_lesson_runtime.get("punish_window_duration", 0.0))
+		}
+	)
 	_refresh_onboarding_hud()
 
-func _queue_onboarding_lesson_outcome(step: Dictionary, result: String, message_key: String, fallback: String) -> void:
+func _queue_onboarding_lesson_outcome(step: Dictionary, result: String, message_key: String, fallback: String, reason: String = "") -> void:
 	if onboarding_lesson_runtime.is_empty():
 		return
 	if str(onboarding_lesson_runtime.get("phase", "active")) != "active":
 		return
+	var normalized_reason := str(reason).strip_edges().to_lower()
+	if normalized_reason == "":
+		normalized_reason = str(result).strip_edges().to_lower()
 	onboarding_lesson_runtime["phase"] = "feedback"
 	onboarding_lesson_runtime["feedback_timer"] = ONBOARDING_FEEDBACK_SECONDS
 	onboarding_lesson_runtime["last_result"] = result
+	onboarding_lesson_runtime["outcome_reason"] = normalized_reason
 	onboarding_lesson_state = _build_onboarding_lesson_state(
 		step,
 		{
 			"status": result,
 			"status_key": message_key,
 			"status_fallback": fallback
+		}
+	)
+	_record_onboarding_lesson_event(
+		"lesson_result",
+		str(step.get("id", "")),
+		{
+			"result": str(result).strip_edges().to_lower(),
+			"reason": normalized_reason,
+			"elapsed_seconds": maxf(0.0, float(onboarding_lesson_runtime.get("elapsed_seconds", 0.0))),
+			"attempt_index": maxi(1, int(onboarding_lesson_runtime.get("attempt_index", 1))),
+			"last_player_hit_kind": str(onboarding_lesson_runtime.get("last_player_hit_kind", "")),
+			"last_blocked_attack_kind": str(onboarding_lesson_runtime.get("last_blocked_attack_kind", ""))
 		}
 	)
 	_refresh_onboarding_hud()
@@ -2189,43 +2321,43 @@ func _update_onboarding_scenario_lesson(step: Dictionary, delta: float) -> void:
 	match setup:
 		"guard_response":
 			if bool(onboarding_lesson_runtime.get("dummy_blocked_player", false)):
-				_queue_onboarding_lesson_outcome(step, "success", "HUD_ONBOARDING_FEEDBACK_GUARD_SUCCESS", "Blocked. Guard beats strikes.")
+				_queue_onboarding_lesson_outcome(step, "success", "HUD_ONBOARDING_FEEDBACK_GUARD_SUCCESS", "Blocked. Guard beats strikes.", "blocked_strike")
 				return
 			if bool(onboarding_lesson_runtime.get("dummy_hit_player", false)):
-				_queue_onboarding_lesson_outcome(step, "fail", "HUD_ONBOARDING_FEEDBACK_GUARD_FAIL", "You got clipped. Guard before the hit lands.")
+				_queue_onboarding_lesson_outcome(step, "fail", "HUD_ONBOARDING_FEEDBACK_GUARD_FAIL", "You got clipped. Guard before the hit lands.", "got_hit")
 				return
 		"throw_guard_break":
 			if bool(onboarding_lesson_runtime.get("player_throw_hit", false)):
-				_queue_onboarding_lesson_outcome(step, "success", "HUD_ONBOARDING_FEEDBACK_THROW_SUCCESS", "Throw landed. Throw beats guard.")
+				_queue_onboarding_lesson_outcome(step, "success", "HUD_ONBOARDING_FEEDBACK_THROW_SUCCESS", "Throw landed. Throw beats guard.", "guard_broken")
 				return
 			if bool(onboarding_lesson_runtime.get("player_attack_blocked", false)):
-				_queue_onboarding_lesson_outcome(step, "fail", "HUD_ONBOARDING_FEEDBACK_THROW_FAIL", "That was blocked. Throw is the answer to guarding.")
+				_queue_onboarding_lesson_outcome(step, "fail", "HUD_ONBOARDING_FEEDBACK_THROW_FAIL", "That was blocked. Throw is the answer to guarding.", "throw_blocked")
 				return
 		"dodge_punish":
 			if bool(onboarding_lesson_runtime.get("dummy_hit_player", false)):
-				_queue_onboarding_lesson_outcome(step, "fail", "HUD_ONBOARDING_FEEDBACK_DODGE_FAIL_HIT", "Too slow. Dodge before the heavy lands.")
+				_queue_onboarding_lesson_outcome(step, "fail", "HUD_ONBOARDING_FEEDBACK_DODGE_FAIL_HIT", "Too slow. Dodge before the heavy lands.", "got_hit")
 				return
 			if bool(onboarding_lesson_runtime.get("dummy_blocked_player", false)):
-				_queue_onboarding_lesson_outcome(step, "fail", "HUD_ONBOARDING_FEEDBACK_DODGE_FAIL_BLOCK", "Guard survived, but dodge creates the punish.")
+				_queue_onboarding_lesson_outcome(step, "fail", "HUD_ONBOARDING_FEEDBACK_DODGE_FAIL_BLOCK", "Guard survived, but dodge creates the punish.", "guarded_punish")
 				return
 			if bool(onboarding_lesson_runtime.get("dodge_confirmed", false)) and bool(onboarding_lesson_runtime.get("player_hit_dummy_during_opening", false)):
-				_queue_onboarding_lesson_outcome(step, "success", "HUD_ONBOARDING_FEEDBACK_DODGE_SUCCESS", "Clean punish. Dodge beats commitment.")
+				_queue_onboarding_lesson_outcome(step, "success", "HUD_ONBOARDING_FEEDBACK_DODGE_SUCCESS", "Clean punish. Dodge beats commitment.", "punish_confirmed")
 				return
 			if bool(onboarding_lesson_runtime.get("punish_window_active", false)) and float(onboarding_lesson_runtime.get("punish_window_seconds", 0.0)) <= 0.0:
-				_queue_onboarding_lesson_outcome(step, "fail", "HUD_ONBOARDING_FEEDBACK_DODGE_FAIL_TIMEOUT", "The punish window closed. Dodge first, then hit back.")
+				_queue_onboarding_lesson_outcome(step, "fail", "HUD_ONBOARDING_FEEDBACK_DODGE_FAIL_TIMEOUT", "The punish window closed. Dodge first, then hit back.", "window_expired")
 				return
 		"special_punish":
 			if bool(onboarding_lesson_runtime.get("dummy_hit_player", false)):
-				_queue_onboarding_lesson_outcome(step, "fail", "HUD_ONBOARDING_FEEDBACK_SPECIAL_FAIL_HIT", "You got clipped. Wait for the opening first.")
+				_queue_onboarding_lesson_outcome(step, "fail", "HUD_ONBOARDING_FEEDBACK_SPECIAL_FAIL_HIT", "You got clipped. Wait for the opening first.", "got_hit")
 				return
 			if bool(onboarding_lesson_runtime.get("punish_window_active", false)) and bool(onboarding_lesson_runtime.get("player_special_hit_during_opening", false)):
-				_queue_onboarding_lesson_outcome(step, "success", "HUD_ONBOARDING_FEEDBACK_SPECIAL_SUCCESS", "Special confirmed. Save it for clear openings.")
+				_queue_onboarding_lesson_outcome(step, "success", "HUD_ONBOARDING_FEEDBACK_SPECIAL_SUCCESS", "Special confirmed. Save it for clear openings.", "special_confirmed")
 				return
 			if bool(onboarding_lesson_runtime.get("punish_window_active", false)) and bool(onboarding_lesson_runtime.get("player_hit_dummy_during_opening", false)) and not bool(onboarding_lesson_runtime.get("player_special_hit_during_opening", false)):
-				_queue_onboarding_lesson_outcome(step, "fail", "HUD_ONBOARDING_FEEDBACK_SPECIAL_FAIL_WRONG", "The opening was real, but this lesson wants a special cash-out.")
+				_queue_onboarding_lesson_outcome(step, "fail", "HUD_ONBOARDING_FEEDBACK_SPECIAL_FAIL_WRONG", "The opening was real, but this lesson wants a special cash-out.", "wrong_attack")
 				return
 			if bool(onboarding_lesson_runtime.get("punish_window_active", false)) and float(onboarding_lesson_runtime.get("punish_window_seconds", 0.0)) <= 0.0:
-				_queue_onboarding_lesson_outcome(step, "fail", "HUD_ONBOARDING_FEEDBACK_SPECIAL_FAIL_TIMEOUT", "The opening closed. Wait for the whiff, then cash out.")
+				_queue_onboarding_lesson_outcome(step, "fail", "HUD_ONBOARDING_FEEDBACK_SPECIAL_FAIL_TIMEOUT", "The opening closed. Wait for the whiff, then cash out.", "window_expired")
 				return
 		_:
 			pass
@@ -2233,13 +2365,13 @@ func _update_onboarding_scenario_lesson(step: Dictionary, delta: float) -> void:
 	if timeout_seconds > 0.0 and elapsed >= timeout_seconds and str(onboarding_lesson_runtime.get("phase", "active")) == "active":
 		match setup:
 			"guard_response":
-				_queue_onboarding_lesson_outcome(step, "fail", "HUD_ONBOARDING_FEEDBACK_GUARD_FAIL", "You got clipped. Guard before the hit lands.")
+				_queue_onboarding_lesson_outcome(step, "fail", "HUD_ONBOARDING_FEEDBACK_GUARD_FAIL", "You got clipped. Guard before the hit lands.", "timeout")
 			"throw_guard_break":
-				_queue_onboarding_lesson_outcome(step, "fail", "HUD_ONBOARDING_FEEDBACK_THROW_FAIL", "That was blocked. Throw is the answer to guarding.")
+				_queue_onboarding_lesson_outcome(step, "fail", "HUD_ONBOARDING_FEEDBACK_THROW_FAIL", "That was blocked. Throw is the answer to guarding.", "timeout")
 			"dodge_punish":
-				_queue_onboarding_lesson_outcome(step, "fail", "HUD_ONBOARDING_FEEDBACK_DODGE_FAIL_TIMEOUT", "The punish window closed. Dodge first, then hit back.")
+				_queue_onboarding_lesson_outcome(step, "fail", "HUD_ONBOARDING_FEEDBACK_DODGE_FAIL_TIMEOUT", "The punish window closed. Dodge first, then hit back.", "timeout")
 			"special_punish":
-				_queue_onboarding_lesson_outcome(step, "fail", "HUD_ONBOARDING_FEEDBACK_SPECIAL_FAIL_TIMEOUT", "The opening closed. Wait for the whiff, then cash out.")
+				_queue_onboarding_lesson_outcome(step, "fail", "HUD_ONBOARDING_FEEDBACK_SPECIAL_FAIL_TIMEOUT", "The opening closed. Wait for the whiff, then cash out.", "timeout")
 
 func _sync_current_onboarding_lesson_state() -> void:
 	var step := _resolve_onboarding_step(onboarding_step_index)
@@ -2292,6 +2424,16 @@ func _update_onboarding_progress(delta: float = 0.0) -> void:
 	match lesson_type:
 		"movement":
 			if _is_onboarding_step_completed(step_id):
+				_record_onboarding_lesson_event(
+					"lesson_result",
+					step_id,
+					{
+						"result": "success",
+						"reason": "movement_complete",
+						"elapsed_seconds": maxf(0.0, float(onboarding_lesson_runtime.get("elapsed_seconds", 0.0))),
+						"attempt_index": maxi(1, int(onboarding_lesson_runtime.get("attempt_index", 1)))
+					}
+				)
 				if not onboarding_steps_completed.has(step_id):
 					onboarding_steps_completed.append(step_id)
 				onboarding_step_index += 1
@@ -2303,6 +2445,16 @@ func _update_onboarding_progress(delta: float = 0.0) -> void:
 			_update_onboarding_scenario_lesson(step, delta)
 		_:
 			if _is_onboarding_step_completed(step_id):
+				_record_onboarding_lesson_event(
+					"lesson_result",
+					step_id,
+					{
+						"result": "success",
+						"reason": "completed",
+						"elapsed_seconds": maxf(0.0, float(onboarding_lesson_runtime.get("elapsed_seconds", 0.0))),
+						"attempt_index": maxi(1, int(onboarding_lesson_runtime.get("attempt_index", 1)))
+					}
+				)
 				if not onboarding_steps_completed.has(step_id):
 					onboarding_steps_completed.append(step_id)
 				onboarding_step_index += 1
@@ -2669,6 +2821,7 @@ func _on_hud_menu_requested() -> void:
 	_clear_hitstop()
 	if story_mode_active:
 		SessionStateStore.clear_keys(PackedStringArray([SessionKeysStore.STORY_ROUND_INDEX]))
+	_append_session_metrics_on_exit("menu")
 	get_tree().paused = false
 	get_tree().change_scene_to_file(MENU_SCENE_PATH)
 

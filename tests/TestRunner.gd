@@ -78,6 +78,8 @@ func _run_smoke_suite() -> void:
 	await _test_round_tuning_leader_lock_gap()
 	await _test_round_tuning_max_charges_patch_grants_charges()
 	await _test_match_metrics_telemetry_schema()
+	await _test_training_and_onboarding_metrics_emit_funnel_events()
+	await _test_training_drill_switch_resets_telemetry_rep_index()
 	await _test_directional_attack_variants()
 	await _test_local_dual_gamepad_input_actions()
 	await _test_forward_tap_triggers_ground_dash()
@@ -151,6 +153,18 @@ func _finish() -> void:
 	for item in _failures:
 		print(" - %s" % item)
 	quit(1)
+
+func _read_latest_metrics_record(metrics_path: String) -> Dictionary:
+	if not FileAccess.file_exists(metrics_path):
+		return {}
+	var text := FileAccess.get_file_as_string(metrics_path)
+	var lines := text.split("\n", false)
+	if lines.is_empty():
+		return {}
+	var parsed: Variant = JSON.parse_string(lines[lines.size() - 1])
+	if typeof(parsed) != TYPE_DICTIONARY:
+		return {}
+	return (parsed as Dictionary).duplicate(true)
 
 func _test_character_attack_tables_are_valid() -> void:
 	var dir := DirAccess.open("res://assets/data/characters")
@@ -1932,33 +1946,200 @@ func _test_match_metrics_telemetry_schema() -> void:
 	await process_frame
 	_assert_true(FileAccess.file_exists(metrics_path), "telemetry schema test writes match metrics jsonl file")
 	if FileAccess.file_exists(metrics_path):
-		var text := FileAccess.get_file_as_string(metrics_path)
-		var lines := text.split("\n", false)
-		_assert_true(not lines.is_empty(), "telemetry schema test writes at least one metrics line")
-		if not lines.is_empty():
-			var parsed: Variant = JSON.parse_string(lines[lines.size() - 1])
-			_assert_true(typeof(parsed) == TYPE_DICTIONARY, "telemetry schema test parses latest jsonl line")
-			if typeof(parsed) == TYPE_DICTIONARY:
-				var record := parsed as Dictionary
-				_assert_true(int(record.get("schema_version", 0)) >= 2, "telemetry record exposes schema version >= 2")
-				_assert_true(record.has("p1_loadout_signature"), "telemetry record exposes p1 loadout signature")
-				_assert_true(record.has("p2_loadout_signature"), "telemetry record exposes p2 loadout signature")
-				_assert_true(record.has("loadout_picks"), "telemetry record exposes loadout pick payload")
-				_assert_true(record.has("round_tuning_picks"), "telemetry record exposes round tuning pick events")
-				_assert_true(record.has("item_activation_events"), "telemetry record exposes item activation events")
-				_assert_true(record.has("item_evolution_events"), "telemetry record exposes item evolution events")
-				_assert_true(record.has("item_evolution_success_rate"), "telemetry record exposes evolution success rate")
-				_assert_true(record.has("item_evolution_avg_trigger_time_seconds"), "telemetry record exposes evolution trigger timing")
-				_assert_true(record.has("onboarding"), "telemetry record exposes onboarding flow summary")
-				var onboarding_value: Variant = record.get("onboarding", {})
-				_assert_true(typeof(onboarding_value) == TYPE_DICTIONARY, "telemetry onboarding summary is dictionary")
-				if typeof(onboarding_value) == TYPE_DICTIONARY:
-					var onboarding := onboarding_value as Dictionary
-					_assert_true(onboarding.has("started"), "telemetry onboarding summary includes started flag")
-					_assert_true(onboarding.has("completed"), "telemetry onboarding summary includes completed flag")
-					_assert_true(onboarding.has("steps_completed"), "telemetry onboarding summary includes completed step list")
+		var record := _read_latest_metrics_record(metrics_path)
+		_assert_true(not record.is_empty(), "telemetry schema test writes at least one metrics line")
+		if not record.is_empty():
+			_assert_true(int(record.get("schema_version", 0)) >= 3, "telemetry record exposes schema version >= 3")
+			_assert_true(record.has("exit_reason"), "telemetry record exposes session exit reason")
+			_assert_true(record.has("p1_loadout_signature"), "telemetry record exposes p1 loadout signature")
+			_assert_true(record.has("p2_loadout_signature"), "telemetry record exposes p2 loadout signature")
+			_assert_true(record.has("loadout_picks"), "telemetry record exposes loadout pick payload")
+			_assert_true(record.has("round_tuning_picks"), "telemetry record exposes round tuning pick events")
+			_assert_true(record.has("item_activation_events"), "telemetry record exposes item activation events")
+			_assert_true(record.has("item_evolution_events"), "telemetry record exposes item evolution events")
+			_assert_true(record.has("training_drill_events"), "telemetry record exposes drill funnel events")
+			_assert_true(record.has("onboarding_lesson_events"), "telemetry record exposes onboarding funnel events")
+			_assert_true(record.has("item_evolution_success_rate"), "telemetry record exposes evolution success rate")
+			_assert_true(record.has("item_evolution_avg_trigger_time_seconds"), "telemetry record exposes evolution trigger timing")
+			_assert_true(record.has("onboarding"), "telemetry record exposes onboarding flow summary")
+			var onboarding_value: Variant = record.get("onboarding", {})
+			_assert_true(typeof(onboarding_value) == TYPE_DICTIONARY, "telemetry onboarding summary is dictionary")
+			if typeof(onboarding_value) == TYPE_DICTIONARY:
+				var onboarding := onboarding_value as Dictionary
+				_assert_true(onboarding.has("started"), "telemetry onboarding summary includes started flag")
+				_assert_true(onboarding.has("completed"), "telemetry onboarding summary includes completed flag")
+				_assert_true(onboarding.has("steps_completed"), "telemetry onboarding summary includes completed step list")
 	if is_instance_valid(match_node):
 		match_node.queue_free()
+	await process_frame
+
+func _test_training_and_onboarding_metrics_emit_funnel_events() -> void:
+	var metrics_path := ProjectSettings.globalize_path("user://match_metrics.jsonl")
+	if FileAccess.file_exists(metrics_path):
+		DirAccess.remove_absolute(metrics_path)
+	var packed := load("res://scenes/Training.tscn")
+	_assert_true(packed is PackedScene, "training scene loads for funnel telemetry test")
+	if packed is not PackedScene:
+		return
+	var training_node := (packed as PackedScene).instantiate()
+	get_root().add_child(training_node)
+	await process_frame
+	await process_frame
+	training_node.set("telemetry_training_drill_events", [])
+	training_node.set("telemetry_onboarding_lesson_events", [])
+	training_node.set("telemetry_session_log_written", false)
+	training_node.call(
+		"_on_hud_training_options_changed",
+		{
+			"enabled": true,
+			"dummy_mode": "stand",
+			"show_detail": false,
+			"ruleset_profile": "platform",
+			"drill_id": "recovery_route",
+			"throw_tech_assist_mode": "throw_only"
+		}
+	)
+	await process_frame
+	var affected_players: Array[String] = []
+	affected_players.append("p1")
+	affected_players.append("p2")
+	training_node.call(
+		"_record_training_drill_rep_result",
+		"fail",
+		"ring_out",
+		affected_players,
+		{"elapsed_seconds": 0.72, "closest_blast_margin_px": 46.0}
+	)
+	training_node.call("_start_onboarding_sequence")
+	training_node.set("onboarding_step_index", 2)
+	var guard_step_value: Variant = training_node.call("_resolve_onboarding_step", 2)
+	var guard_step := guard_step_value as Dictionary if typeof(guard_step_value) == TYPE_DICTIONARY else {}
+	training_node.call("_prepare_onboarding_lesson", guard_step)
+	training_node.call(
+		"_queue_onboarding_lesson_outcome",
+		guard_step,
+		"fail",
+		"HUD_ONBOARDING_FEEDBACK_GUARD_FAIL",
+		"You got clipped. Guard before the hit lands.",
+		"got_hit"
+	)
+	training_node.call("_prepare_onboarding_lesson", guard_step)
+	training_node.call(
+		"_queue_onboarding_lesson_outcome",
+		guard_step,
+		"success",
+		"HUD_ONBOARDING_FEEDBACK_GUARD_SUCCESS",
+		"Blocked. Guard beats strikes.",
+		"blocked_strike"
+	)
+	training_node.call("_append_match_metrics_log", "", "test_exit")
+	await process_frame
+	_assert_true(FileAccess.file_exists(metrics_path), "funnel telemetry test writes metrics jsonl file")
+	if FileAccess.file_exists(metrics_path):
+		var record := _read_latest_metrics_record(metrics_path)
+		_assert_true(not record.is_empty(), "funnel telemetry test can parse the latest metrics record")
+		if not record.is_empty():
+			_assert_true(str(record.get("result", "")) == "session_exit", "training telemetry logs session exits without a match winner")
+			_assert_true(str(record.get("exit_reason", "")) == "test_exit", "training telemetry preserves the exit reason")
+			var drill_events_value: Variant = record.get("training_drill_events", [])
+			_assert_true(typeof(drill_events_value) == TYPE_ARRAY, "training telemetry exposes drill event arrays")
+			if typeof(drill_events_value) == TYPE_ARRAY:
+				var drill_events := drill_events_value as Array
+				var saw_drill_start := false
+				var saw_drill_result := false
+				for event_value in drill_events:
+					if typeof(event_value) != TYPE_DICTIONARY:
+						continue
+					var event := event_value as Dictionary
+					if str(event.get("event_type", "")) == "rep_start" and str(event.get("drill_id", "")) == "recovery_route":
+						saw_drill_start = true
+					if str(event.get("event_type", "")) == "rep_result" and str(event.get("reason", "")) == "ring_out":
+						saw_drill_result = true
+				_assert_true(saw_drill_start, "training telemetry records drill rep starts")
+				_assert_true(saw_drill_result, "training telemetry records drill rep outcomes with reasons")
+			var lesson_events_value: Variant = record.get("onboarding_lesson_events", [])
+			_assert_true(typeof(lesson_events_value) == TYPE_ARRAY, "training telemetry exposes onboarding lesson event arrays")
+			if typeof(lesson_events_value) == TYPE_ARRAY:
+				var lesson_events := lesson_events_value as Array
+				var start_count := 0
+				var saw_fail := false
+				var saw_success := false
+				for event_value in lesson_events:
+					if typeof(event_value) != TYPE_DICTIONARY:
+						continue
+					var event := event_value as Dictionary
+					if str(event.get("lesson_id", "")) != "guard":
+						continue
+					if str(event.get("event_type", "")) == "lesson_start":
+						start_count += 1
+					elif str(event.get("event_type", "")) == "lesson_result" and str(event.get("reason", "")) == "got_hit":
+						saw_fail = true
+					elif str(event.get("event_type", "")) == "lesson_result" and str(event.get("reason", "")) == "blocked_strike":
+						saw_success = true
+				_assert_true(start_count >= 2, "training telemetry records onboarding lesson retries as repeated starts")
+				_assert_true(saw_fail, "training telemetry records onboarding fail reasons")
+				_assert_true(saw_success, "training telemetry records onboarding success reasons")
+	if is_instance_valid(training_node):
+		training_node.queue_free()
+	await process_frame
+
+func _test_training_drill_switch_resets_telemetry_rep_index() -> void:
+	var packed := load("res://scenes/Training.tscn")
+	_assert_true(packed is PackedScene, "training scene loads for drill-switch telemetry test")
+	if packed is not PackedScene:
+		return
+	var training_node := (packed as PackedScene).instantiate()
+	get_root().add_child(training_node)
+	await process_frame
+	await process_frame
+	training_node.call(
+		"_on_hud_training_options_changed",
+		{
+			"enabled": true,
+			"dummy_mode": "stand",
+			"show_detail": false,
+			"ruleset_profile": "platform",
+			"drill_id": "recovery_route",
+			"throw_tech_assist_mode": "throw_only"
+		}
+	)
+	var seeded_state_value: Variant = training_node.call(
+		"_build_training_drill_state",
+		"recovery_route",
+		{
+			"ruleset_profile": "platform",
+			"rep_index": 4
+		}
+	)
+	if typeof(seeded_state_value) == TYPE_DICTIONARY:
+		training_node.set("training_drill_state", seeded_state_value)
+	training_node.set("telemetry_training_drill_events", [])
+	training_node.call(
+		"_on_hud_training_options_changed",
+		{
+			"enabled": true,
+			"dummy_mode": "stand",
+			"show_detail": false,
+			"ruleset_profile": "platform",
+			"drill_id": "di_survival",
+			"throw_tech_assist_mode": "throw_only"
+		}
+	)
+	var drill_events_value: Variant = training_node.get("telemetry_training_drill_events")
+	_assert_true(typeof(drill_events_value) == TYPE_ARRAY, "drill-switch telemetry test records drill events")
+	if typeof(drill_events_value) == TYPE_ARRAY:
+		var drill_events := drill_events_value as Array
+		var found_switch_start := false
+		for event_value in drill_events:
+			if typeof(event_value) != TYPE_DICTIONARY:
+				continue
+			var event := event_value as Dictionary
+			if str(event.get("event_type", "")) == "rep_start" and str(event.get("drill_id", "")) == "di_survival":
+				found_switch_start = true
+				_assert_true(int(event.get("rep_index", -1)) == 1, "switching drills resets the first rep-start telemetry index back to 1")
+		_assert_true(found_switch_start, "switching drills emits a rep-start telemetry event for the new drill")
+	if is_instance_valid(training_node):
+		training_node.queue_free()
 	await process_frame
 
 func _test_round_tuning_intermission_flow() -> void:
