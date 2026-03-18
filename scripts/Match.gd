@@ -1411,6 +1411,10 @@ func _complete_training_drill_rep(reason: String, metrics: Dictionary = {}) -> v
 	_reset_training_sandbox_players(["p1", "p2"], "success", reason, metrics)
 
 func _update_training_drill_behaviors(delta: float) -> void:
+	if _is_training_sandbox_suspended_for_onboarding():
+		if not training_drill_runtime.is_empty():
+			training_drill_runtime.clear()
+		return
 	if not bool(training_options.get("enabled", true)):
 		if not training_drill_runtime.is_empty():
 			training_drill_runtime.clear()
@@ -1531,6 +1535,9 @@ func _uses_platform_ruleset() -> bool:
 func _uses_training_sandbox() -> bool:
 	return training_scene_enabled
 
+func _is_training_sandbox_suspended_for_onboarding() -> bool:
+	return training_scene_enabled and onboarding_active
+
 func _uses_training_platform_sandbox() -> bool:
 	return _uses_training_sandbox() and _uses_platform_ruleset() and not _uses_stock_rule()
 
@@ -1560,6 +1567,8 @@ func _reset_stocks() -> void:
 	stocks["p2"] = initial
 
 func _update_training_platform_ring_out_state() -> void:
+	if _is_training_sandbox_suspended_for_onboarding():
+		return
 	var reset_keys: Array[String] = []
 	if player_1 and _is_outside_blast_zone(player_1.global_position):
 		reset_keys.append("p1")
@@ -1946,6 +1955,12 @@ func _start_onboarding_sequence() -> void:
 	onboarding_completed_seconds = -1.0
 	onboarding_lesson_state.clear()
 	onboarding_lesson_runtime.clear()
+	if training_scene_enabled:
+		training_drill_runtime.clear()
+		if hud and hud.has_method("set_training_data"):
+			hud.set_training_data({})
+		if hud and hud.has_method("clear_training_log"):
+			hud.clear_training_log()
 	_prepare_onboarding_lesson(_resolve_onboarding_step(onboarding_step_index))
 
 func _resolve_onboarding_step(step_index: int) -> Dictionary:
@@ -2772,6 +2787,8 @@ func _show_combo_callout(combo_count: int) -> void:
 
 func _push_training_info(fighter: Node) -> Dictionary:
 	if not bool(training_options.get("enabled", true)):
+		return {}
+	if _is_training_sandbox_suspended_for_onboarding():
 		return {}
 	if not hud or not hud.has_method("set_training_data"):
 		return {}
