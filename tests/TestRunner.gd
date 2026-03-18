@@ -890,6 +890,16 @@ func _test_onboarding_progress_tracks_actual_player_state() -> void:
 				(status_label as Label).text.findn("Guard") != -1 or (status_label as Label).text.findn("strikes") != -1,
 				"onboarding status copy explains the guard lesson goal"
 			)
+			TranslationServer.set_locale("zh")
+			training_node.call("_on_locale_changed", "zh")
+			await process_frame
+			_assert_true(
+				(status_label as Label).text.findn("防御") != -1 or (status_label as Label).text.findn("打击") != -1,
+				"onboarding status copy refreshes when locale changes mid-lesson"
+			)
+			TranslationServer.set_locale("en")
+			training_node.call("_on_locale_changed", "en")
+			await process_frame
 			_assert_true(not _action_has_any_keyboard_key("block"), "classic preset still removes keyboard block action during onboarding")
 
 			player_1.set("is_blocking", true)

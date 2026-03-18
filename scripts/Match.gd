@@ -1949,13 +1949,16 @@ func _resolve_onboarding_step(step_index: int) -> Dictionary:
 
 func _build_onboarding_lesson_state(step: Dictionary, patch: Dictionary = {}) -> Dictionary:
 	var lesson_id := str(step.get("id", "")).strip_edges()
+	var hint_key := str(step.get("hint_key", "")).strip_edges()
+	var hint_fallback := str(step.get("hint_fallback", "Learn the goal behind each action."))
 	var state := {
 		"lesson_id": lesson_id,
 		"lesson_type": str(step.get("lesson_type", "movement")).strip_edges().to_lower(),
 		"setup": str(step.get("setup", "neutral")).strip_edges().to_lower(),
 		"goal": str(step.get("goal", lesson_id)).strip_edges().to_lower(),
 		"status": "active",
-		"status_text": _resolve_onboarding_hint_text(step)
+		"status_key": hint_key if hint_key != "" else "HUD_ONBOARDING_STATUS_WAITING",
+		"status_fallback": hint_fallback
 	}
 	for key in patch.keys():
 		state[str(key)] = patch[key]
@@ -2053,6 +2056,16 @@ func _resolve_onboarding_hint_text(step: Dictionary) -> String:
 		hint_fallback
 	)
 
+func _resolve_onboarding_status_text(step: Dictionary) -> String:
+	var default_key := str(step.get("hint_key", "")).strip_edges()
+	var default_fallback := str(step.get("hint_fallback", "Learn the goal behind each action."))
+	var status_key := str(onboarding_lesson_state.get("status_key", default_key)).strip_edges()
+	var status_fallback := str(onboarding_lesson_state.get("status_fallback", default_fallback))
+	return _tr_or_fallback(
+		status_key if status_key != "" else "HUD_ONBOARDING_STATUS_WAITING",
+		status_fallback if status_fallback != "" else default_fallback
+	)
+
 func _is_onboarding_step_completed(step_id: String) -> bool:
 	if player_1 == null:
 		return false
@@ -2099,7 +2112,7 @@ func _refresh_onboarding_hud() -> void:
 		return
 	var step := _resolve_onboarding_step(onboarding_step_index)
 	var step_text := _resolve_onboarding_step_text(step)
-	var status_text := str(onboarding_lesson_state.get("status_text", _resolve_onboarding_hint_text(step))).strip_edges()
+	var status_text := _resolve_onboarding_status_text(step).strip_edges()
 	if status_text == "":
 		status_text = _resolve_onboarding_hint_text(step)
 	var progress_template := _tr_or_fallback("HUD_ONBOARDING_PROGRESS", "Step %d/%d")
