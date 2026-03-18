@@ -1195,7 +1195,7 @@ func _update_ledge_escape_drill() -> void:
 		return
 	if not was_hanging:
 		return
-	if player_1.global_position.x <= stage_right_x - 34.0:
+	if player_1.is_on_floor() and player_1.global_position.x <= stage_right_x - 34.0:
 		_complete_training_drill_rep(
 			"stage_reclaim",
 			{

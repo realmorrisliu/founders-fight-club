@@ -2284,10 +2284,37 @@ func _test_air_edge_drills_have_rep_behaviors() -> void:
 		await process_frame
 		await process_frame
 		_assert_true(bool(p1.get("is_ledge_hanging")), "ledge escape drill starts player1 in ledge hang")
+		p1.call("_drop_from_ledge", true)
+		p1.global_position = Vector2(stage_right_x - 96.0, stage_floor_y + 72.0)
+		await process_frame
+		await process_frame
+		var ledge_fail_state := training_node.get("training_drill_state") as Dictionary
+		_assert_true(str(ledge_fail_state.get("last_result", "")) != "success", "ledge escape drill does not award success while drifting below the stage")
+		training_node.call("_on_hud_training_options_changed", {
+			"enabled": true,
+			"dummy_mode": "stand",
+			"show_detail": false,
+			"ruleset_profile": "platform",
+			"drill_id": "recovery_route"
+		})
+		await process_frame
+		await process_frame
+		training_node.call("_on_hud_training_options_changed", {
+			"enabled": true,
+			"dummy_mode": "stand",
+			"show_detail": false,
+			"ruleset_profile": "platform",
+			"drill_id": "ledge_escape"
+		})
+		await process_frame
+		await process_frame
+		_assert_true(bool(p1.get("is_ledge_hanging")), "ledge escape drill can reset after an under-stage drift when the sandbox rep is restarted")
 		p1.call("_roll_getup_from_ledge")
-		p1.global_position = Vector2(stage_right_x - 96.0, stage_floor_y)
-		await process_frame
-		await process_frame
+		for _frame in range(12):
+			await process_frame
+			var current_ledge_state := training_node.get("training_drill_state") as Dictionary
+			if str(current_ledge_state.get("last_result", "")) == "success":
+				break
 		var ledge_state := training_node.get("training_drill_state") as Dictionary
 		_assert_true(str(ledge_state.get("last_result", "")) == "success", "ledge escape drill records success after reclaiming stage")
 		_assert_true(str(ledge_state.get("success_reason", "")) == "stage_reclaim", "ledge escape drill records stage reclaim as the success reason")
