@@ -2187,7 +2187,7 @@ func _show_hit_type_feedback(training_info: Dictionary, is_block_event: bool) ->
 				Color(0.90, 1.0, 0.62, 1.0) if not is_block_event else Color(0.74, 0.98, 0.86, 1.0)
 			)
 
-func _apply_training_options() -> void:
+func _apply_training_options(previous_enabled: bool = true) -> void:
 	var enabled := bool(training_options.get("enabled", true))
 	var dummy_mode := str(training_options.get("dummy_mode", "stand"))
 	var drill_id := _normalize_training_drill_id(
@@ -2210,6 +2210,8 @@ func _apply_training_options() -> void:
 	if training_scene_enabled:
 		if not enabled:
 			training_drill_runtime.clear()
+		elif not previous_enabled and drill_id != TRAINING_DRILL_DUEL_CORE:
+			_reset_training_sandbox_players(["p1", "p2"])
 		elif drill_id == TRAINING_DRILL_DUEL_CORE:
 			training_drill_runtime.clear()
 		elif training_drill_runtime.is_empty() or str(training_drill_runtime.get("drill_id", "")) != drill_id:
@@ -2234,6 +2236,7 @@ func _apply_training_options() -> void:
 			player_1.set("is_ai", false)
 
 func _on_hud_training_options_changed(options: Dictionary) -> void:
+	var previous_enabled := bool(training_options.get("enabled", true))
 	training_options["enabled"] = bool(options.get("enabled", training_options.get("enabled", true)))
 	var dummy_mode := str(options.get("dummy_mode", training_options.get("dummy_mode", "stand")))
 	if dummy_mode not in ["stand", "force_block", "random_block"]:
@@ -2260,7 +2263,7 @@ func _on_hud_training_options_changed(options: Dictionary) -> void:
 			if hud.has_method("clear_training_log"):
 				hud.clear_training_log()
 		_refresh_training_drill_state(true)
-	_apply_training_options()
+	_apply_training_options(previous_enabled)
 
 func _play_attack_sfx(prefix: String, attack_kind: String) -> void:
 	var attack_tier := _resolve_attack_tier(attack_kind)

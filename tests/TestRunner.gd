@@ -1921,11 +1921,13 @@ func _test_training_toggle_keeps_dummy_non_ai() -> void:
 	get_root().add_child(training_node)
 	await process_frame
 	await process_frame
+	var p1 := training_node.get_node_or_null("Player1")
 	var p2 := training_node.get_node_or_null("Player2")
 	var hud := training_node.get_node_or_null("Hud")
+	_assert_true(p1 != null, "training dummy ai toggle test resolves player1")
 	_assert_true(p2 != null, "training dummy ai toggle test resolves player2")
 	_assert_true(hud != null, "training dummy ai toggle test resolves hud")
-	if p2 != null:
+	if p1 != null and p2 != null:
 		_assert_true(not bool(p2.get("is_ai")), "training scene keeps dummy non-ai by default")
 		var initial_drill_state := training_node.get("training_drill_state") as Dictionary
 		_assert_true(str(initial_drill_state.get("drill_id", "")) == "duel_core", "training scene defaults to duel-core drill contract")
@@ -1997,6 +1999,11 @@ func _test_training_toggle_keeps_dummy_non_ai() -> void:
 		_assert_true(disabled_runtime.is_empty(), "disabling training clears stale Air & Edge drill runtime")
 		_assert_true(str(disabled_state.get("rep_status", "")) == "idle", "disabling training idles the drill state")
 		_assert_true(str(disabled_state.get("last_result", "")) == "", "disabling training clears stale drill outcomes")
+		p2.set("attack_state", "heavy")
+		p2.set("attack_phase", "active")
+		p2.set("blockstun_time", 0.12)
+		p2.set("hitstun_time", 0.16)
+		p1.call("_start_ledge_hang", 1)
 		training_node.call("_on_hud_training_options_changed", {
 			"enabled": true,
 			"dummy_mode": "stand",
@@ -2013,6 +2020,10 @@ func _test_training_toggle_keeps_dummy_non_ai() -> void:
 		_assert_true(not bool(restored_runtime.get("launch_triggered", false)), "re-enabling training clears stale launch flags")
 		_assert_true(not bool(restored_runtime.get("success_armed", false)), "re-enabling training clears stale success arming")
 		_assert_true(str(restored_state.get("last_result", "")) == "", "re-enabling training keeps the drill summary clean for the new rep")
+		_assert_true(not bool(p1.get("is_ledge_hanging")), "re-enabling training respawns the Air & Edge fighter out of stale ledge state")
+		_assert_true(str(p2.get("attack_state")) == "", "re-enabling training clears stale dummy attack state")
+		_assert_true(float(p2.get("blockstun_time")) <= 0.0, "re-enabling training clears stale dummy blockstun")
+		_assert_true(float(p2.get("hitstun_time")) <= 0.0, "re-enabling training clears stale dummy hitstun")
 		training_node.call("_on_hud_training_options_changed", {
 			"enabled": true,
 			"dummy_mode": "random_block",
