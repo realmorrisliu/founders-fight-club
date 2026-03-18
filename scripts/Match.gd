@@ -2081,7 +2081,8 @@ func _queue_onboarding_lesson_outcome(step: Dictionary, result: String, message_
 		step,
 		{
 			"status": result,
-			"status_text": _tr_or_fallback(message_key, fallback)
+			"status_key": message_key,
+			"status_fallback": fallback
 		}
 	)
 	_refresh_onboarding_hud()

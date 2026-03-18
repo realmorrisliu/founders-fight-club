@@ -917,6 +917,16 @@ func _test_onboarding_progress_tracks_actual_player_state() -> void:
 				(status_label as Label).text.findn("clipped") != -1,
 				"guard onboarding surfaces fail feedback when the dummy strike lands"
 			)
+			TranslationServer.set_locale("zh")
+			training_node.call("_on_locale_changed", "zh")
+			await process_frame
+			_assert_true(
+				(status_label as Label).text.findn("被打中") != -1 or (status_label as Label).text.findn("攻击落下") != -1,
+				"onboarding feedback copy refreshes when locale changes during lesson feedback"
+			)
+			TranslationServer.set_locale("en")
+			training_node.call("_on_locale_changed", "en")
+			await process_frame
 			training_node.call("_update_onboarding_progress", 1.0)
 			_assert_true(
 				int(training_node.get("onboarding_step_index")) == 2,
