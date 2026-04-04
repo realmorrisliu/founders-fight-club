@@ -2,6 +2,12 @@
 
 ## [Unreleased] - MVP Implementation
 
+### Removed
+- **Legacy AI Asset Generation Pipeline**: Removed the old manifest-driven image generation scripts, prompt-pack outputs, and archived workflow docs to avoid implying that this is still the active path.
+
+### Changed
+- **Art Direction Inputs**: Relocated reusable style locks, character briefs, stage briefs, and reference packs from `assets/pipeline/` to `assets/art_direction/`.
+
 ### Added
 - **Guided Start Path**: Added menu-level `Guided Start (Training)` entry that forces onboarding replay from step 1.
 - **Progressive Onboarding HUD**: Added in-match onboarding panel with step progression, skip, and replay controls.

@@ -438,4 +438,5 @@ godot --headless --path . --script scripts/tools/ImportCharacterSpriteFrames.gd 
 ```
 
 See also:
-- `docs/art/AI_ASSET_WORKFLOW.md` for an end-to-end AI-assisted production workflow
+- `assets/art_direction/style_lock.yaml` for the current visual lock and generation constraints
+- `assets/art_direction/character_briefs/` for per-character identity inputs

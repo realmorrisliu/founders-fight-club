@@ -15,22 +15,24 @@ docs/
 
 ## Art Docs (`docs/art/`)
 
-- `AI_AUTOMATION_WORKFLOW.md`
-  - API-key-based bulk image generation workflow (`auto_generate_assets.py`)
-- `AI_ART_TEMPLATE_PACK.md`
-  - Style lock, manifest templates, prompt templates, QA checklist
-- `AI_ASSET_WORKFLOW.md`
-  - Character asset production loop from AI output to runtime-ready exports
 - `ART_PIPELINE.md`
-  - Detailed pixel pipeline standards and naming/runtime contract
-- `AI_ART_EXECUTION_GUIDE_2026.md`
-  - Model routing strategy, rollout plan, and risk controls
+  - Active runtime art pipeline: pixel standards, naming, exports, and import/runtime contract
+
+Art-direction inputs in the repo:
+
+- `assets/art_direction/style_lock.yaml`
+  - Shared visual constraints for generated character and stage art
+- `assets/art_direction/character_briefs/`
+  - Per-character identity briefs for image generation and review
+- `assets/art_direction/stage_briefs/`
+  - Stage identity briefs
+- `assets/art_direction/reference_packs/`
+  - Local reference boards and conditioning images
 
 Recommended read order for asset production:
-1. `AI_AUTOMATION_WORKFLOW.md`
-2. `AI_ART_TEMPLATE_PACK.md`
-3. `AI_ASSET_WORKFLOW.md`
-4. `ART_PIPELINE.md`
+1. `ART_PIPELINE.md`
+2. `../assets/art_direction/style_lock.yaml`
+3. `../assets/art_direction/character_briefs/`
 
 ## Content Docs (`docs/content/`)
 
