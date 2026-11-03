@@ -101,12 +101,11 @@ static func attach(match_root: Node) -> void:
 		return
 	var picture := (load(PICTURE_SCRIPT) as GDScript).new() as Node3D
 	picture.name = PICTURE_NAME
+	picture.process_mode = Node.PROCESS_MODE_ALWAYS
 	match_root.add_child(picture)
 
 
 func _ready() -> void:
-	# Match pins an inheriting child to pausable before _ready. The picture still draws while the tree is paused.
-	process_mode = Node.PROCESS_MODE_ALWAYS
 	_match = get_parent()
 	_build_world()
 	_publish()
