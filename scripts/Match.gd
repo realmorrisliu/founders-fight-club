@@ -319,10 +319,6 @@ var sfx_player_pool_cursor := 0
 @export var training_controls_enabled := false
 @export_enum("stand", "force_block", "random_block") var training_dummy_default_mode := "stand"
 @export var training_detail_default_visible := false
-@export var round_tuning_enabled := false
-@export_range(0, 5, 1) var round_tuning_max_picks_per_player := 2
-@export_range(0, 3, 1) var round_tuning_leader_lock_stock_gap := 2
-@export var round_tuning_force_ui_in_headless := false
 @export var onboarding_enabled := true
 @export_range(0.25, 2.50, 0.01) var camera_zoom_near := CAMERA_ZOOM_NEAR
 @export_range(0.25, 2.50, 0.01) var camera_zoom_far := CAMERA_ZOOM_FAR
@@ -368,11 +364,6 @@ var dialogue_timer: Timer
 var pending_dialogue_text := ""
 var pending_dialogue_duration := 0.0
 var pending_dialogue_tint := Color(1.0, 1.0, 1.0, 1.0)
-var round_tuning_active := false
-var round_tuning_pending_player_key := ""
-var round_tuning_option_cache: Array[Dictionary] = []
-var round_tuning_pending_queue: Array[String] = []
-var round_tuning_pick_counts := {"p1": 0, "p2": 0}
 var match_elapsed_seconds := 0.0
 var onboarding_active := false
 var onboarding_started := false
@@ -386,7 +377,6 @@ var onboarding_completed_seconds := -1.0
 var onboarding_entry_point := "match_start"
 var onboarding_lesson_state := {}
 var onboarding_lesson_runtime := {}
-var telemetry_round_tuning_picks: Array[Dictionary] = []
 var telemetry_item_activation_events: Array[Dictionary] = []
 var telemetry_item_evolution_events: Array[Dictionary] = []
 var telemetry_training_drill_events: Array[Dictionary] = []
@@ -474,8 +464,6 @@ func _ready() -> void:
 			hud.locale_changed.connect(_on_locale_changed)
 		if hud.has_signal("training_options_changed"):
 			hud.training_options_changed.connect(_on_hud_training_options_changed)
-		if hud.has_signal("round_tuning_option_selected"):
-			hud.round_tuning_option_selected.connect(_on_hud_round_tuning_option_selected)
 		if hud.has_signal("onboarding_skip_requested"):
 			hud.onboarding_skip_requested.connect(_on_hud_onboarding_skip_requested)
 		if hud.has_signal("onboarding_replay_requested"):
@@ -801,7 +789,6 @@ func _end_match(result_key: String) -> void:
 		return
 	match_over = true
 	match_result_key = result_key
-	_cancel_round_tuning_intermission()
 	_clear_hitstop()
 	get_tree().paused = false
 	if hud and hud.has_method("set_pause_visible"):
@@ -1012,7 +999,6 @@ func _append_match_metrics_log(result_key: String, exit_reason: String = "match_
 		"p1_loadout_signature": _build_loadout_signature("p1", p1_loadout),
 		"p2_loadout_signature": _build_loadout_signature("p2", p2_loadout),
 		"loadout_picks": _build_loadout_pick_entries(),
-		"round_tuning_picks": telemetry_round_tuning_picks.duplicate(true),
 		"item_activation_events": telemetry_item_activation_events.duplicate(true),
 		"item_evolution_events": telemetry_item_evolution_events.duplicate(true),
 		"training_drill_events": telemetry_training_drill_events.duplicate(true),
@@ -1071,12 +1057,6 @@ func _resolve_active_match_mode() -> String:
 	return "vs"
 
 func _reset_match_telemetry() -> void:
-	round_tuning_active = false
-	round_tuning_pending_player_key = ""
-	round_tuning_option_cache.clear()
-	round_tuning_pending_queue.clear()
-	round_tuning_pick_counts["p1"] = 0
-	round_tuning_pick_counts["p2"] = 0
 	match_elapsed_seconds = 0.0
 	onboarding_active = false
 	onboarding_started = false
@@ -1088,7 +1068,6 @@ func _reset_match_telemetry() -> void:
 	onboarding_lesson_attempt_counts.clear()
 	onboarding_completed_seconds = -1.0
 	onboarding_entry_point = "match_start"
-	telemetry_round_tuning_picks.clear()
 	telemetry_item_activation_events.clear()
 	telemetry_item_evolution_events.clear()
 	telemetry_training_drill_events.clear()
@@ -1171,15 +1150,12 @@ func _update_story_round_transition(delta: float) -> void:
 func _restart_match() -> void:
 	if story_mode_active:
 		SessionStateStore.set_value(SessionKeysStore.STORY_ROUND_INDEX, 0)
-	_cancel_round_tuning_intermission()
 	_clear_hitstop()
 	_append_session_metrics_on_exit("restart")
 	get_tree().paused = false
 	get_tree().reload_current_scene()
 
 func _toggle_pause() -> void:
-	if round_tuning_active:
-		return
 	var is_paused = get_tree().paused
 	get_tree().paused = not is_paused
 	if hud and hud.has_method("set_pause_visible"):
@@ -1873,8 +1849,6 @@ func _lose_stock(player_key: String) -> void:
 		return
 	_respawn_player_by_key(player_key)
 	_update_hud()
-	var player_keys: Array[String] = [player_key]
-	_queue_round_tuning_intermissions(player_keys)
 
 func _lose_stocks_simultaneously() -> void:
 	if not _uses_stock_rule():
@@ -1897,153 +1871,6 @@ func _lose_stocks_simultaneously() -> void:
 	_respawn_player_by_key("p1")
 	_respawn_player_by_key("p2")
 	_update_hud()
-	var shared_player_key := _resolve_shared_round_tuning_player_key(["p1", "p2"])
-	if shared_player_key != "":
-		var shared_keys: Array[String] = [shared_player_key]
-		_queue_round_tuning_intermissions(shared_keys)
-
-func _resolve_shared_round_tuning_player_key(player_keys: Array[String]) -> String:
-	var selected_key := ""
-	var selected_pick_count := 9999
-	for player_key_value in player_keys:
-		var player_key := str(player_key_value).strip_edges()
-		if player_key == "":
-			continue
-		if not _can_player_receive_round_tuning_pick(player_key):
-			continue
-		var options := _resolve_player_round_tuning_options(player_key)
-		if options.is_empty():
-			continue
-		var pick_count := int(round_tuning_pick_counts.get(player_key, 0))
-		if selected_key == "" or pick_count < selected_pick_count:
-			selected_key = player_key
-			selected_pick_count = pick_count
-	return selected_key
-
-func _queue_round_tuning_intermissions(player_keys: Array[String]) -> void:
-	if player_keys.is_empty():
-		return
-	for player_key_value in player_keys:
-		var player_key := str(player_key_value).strip_edges()
-		if player_key == "":
-			continue
-		if round_tuning_pending_queue.has(player_key):
-			continue
-		round_tuning_pending_queue.append(player_key)
-	_maybe_start_next_round_tuning_intermission()
-
-func _maybe_start_next_round_tuning_intermission() -> void:
-	if round_tuning_active:
-		return
-	if match_over:
-		round_tuning_pending_queue.clear()
-		return
-	while not round_tuning_pending_queue.is_empty():
-		var player_key := str(round_tuning_pending_queue.pop_front()).strip_edges()
-		if player_key == "":
-			continue
-		var started := _maybe_start_round_tuning_intermission(player_key)
-		if started and round_tuning_active:
-			return
-
-func _maybe_start_round_tuning_intermission(player_key: String) -> bool:
-	if not round_tuning_enabled:
-		return false
-	if not _uses_stock_rule():
-		return false
-	if match_over:
-		return false
-	if round_tuning_active:
-		return false
-	if not _can_player_receive_round_tuning_pick(player_key):
-		return false
-	var options := _resolve_player_round_tuning_options(player_key)
-	if options.is_empty():
-		return false
-	round_tuning_pending_player_key = player_key
-	round_tuning_option_cache.clear()
-	for option in options:
-		round_tuning_option_cache.append(option.duplicate(true))
-	var should_force_pick := OS.has_feature("headless") and not round_tuning_force_ui_in_headless
-	if hud == null or not hud.has_method("show_round_tuning_options"):
-		should_force_pick = true
-	if should_force_pick:
-		var option_id := str(round_tuning_option_cache[0].get("id", "")).strip_edges()
-		if option_id != "":
-			_record_round_tuning_pick(player_key, option_id)
-			_apply_round_tuning_option_to_player(player_key, option_id)
-		round_tuning_pending_player_key = ""
-		round_tuning_option_cache.clear()
-		_update_hud()
-		return true
-	round_tuning_active = true
-	get_tree().paused = true
-	if hud.has_method("set_pause_visible"):
-		hud.set_pause_visible(false)
-	hud.show_round_tuning_options(round_tuning_option_cache)
-	return true
-
-func _can_player_receive_round_tuning_pick(player_key: String) -> bool:
-	var cap := maxi(0, round_tuning_max_picks_per_player)
-	if cap <= 0:
-		return false
-	var lock_gap := maxi(0, round_tuning_leader_lock_stock_gap)
-	if lock_gap > 0 and _uses_stock_rule():
-		var self_stock := int(stocks.get(player_key, 0))
-		var other_key := "p2" if player_key == "p1" else "p1"
-		var other_stock := int(stocks.get(other_key, 0))
-		if self_stock - other_stock >= lock_gap:
-			return false
-	return int(round_tuning_pick_counts.get(player_key, 0)) < cap
-
-func _resolve_player_round_tuning_options(player_key: String) -> Array[Dictionary]:
-	var fighter := _get_player_by_key(player_key)
-	var options: Array[Dictionary] = []
-	if fighter == null:
-		return options
-	if not fighter.has_method("get_round_tuning_options"):
-		return options
-	var options_value: Variant = fighter.call("get_round_tuning_options")
-	if typeof(options_value) != TYPE_ARRAY:
-		return options
-	for option_variant in options_value:
-		if typeof(option_variant) != TYPE_DICTIONARY:
-			continue
-		var option := (option_variant as Dictionary).duplicate(true)
-		var option_id := str(option.get("id", "")).strip_edges()
-		if option_id == "":
-			continue
-		options.append(option)
-		if options.size() >= 2:
-			break
-	return options
-
-func _apply_round_tuning_option_to_player(player_key: String, option_id: String) -> bool:
-	var fighter := _get_player_by_key(player_key)
-	if fighter == null:
-		return false
-	if not fighter.has_method("apply_round_tuning_option"):
-		return false
-	fighter.call("apply_round_tuning_option", option_id)
-	return true
-
-func _cancel_round_tuning_intermission() -> void:
-	round_tuning_active = false
-	round_tuning_pending_player_key = ""
-	round_tuning_option_cache.clear()
-	if hud and hud.has_method("hide_round_tuning_options"):
-		hud.hide_round_tuning_options()
-
-func _record_round_tuning_pick(player_key: String, option_id: String) -> void:
-	var current_count := int(round_tuning_pick_counts.get(player_key, 0))
-	round_tuning_pick_counts[player_key] = current_count + 1
-	telemetry_round_tuning_picks.append(
-		{
-			"player_key": player_key,
-			"option_id": option_id,
-			"elapsed_seconds": match_elapsed_seconds
-		}
-	)
 
 func _respawn_player_by_key(player_key: String) -> void:
 	var fighter := _get_player_by_key(player_key)
@@ -2903,8 +2730,6 @@ func _on_hud_restart_requested() -> void:
 	_restart_match()
 
 func _on_hud_menu_requested() -> void:
-	_cancel_round_tuning_intermission()
-	round_tuning_pending_queue.clear()
 	_clear_hitstop()
 	if story_mode_active:
 		SessionStateStore.clear_keys(PackedStringArray([SessionKeysStore.STORY_ROUND_INDEX]))
@@ -2918,30 +2743,6 @@ func _on_locale_changed(_locale: String) -> void:
 	_refresh_onboarding_hud()
 	if hud and hud.has_method("set_training_options"):
 		hud.set_training_options(training_options)
-
-func _on_hud_round_tuning_option_selected(option_id: String) -> void:
-	if not round_tuning_active:
-		return
-	var selected_option_id := option_id.strip_edges()
-	if selected_option_id == "":
-		return
-	var option_exists := false
-	for option in round_tuning_option_cache:
-		if str(option.get("id", "")) == selected_option_id:
-			option_exists = true
-			break
-	if not option_exists:
-		return
-	var player_key := round_tuning_pending_player_key
-	if player_key != "":
-		_record_round_tuning_pick(player_key, selected_option_id)
-		_apply_round_tuning_option_to_player(player_key, selected_option_id)
-	_cancel_round_tuning_intermission()
-	get_tree().paused = false
-	if hud and hud.has_method("set_pause_visible"):
-		hud.set_pause_visible(false)
-	_update_hud()
-	_maybe_start_next_round_tuning_intermission()
 
 func _on_hud_onboarding_skip_requested() -> void:
 	if not onboarding_active:

@@ -6,7 +6,6 @@ const PlayerAttackRuntimeBuilderStore := preload("res://scripts/player/PlayerAtt
 const StageConfigStore := preload("res://scripts/config/StageConfig.gd")
 const GameSettingsStore := preload("res://scripts/GameSettings.gd")
 const EvolutionEngineStore := preload("res://scripts/loadout/EvolutionEngine.gd")
-const RoundTuningEngineStore := preload("res://scripts/loadout/RoundTuningEngine.gd")
 
 signal health_changed
 signal defeated
@@ -1781,12 +1780,6 @@ func apply_loadout_runtime(resolved_loadout: Dictionary) -> void:
 		loadout_passive_runtime = (passive_runtime_value as Dictionary).duplicate(true)
 	_apply_loadout_attack_overrides()
 	_apply_loadout_passive_runtime()
-
-func get_round_tuning_options() -> Array[Dictionary]:
-	return RoundTuningEngineStore.get_round_tuning_options(loadout_item_runtime)
-
-func apply_round_tuning_option(option_id: String) -> void:
-	loadout_item_runtime = RoundTuningEngineStore.apply_round_tuning_option(loadout_item_runtime, option_id)
 
 func get_loadout_runtime_snapshot() -> Dictionary:
 	return {

@@ -337,20 +337,6 @@ static func _build_item_defs(character_id: String) -> Array[Dictionary]:
 			"cooldown_seconds": core_cooldown_seconds,
 			"evolution_id": core_evolved_id,
 			"evolution_after_activations": 2,
-			"round_tuning_options": [
-				{
-					"id": "quick_cycle",
-					"display_name_key": "",
-					"display_name_fallback": "Quick Cycle",
-					"patch": {"cooldown_seconds_delta": -0.8}
-				},
-				{
-					"id": "deep_cache",
-					"display_name_key": "",
-					"display_name_fallback": "Deep Cache",
-					"patch": {"effect_payload_patch": {"duration": 0.8, "damage_multiplier": 0.04}}
-				}
-			],
 			"selectable": true
 		},
 		{
@@ -368,20 +354,6 @@ static func _build_item_defs(character_id: String) -> Array[Dictionary]:
 			"cooldown_seconds": hype_cooldown_seconds,
 			"evolution_id": hype_evolved_id,
 			"evolution_after_activations": 2,
-			"round_tuning_options": [
-				{
-					"id": "viral_spike",
-					"display_name_key": "",
-					"display_name_fallback": "Viral Spike",
-					"patch": {"effect_payload_patch": {"amount": 8.0}}
-				},
-				{
-					"id": "guard_cache",
-					"display_name_key": "",
-					"display_name_fallback": "Guard Cache",
-					"patch": {"trigger_value_delta": -1.0}
-				}
-			],
 			"selectable": true
 		},
 		{
@@ -404,7 +376,6 @@ static func _build_item_defs(character_id: String) -> Array[Dictionary]:
 			"max_charges": 3,
 			"cooldown_seconds": 5.0,
 			"evolution_id": "",
-			"round_tuning_options": [],
 			"selectable": false
 		},
 		{
@@ -421,7 +392,6 @@ static func _build_item_defs(character_id: String) -> Array[Dictionary]:
 			"max_charges": 4,
 			"cooldown_seconds": 4.0,
 			"evolution_id": "",
-			"round_tuning_options": [],
 			"selectable": false
 		}
 	]

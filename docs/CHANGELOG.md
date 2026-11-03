@@ -61,7 +61,6 @@
 
 ### Changed
 - **Match.gd**: Added onboarding state machine, onboarding telemetry payload, and localized onboarding HUD updates.
-- **Match.gd**: Added round tuning anti-snowball lock (`round_tuning_leader_lock_stock_gap`) to reduce runaway leads.
 - **Menu.gd / Menu.tscn**: Reworked onboarding/menu path clarity with guided replay action and mode hints.
 - **HUD**: Added dedicated onboarding panel layout and bilingual text refresh.
 - **Match.gd**: Heavily refactored to handle camera, walls, input, and hitstop.

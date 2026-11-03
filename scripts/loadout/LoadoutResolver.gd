@@ -78,8 +78,7 @@ static func _build_item_runtime(item_entry: Dictionary) -> Dictionary:
 		"activation_count": 0,
 		"trigger_progress": 0.0,
 		"evolution_id": str(item_entry.get("evolution_id", "")),
-		"evolution_after_activations": maxi(1, int(item_entry.get("evolution_after_activations", 2))),
-		"round_tuning_options": (item_entry.get("round_tuning_options", []) as Array).duplicate(true)
+		"evolution_after_activations": maxi(1, int(item_entry.get("evolution_after_activations", 2)))
 	}
 
 static func _build_passive_runtime(passive_entry: Dictionary) -> Dictionary:

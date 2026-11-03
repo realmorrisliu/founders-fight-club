@@ -123,7 +123,6 @@ func _prepare_reloaded_match(spec: Dictionary) -> void:
 
 func _apply_overrides_before_ready(match_node: Node, spec: Dictionary) -> void:
 	match_node.set("onboarding_enabled", bool(spec.get("onboarding", false)))
-	match_node.set("round_tuning_enabled", false)
 	var overrides: Dictionary = spec.get("overrides", {})
 	if overrides.has("stocks"):
 		match_node.set("stock_count", int(overrides.get("stocks", 3)))

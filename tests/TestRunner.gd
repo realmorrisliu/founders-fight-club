@@ -7,7 +7,6 @@ const SessionStateStore := preload("res://scripts/SessionState.gd")
 const LoadoutValidatorStore := preload("res://scripts/loadout/LoadoutValidator.gd")
 const LoadoutResolverStore := preload("res://scripts/loadout/LoadoutResolver.gd")
 const EvolutionEngineStore := preload("res://scripts/loadout/EvolutionEngine.gd")
-const RoundTuningEngineStore := preload("res://scripts/loadout/RoundTuningEngine.gd")
 const AttackTableStore := preload("res://scripts/resources/AttackTable.gd")
 const GeneratedSkillProfilesStore := preload("res://scripts/player/GeneratedSkillProfiles.gd")
 const PlayerDataStore := preload("res://scripts/player/PlayerData.gd")
@@ -74,11 +73,6 @@ func _run_smoke_suite() -> void:
 	await _test_generated_signature_profiles_are_normalized()
 	await _test_generated_signature_profiles_stay_within_balance_bands()
 	await _test_generated_signature_builder_uses_role_skeletons()
-	await _test_round_tuning_intermission_flow()
-	await _test_round_tuning_simultaneous_stock_fairness()
-	await _test_round_tuning_pick_cap_per_player()
-	await _test_round_tuning_leader_lock_gap()
-	await _test_round_tuning_max_charges_patch_grants_charges()
 	await _test_match_metrics_telemetry_schema()
 	await _test_training_and_onboarding_metrics_emit_funnel_events()
 	await _test_training_drill_switch_resets_telemetry_rep_index()
@@ -263,7 +257,6 @@ func _test_main_scene_prototype_signature_coverage() -> void:
 	if packed is not PackedScene:
 		return
 	var match_node := (packed as PackedScene).instantiate()
-	match_node.set("round_tuning_enabled", false)
 	get_root().add_child(match_node)
 	await process_frame
 	await process_frame
@@ -293,7 +286,6 @@ func _test_main_scene_runtime_match_flow() -> void:
 	if packed is not PackedScene:
 		return
 	var match_node := (packed as PackedScene).instantiate()
-	match_node.set("round_tuning_enabled", false)
 	get_root().add_child(match_node)
 	await process_frame
 	await process_frame
@@ -340,7 +332,6 @@ func _test_main_scene_stock_ring_out_flow() -> void:
 	if packed is not PackedScene:
 		return
 	var match_node := (packed as PackedScene).instantiate()
-	match_node.set("round_tuning_enabled", false)
 	get_root().add_child(match_node)
 	await process_frame
 	await process_frame
@@ -412,7 +403,6 @@ func _test_pause_holds_impact_burst() -> void:
 	if packed is not PackedScene:
 		return
 	var match_node := (packed as PackedScene).instantiate()
-	match_node.set("round_tuning_enabled", false)
 	get_root().add_child(match_node)
 	await process_frame
 	var effects := match_node.get_node_or_null("Effects")
@@ -2059,7 +2049,6 @@ func _test_match_metrics_telemetry_schema() -> void:
 	if packed is not PackedScene:
 		return
 	var match_node := (packed as PackedScene).instantiate()
-	match_node.set("round_tuning_enabled", false)
 	get_root().add_child(match_node)
 	await process_frame
 	await process_frame
@@ -2075,7 +2064,6 @@ func _test_match_metrics_telemetry_schema() -> void:
 			_assert_true(record.has("p1_loadout_signature"), "telemetry record exposes p1 loadout signature")
 			_assert_true(record.has("p2_loadout_signature"), "telemetry record exposes p2 loadout signature")
 			_assert_true(record.has("loadout_picks"), "telemetry record exposes loadout pick payload")
-			_assert_true(record.has("round_tuning_picks"), "telemetry record exposes round tuning pick events")
 			_assert_true(record.has("item_activation_events"), "telemetry record exposes item activation events")
 			_assert_true(record.has("item_evolution_events"), "telemetry record exposes item evolution events")
 			_assert_true(record.has("training_drill_events"), "telemetry record exposes drill funnel events")
@@ -2292,258 +2280,6 @@ func _test_training_drill_switch_resets_telemetry_rep_index() -> void:
 	if is_instance_valid(training_node):
 		training_node.queue_free()
 	await process_frame
-
-func _test_round_tuning_intermission_flow() -> void:
-	var packed := load("res://scenes/Main.tscn")
-	_assert_true(packed is PackedScene, "main scene loads for round tuning intermission test")
-	if packed is not PackedScene:
-		return
-	var match_node := (packed as PackedScene).instantiate()
-	match_node.set("round_tuning_enabled", true)
-	match_node.set("round_tuning_force_ui_in_headless", true)
-	get_root().add_child(match_node)
-	await process_frame
-	await process_frame
-	var player_1 := match_node.get_node_or_null("Player1")
-	var panel := match_node.get_node_or_null("Hud/RoundTuningPanel")
-	var option_a_button := match_node.get_node_or_null("Hud/RoundTuningPanel/OptionAButton")
-	_assert_true(player_1 != null, "round tuning test resolves player1")
-	_assert_true(panel is Panel and option_a_button is Button, "round tuning test resolves hud intermission controls")
-	if player_1 == null or panel is not Panel or option_a_button is not Button:
-		if is_instance_valid(match_node):
-			match_node.queue_free()
-		await process_frame
-		return
-	var before_snapshot_value: Variant = player_1.call("get_loadout_runtime_snapshot")
-	_assert_true(typeof(before_snapshot_value) == TYPE_DICTIONARY, "round tuning test can read pre-intermission runtime snapshot")
-	var before_snapshot := {}
-	if typeof(before_snapshot_value) == TYPE_DICTIONARY:
-		before_snapshot = (before_snapshot_value as Dictionary).duplicate(true)
-	var before_item_runtime := before_snapshot.get("item_runtime", {}) as Dictionary
-	var option_values: Variant = player_1.call("get_round_tuning_options")
-	_assert_true(typeof(option_values) == TYPE_ARRAY, "round tuning test can read player tuning options")
-	if typeof(option_values) != TYPE_ARRAY:
-		if is_instance_valid(match_node):
-			match_node.queue_free()
-		await process_frame
-		return
-	var options := option_values as Array
-	_assert_true(options.size() >= 1, "round tuning test has at least one available option")
-	if options.is_empty() or typeof(options[0]) != TYPE_DICTIONARY:
-		if is_instance_valid(match_node):
-			match_node.queue_free()
-		await process_frame
-		return
-	var first_option := (options[0] as Dictionary).duplicate(true)
-	var first_option_id := str(first_option.get("id", "")).strip_edges()
-	_assert_true(first_option_id != "", "round tuning option has stable id")
-	match_node.call("_lose_stock", "p1")
-	await process_frame
-	_assert_true((panel as Panel).visible, "round tuning panel opens after non-final stock loss")
-	_assert_true(bool(match_node.get("round_tuning_active")), "round tuning state enters active intermission")
-	_assert_true(get_root().get_tree().paused, "round tuning intermission pauses active match loop")
-	(option_a_button as Button).emit_signal("pressed")
-	await process_frame
-	await process_frame
-	_assert_true(not (panel as Panel).visible, "round tuning panel closes after selecting an option")
-	_assert_true(not bool(match_node.get("round_tuning_active")), "round tuning state exits after option selection")
-	_assert_true(not get_root().get_tree().paused, "round tuning selection restores match pause state")
-	var after_snapshot_value: Variant = player_1.call("get_loadout_runtime_snapshot")
-	_assert_true(typeof(after_snapshot_value) == TYPE_DICTIONARY, "round tuning test can read post-selection runtime snapshot")
-	var after_item_runtime := {}
-	if typeof(after_snapshot_value) == TYPE_DICTIONARY:
-		var after_snapshot := (after_snapshot_value as Dictionary).duplicate(true)
-		after_item_runtime = (after_snapshot.get("item_runtime", {}) as Dictionary).duplicate(true)
-		_assert_true(
-			_is_round_tuning_patch_applied(before_item_runtime, after_item_runtime, first_option),
-			"round tuning selection applies item runtime patch for subsequent stocks"
-		)
-	if not after_item_runtime.is_empty():
-		match_node.set("round_tuning_enabled", false)
-		match_node.call("_lose_stock", "p1")
-		await process_frame
-		var persisted_snapshot_value: Variant = player_1.call("get_loadout_runtime_snapshot")
-		_assert_true(typeof(persisted_snapshot_value) == TYPE_DICTIONARY, "round tuning test can read runtime snapshot after next stock loss")
-		if typeof(persisted_snapshot_value) == TYPE_DICTIONARY:
-			var persisted_snapshot := persisted_snapshot_value as Dictionary
-			var persisted_item_runtime := persisted_snapshot.get("item_runtime", {}) as Dictionary
-			_assert_true(
-				_is_round_tuning_patch_applied(before_item_runtime, persisted_item_runtime, first_option),
-				"round tuning patch persists for subsequent in-match stocks"
-			)
-	if is_instance_valid(match_node):
-		match_node.queue_free()
-	await process_frame
-
-func _test_round_tuning_simultaneous_stock_fairness() -> void:
-	var packed := load("res://scenes/Main.tscn")
-	_assert_true(packed is PackedScene, "main scene loads for round tuning fairness test")
-	if packed is not PackedScene:
-		return
-	var match_node := (packed as PackedScene).instantiate()
-	match_node.set("round_tuning_enabled", true)
-	match_node.set("round_tuning_force_ui_in_headless", true)
-	get_root().add_child(match_node)
-	await process_frame
-	await process_frame
-	var panel := match_node.get_node_or_null("Hud/RoundTuningPanel")
-	var option_a_button := match_node.get_node_or_null("Hud/RoundTuningPanel/OptionAButton")
-	_assert_true(panel is Panel and option_a_button is Button, "round tuning fairness test resolves hud controls")
-	if panel is not Panel or option_a_button is not Button:
-		if is_instance_valid(match_node):
-			match_node.queue_free()
-		await process_frame
-		return
-	match_node.call("_lose_stocks_simultaneously")
-	await process_frame
-	_assert_true(bool(match_node.get("round_tuning_active")), "simultaneous stock loss opens a shared round tuning intermission")
-	(option_a_button as Button).emit_signal("pressed")
-	await process_frame
-	await process_frame
-	_assert_true(not bool(match_node.get("round_tuning_active")), "shared round tuning intermission completes in one pick")
-	var pick_counts_value: Variant = match_node.get("round_tuning_pick_counts")
-	_assert_true(typeof(pick_counts_value) == TYPE_DICTIONARY, "round tuning fairness test reads pick count map")
-	if typeof(pick_counts_value) == TYPE_DICTIONARY:
-		var pick_counts := pick_counts_value as Dictionary
-		var p1_picks := int(pick_counts.get("p1", 0))
-		var p2_picks := int(pick_counts.get("p2", 0))
-		_assert_true(
-			(p1_picks == 1 and p2_picks == 0) or (p1_picks == 0 and p2_picks == 1),
-			"simultaneous stock loss grants exactly one shared round tuning pick"
-		)
-	if is_instance_valid(match_node):
-		match_node.queue_free()
-	await process_frame
-
-func _test_round_tuning_pick_cap_per_player() -> void:
-	var packed := load("res://scenes/Main.tscn")
-	_assert_true(packed is PackedScene, "main scene loads for round tuning pick cap test")
-	if packed is not PackedScene:
-		return
-	var match_node := (packed as PackedScene).instantiate()
-	match_node.set("round_tuning_enabled", true)
-	match_node.set("round_tuning_force_ui_in_headless", true)
-	match_node.set("round_tuning_max_picks_per_player", 2)
-	match_node.set("stock_count", 4)
-	get_root().add_child(match_node)
-	await process_frame
-	await process_frame
-	var option_a_button := match_node.get_node_or_null("Hud/RoundTuningPanel/OptionAButton")
-	_assert_true(option_a_button is Button, "round tuning pick cap test resolves hud controls")
-	if option_a_button is not Button:
-		if is_instance_valid(match_node):
-			match_node.queue_free()
-		await process_frame
-		return
-	for pick_index in range(2):
-		match_node.call("_lose_stock", "p1")
-		await process_frame
-		_assert_true(bool(match_node.get("round_tuning_active")), "round tuning opens while pick cap has remaining slots (%d)" % [pick_index + 1])
-		(option_a_button as Button).emit_signal("pressed")
-		await process_frame
-		await process_frame
-	match_node.call("_lose_stock", "p1")
-	await process_frame
-	_assert_true(not bool(match_node.get("round_tuning_active")), "round tuning blocks additional picks after player reaches cap")
-	var pick_counts_value: Variant = match_node.get("round_tuning_pick_counts")
-	_assert_true(typeof(pick_counts_value) == TYPE_DICTIONARY, "round tuning pick cap test reads pick counts")
-	if typeof(pick_counts_value) == TYPE_DICTIONARY:
-		var pick_counts := pick_counts_value as Dictionary
-		_assert_true(int(pick_counts.get("p1", 0)) == 2, "p1 pick count reaches configured per-player cap")
-	if is_instance_valid(match_node):
-		match_node.queue_free()
-	await process_frame
-
-func _test_round_tuning_leader_lock_gap() -> void:
-	var packed := load("res://scenes/Main.tscn")
-	_assert_true(packed is PackedScene, "main scene loads for round tuning leader lock test")
-	if packed is not PackedScene:
-		return
-	var match_node := (packed as PackedScene).instantiate()
-	match_node.set("round_tuning_enabled", true)
-	match_node.set("round_tuning_leader_lock_stock_gap", 1)
-	get_root().add_child(match_node)
-	await process_frame
-	await process_frame
-	match_node.set("stocks", {"p1": 3, "p2": 1})
-	var p1_can_pick := bool(match_node.call("_can_player_receive_round_tuning_pick", "p1"))
-	var p2_can_pick := bool(match_node.call("_can_player_receive_round_tuning_pick", "p2"))
-	_assert_true(not p1_can_pick, "round tuning leader lock blocks extra pick for far-ahead player")
-	_assert_true(p2_can_pick, "round tuning leader lock still allows trailing player to pick")
-	if is_instance_valid(match_node):
-		match_node.queue_free()
-	await process_frame
-
-func _test_round_tuning_max_charges_patch_grants_charges() -> void:
-	var runtime := {
-		"max_charges": 1,
-		"charges_remaining": 1,
-		"round_tuning_options": [
-			{
-				"id": "charge_plus",
-				"patch": {"max_charges_delta": 1}
-			}
-		]
-	}
-	var upgraded := RoundTuningEngineStore.apply_round_tuning_option(runtime, "charge_plus")
-	_assert_true(int(upgraded.get("max_charges", 0)) == 2, "max_charges tuning increases runtime max charges")
-	_assert_true(int(upgraded.get("charges_remaining", 0)) == 2, "max_charges tuning grants an extra usable charge")
-	var depleted_runtime := runtime.duplicate(true)
-	depleted_runtime["charges_remaining"] = 0
-	var upgraded_from_zero := RoundTuningEngineStore.apply_round_tuning_option(depleted_runtime, "charge_plus")
-	_assert_true(int(upgraded_from_zero.get("charges_remaining", 0)) == 1, "max_charges tuning restores one charge even when depleted")
-
-func _is_round_tuning_patch_applied(before_item: Dictionary, after_item: Dictionary, option: Dictionary) -> bool:
-	var patch_value: Variant = option.get("patch", {})
-	if typeof(patch_value) != TYPE_DICTIONARY:
-		return false
-	var patch := patch_value as Dictionary
-	var has_patch_clause := false
-	var applied := true
-	if patch.has("cooldown_seconds_delta"):
-		has_patch_clause = true
-		var expected_cooldown := maxf(
-			0.0,
-			float(before_item.get("cooldown_seconds", 0.0)) + float(patch.get("cooldown_seconds_delta", 0.0))
-		)
-		applied = applied and is_equal_approx(float(after_item.get("cooldown_seconds", 0.0)), expected_cooldown)
-	if patch.has("trigger_value_delta"):
-		has_patch_clause = true
-		var expected_trigger := maxf(
-			1.0,
-			float(before_item.get("trigger_value", 1.0)) + float(patch.get("trigger_value_delta", 0.0))
-		)
-		applied = applied and is_equal_approx(float(after_item.get("trigger_value", 1.0)), expected_trigger)
-	if patch.has("max_charges_delta"):
-		has_patch_clause = true
-		var before_max_charges := maxi(1, int(before_item.get("max_charges", 1)))
-		var before_remaining := clampi(int(before_item.get("charges_remaining", before_max_charges)), 0, before_max_charges)
-		var delta_charges := int(patch.get("max_charges_delta", 0))
-		var expected_max_charges := maxi(
-			1,
-			before_max_charges + delta_charges
-		)
-		var expected_remaining := mini(before_remaining, expected_max_charges)
-		if delta_charges > 0:
-			expected_remaining = mini(expected_max_charges, before_remaining + delta_charges)
-		applied = applied and int(after_item.get("max_charges", 1)) == expected_max_charges
-		applied = applied and int(after_item.get("charges_remaining", 0)) == expected_remaining
-	if patch.has("effect_payload_patch"):
-		var payload_patch_value: Variant = patch.get("effect_payload_patch", {})
-		if typeof(payload_patch_value) == TYPE_DICTIONARY:
-			has_patch_clause = true
-			var payload_patch := payload_patch_value as Dictionary
-			var before_payload := before_item.get("effect_payload", {}) as Dictionary
-			var after_payload := after_item.get("effect_payload", {}) as Dictionary
-			for key in payload_patch.keys():
-				var before_value: Variant = before_payload.get(key, 0.0)
-				var delta_value: Variant = payload_patch[key]
-				if before_value is int or before_value is float:
-					var expected_value := float(before_value) + float(delta_value)
-					applied = applied and is_equal_approx(float(after_payload.get(key, 0.0)), expected_value)
-				else:
-					applied = applied and after_payload.get(key, null) == delta_value
-	return has_patch_clause and applied
 
 func _action_has_keyboard_key(action_name: String, keycode: int) -> bool:
 	if not InputMap.has_action(action_name):

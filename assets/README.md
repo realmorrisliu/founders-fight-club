@@ -37,8 +37,6 @@ Menu/HUD panel textures and icons:
 - `sprites/ui/menu_slot_card.png`
 - `sprites/ui/hud_training_panel.png`
 - `sprites/ui/hud_onboarding_panel.png`
-- `sprites/ui/hud_round_tuning_panel.png`
-- `sprites/ui/hud_choice_card.png`
 - `sprites/ui/icon_guided.png`
 - `sprites/ui/icon_story.png`
 - `sprites/ui/icon_versus.png`
