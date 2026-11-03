@@ -104,6 +104,7 @@ func _run_smoke_suite() -> void:
 	await _test_throw_tech_and_ai_defense_windows()
 	await _test_knockback_growth_and_di_response()
 	await _test_hitstop_tier_resolution()
+	await _test_result_banner_clears_stat_rows()
 
 func _run_full_suite() -> void:
 	await _run_smoke_suite()
@@ -112,6 +113,7 @@ func _run_full_suite() -> void:
 	await _test_ai_behavior_profiles()
 	await _test_wave1_vertical_slice_skills()
 	await _test_full_roster_signature_coverage()
+	await _test_match_driver_replay_is_deterministic()
 
 func _resolve_suite_from_args(args: PackedStringArray) -> String:
 	var requested := ""
@@ -4369,3 +4371,117 @@ func _test_full_roster_signature_coverage() -> void:
 		_assert_true(str(p1.get("attack_state")) == "ultimate", "%s runtime can start ultimate" % path)
 	host.queue_free()
 	await process_frame
+
+func _test_result_banner_clears_stat_rows() -> void:
+	var packed := load("res://scenes/ui/Hud.tscn")
+	_assert_true(packed is PackedScene, "hud scene loads for result banner layout")
+	if packed is not PackedScene:
+		return
+	var hud_node := (packed as PackedScene).instantiate()
+	get_root().add_child(hud_node)
+	await process_frame
+	hud_node.call("set_result", "Player 1 wins")
+	var blocked := [
+		"TimerLabel",
+		"P1HpLabel",
+		"P2HpLabel",
+		"P1HypeLabel",
+		"P2HypeLabel",
+		"P1StateLabel",
+		"P2StateLabel",
+		"P1ProfileLabel",
+		"P2ProfileLabel",
+		"CombatCalloutLabel",
+		"HitTypeCalloutLabel"
+	]
+	for node_name in ["ResultChip", "ResultLabel"]:
+		var banner := _hud_offset_rect(hud_node.get_node_or_null(node_name))
+		_assert_true(banner.position.y >= 168.0, "%s sits below the stat rows" % node_name)
+		for blocked_name in blocked:
+			var other := _hud_offset_rect(hud_node.get_node_or_null(blocked_name))
+			_assert_true(not banner.intersects(other, true), "%s does not cover %s" % [node_name, blocked_name])
+	if is_instance_valid(hud_node):
+		hud_node.queue_free()
+	await process_frame
+
+func _hud_offset_rect(node: Node) -> Rect2:
+	if node == null or not (node is Control):
+		return Rect2()
+	var control := node as Control
+	return Rect2(
+		Vector2(control.offset_left, control.offset_top),
+		Vector2(control.offset_right - control.offset_left, control.offset_bottom - control.offset_top)
+	)
+
+func _test_match_driver_replay_is_deterministic() -> void:
+	var replay_path := ProjectSettings.globalize_path("user://driver-replay.json")
+	var path_a := ProjectSettings.globalize_path("user://driver-a.jsonl")
+	var path_b := ProjectSettings.globalize_path("user://driver-b.jsonl")
+	var raw := {
+		"version": 1,
+		"seed": 424242,
+		"mode": "local",
+		"stage": "grand_arena",
+		"frames": 36,
+		"p1": "elon_mvsk",
+		"p2": "mark_zuck",
+		"p1_control": "script",
+		"p2_control": "idle",
+		"onboarding": false,
+		"inputs": [
+			{"frame": 0, "p1": {"move_right": true}},
+			{"frame": 18, "p1": {"move_right": true, "attack_heavy": true}},
+			{"frame": 22, "p1": {"move_right": true}}
+		]
+	}
+	var replay_file := FileAccess.open(replay_path, FileAccess.WRITE)
+	_assert_true(replay_file != null, "replay file can be written")
+	if replay_file == null:
+		return
+	replay_file.store_string(JSON.stringify(raw))
+	replay_file.close()
+	var first := _run_ffc_cli(["replay", "--replay", replay_path, "--out", path_a])
+	var second := _run_ffc_cli(["replay", "--replay", replay_path, "--out", path_b])
+	_assert_true(int(first.get("code", 1)) == 0, "ffc replay exits 0: %s" % str(first.get("text", "")))
+	_assert_true(int(second.get("code", 1)) == 0, "second ffc replay exits 0")
+	var first_hash := _sha256_file(path_a)
+	var second_hash := _sha256_file(path_b)
+	_assert_true(first_hash != "" and first_hash == second_hash, "same seed and inputs produce the same state-log hash")
+	_assert_true(FileAccess.get_file_as_bytes(path_a) == FileAccess.get_file_as_bytes(path_b), "replay state logs are byte-identical")
+	var last_line := _last_json_line(path_a)
+	var players_value: Variant = last_line.get("players", [])
+	if typeof(players_value) == TYPE_ARRAY and (players_value as Array).size() > 0:
+		var p1_state: Dictionary = (players_value as Array)[0]
+		_assert_true(float(p1_state.get("x", 0.0)) > 340.0, "scripted move_right advances p1")
+
+func _run_ffc_cli(args: PackedStringArray) -> Dictionary:
+	var output: Array = []
+	var command := PackedStringArray(["scripts/ffc.sh"])
+	command.append_array(args)
+	var code := OS.execute("bash", command, output, false)
+	var text := ""
+	for line_value in output:
+		text += str(line_value)
+		if not str(line_value).ends_with("\n"):
+			text += "\n"
+	var hash_value := ""
+	for raw_line in text.split("\n", false):
+		var line := raw_line.strip_edges()
+		if line.begins_with("hash="):
+			hash_value = line.substr(5).strip_edges()
+	return {"code": code, "text": text, "hash": hash_value}
+
+func _sha256_file(path: String) -> String:
+	var ctx := HashingContext.new()
+	ctx.start(HashingContext.HASH_SHA256)
+	ctx.update(FileAccess.get_file_as_bytes(path))
+	return ctx.finish().hex_encode()
+
+func _last_json_line(path: String) -> Dictionary:
+	var lines := FileAccess.get_file_as_string(path).split("\n", false)
+	if lines.is_empty():
+		return {}
+	var parsed: Variant = JSON.parse_string(lines[lines.size() - 1])
+	if typeof(parsed) != TYPE_DICTIONARY:
+		return {}
+	return parsed as Dictionary

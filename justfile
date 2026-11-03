@@ -18,6 +18,10 @@ run-scene scene:
 test suite="smoke":
 	@./scripts/test.sh "{{suite}}"
 
+# Drive a headless match. Example: just ffc doctor
+ffc *args:
+	@./scripts/ffc.sh {{args}}
+
 # Review match telemetry funnels from the default metrics log.
 review-funnels limit="20":
 	@python3 ./scripts/tools/review_match_metrics.py --limit {{limit}}

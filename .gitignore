@@ -3,6 +3,7 @@
 .godot-home/
 .godot-user/
 .godot-test-home/
+.ffc-home/
 __pycache__/
 *.pyc
 .DS_Store

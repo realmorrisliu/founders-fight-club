@@ -543,6 +543,7 @@ var hitbox_offset := Vector2(20, 0)
 var dash_time := 0.0
 var dash_cooldown_timer := 0.0
 var hitstun_time := 0.0
+var pending_launch_velocity := Vector2.ZERO
 var blockstun_time := 0.0
 var knockdown_time := 0.0
 var getup_time := 0.0
@@ -747,6 +748,12 @@ func _physics_process(delta: float) -> void:
 		return
 
 	if is_knocked_down:
+		_consume_pending_launch()
+		if velocity.y < -30.0:
+			_update_facing()
+			_update_visual()
+			_move_and_finalize(was_on_floor)
+			return
 		_update_knockdown(delta)
 		_update_facing()
 		_update_visual()
@@ -767,6 +774,7 @@ func _physics_process(delta: float) -> void:
 		return
 
 	if hitstun_time > 0.0:
+		_consume_pending_launch()
 		hitstun_time -= delta
 		_update_facing()
 		_update_visual()
@@ -824,6 +832,7 @@ func _physics_process(delta: float) -> void:
 
 	dash_cooldown_timer = maxf(0.0, dash_cooldown_timer - delta)
 	ai_block_time = maxf(0.0, ai_block_time - delta)
+	pending_launch_velocity = Vector2.ZERO
 	training_random_block_hold_time = maxf(0.0, training_random_block_hold_time - delta)
 
 	if _is_training_dummy_active():
@@ -4777,6 +4786,9 @@ func apply_damage(
 	var final_knockback := _apply_directional_influence(scaled_knockback, attack_meta)
 	_gain_hype(HYPE_GAIN_ON_TAKING_HIT)
 	velocity = final_knockback
+	# Hitstop skips physics, and the physics sync can drop a velocity written
+	# from inside the hit callback. Keep the launch until the body is allowed to move.
+	pending_launch_velocity = final_knockback
 	hitstun_time = maxf(0.0, hitstun_override)
 	blockstun_time = 0.0
 	_clear_throw_tech_buffer()
@@ -4841,10 +4853,17 @@ func get_last_directional_influence_input() -> Vector2:
 func get_hype_meter() -> float:
 	return hype_meter
 
+func _consume_pending_launch() -> void:
+	if pending_launch_velocity == Vector2.ZERO:
+		return
+	velocity = pending_launch_velocity
+	pending_launch_velocity = Vector2.ZERO
+
 func force_respawn(spawn_position: Vector2, facing_direction: int = 1) -> void:
 	_release_occupied_ledge()
 	global_position = spawn_position
 	velocity = Vector2.ZERO
+	pending_launch_velocity = Vector2.ZERO
 	current_hp = MAX_HP
 	facing = 1 if facing_direction >= 0 else -1
 	facing_locked = false

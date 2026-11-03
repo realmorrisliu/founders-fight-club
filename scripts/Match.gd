@@ -308,7 +308,7 @@ var camera_punch_time := 0.0
 var camera_punch_duration := 0.0
 var camera_punch_amount := 0.0
 var hitstop_active := false
-var hitstop_end_msec := 0
+var hitstop_time_left := 0.0
 var sfx_player_pool: Array[AudioStreamPlayer] = []
 var sfx_player_pool_cursor := 0
 
@@ -507,7 +507,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		_toggle_pause()
 
 func _process(delta: float) -> void:
-	_update_hitstop_state()
+	_update_hitstop_state(delta)
 	_update_screen_fx(delta)
 	if get_tree().paused:
 		return
@@ -2875,26 +2875,27 @@ func _resolve_attack_tier(attack_kind: String) -> String:
 func _apply_hitstop(duration: float) -> void:
 	if duration <= 0.0:
 		return
-	var now_msec := Time.get_ticks_msec()
-	var request_end_msec := now_msec + int(ceil(duration * 1000.0))
 	if not hitstop_active:
 		hitstop_active = true
 		_set_players_hitstop_active(true)
-		hitstop_end_msec = request_end_msec
+		hitstop_time_left = duration
 		return
-	hitstop_end_msec = maxi(hitstop_end_msec, request_end_msec)
+	# A second request extends the freeze to the longer remaining time.
+	# Wall-clock deadlines made the freeze depend on how slow the frame was.
+	hitstop_time_left = maxf(hitstop_time_left, duration)
 
-func _update_hitstop_state() -> void:
+func _update_hitstop_state(delta: float) -> void:
 	if not hitstop_active:
 		return
-	if Time.get_ticks_msec() < hitstop_end_msec:
+	hitstop_time_left = maxf(0.0, hitstop_time_left - maxf(0.0, delta))
+	if hitstop_time_left > 0.0:
 		return
 	_clear_hitstop()
 
 func _clear_hitstop() -> void:
 	_set_players_hitstop_active(false)
 	hitstop_active = false
-	hitstop_end_msec = 0
+	hitstop_time_left = 0.0
 
 func _set_players_hitstop_active(active: bool) -> void:
 	if player_1 and player_1.has_method("set_hitstop_active"):
