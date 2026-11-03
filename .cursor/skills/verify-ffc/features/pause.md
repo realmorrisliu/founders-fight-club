@@ -1,6 +1,6 @@
 # Pause and rematch
 
-Pause freezes the match. Fighters, physics, projectiles, CPU, and hitstun stay where they were, and held movement does not slide anyone. The match clock stays put. Pause again resumes from that pose. Restart starts the round over at full time and the spawn points.
+Pause freezes the match. Fighters, physics, projectiles, CPU, and hitstun stay where they were, and held movement does not slide anyone. Hit sparks stay on the frame where pause caught them. The match clock stays put. Pause again resumes from that pose. Restart starts the round over at full time and the spawn points.
 
 ## Sub-features
 

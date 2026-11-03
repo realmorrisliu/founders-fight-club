@@ -55,6 +55,7 @@ func _run_smoke_suite() -> void:
 	await _test_ledge_slot_occupancy_arbitration()
 	await _test_pause_panel_menu_route()
 	await _test_pause_freezes_fighters()
+	await _test_pause_holds_impact_burst()
 	await _test_training_timer_visibility()
 	await _test_training_quick_start_hint_renders()
 	await _test_onboarding_settings_and_guided_start_surface()
@@ -406,6 +407,50 @@ func _test_pause_freezes_fighters() -> void:
 		var p1 := _state_row_player(row, "p1")
 		resumed_x = float(p1.get("x", 0.0))
 	_assert_true(resumed_x > frozen_x + 0.5, "unpause with move_right held walks p1 forward from x %s" % frozen_x)
+
+func _test_pause_holds_impact_burst() -> void:
+	var packed := load("res://scenes/Main.tscn")
+	_assert_true(packed is PackedScene, "main scene loads for impact pause test")
+	if packed is not PackedScene:
+		return
+	var match_node := (packed as PackedScene).instantiate()
+	match_node.set("round_tuning_enabled", false)
+	get_root().add_child(match_node)
+	await process_frame
+	var effects := match_node.get_node_or_null("Effects")
+	_assert_true(effects != null, "impact pause test finds the effects layer")
+	if effects == null:
+		get_root().get_tree().paused = false
+		match_node.queue_free()
+		await process_frame
+		return
+	get_root().get_tree().paused = true
+	match_node.call(
+		"_spawn_impact_animation",
+		Vector2(420.0, 280.0),
+		StringName("hit"),
+		"heavy",
+		Color.WHITE,
+		1.2
+	)
+	var spawned := _effect_positions(effects)
+	_assert_true(spawned.size() >= 3, "impact pause test spawns the spark, bloom, and ring")
+	for _step in 8:
+		await process_frame
+	var held := _effect_positions(effects)
+	_assert_true(held.size() == spawned.size(), "paused impact sprites stay in the effects layer")
+	_assert_true(held == spawned, "paused impact sprites stay at the spawn pose")
+	get_root().get_tree().paused = false
+	if is_instance_valid(match_node):
+		match_node.queue_free()
+	await process_frame
+
+func _effect_positions(effects: Node) -> Array:
+	var rows: Array = []
+	for child in effects.get_children():
+		if child is Node2D:
+			rows.append((child as Node2D).position)
+	return rows
 
 func _same_pause_snapshot(left: Dictionary, right: Dictionary) -> bool:
 	if not is_equal_approx(float(left.get("time_left", 0.0)), float(right.get("time_left", 0.0))):

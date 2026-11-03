@@ -3370,7 +3370,7 @@ func _tween_transient_effect(
 ) -> void:
 	if sprite == null or not is_instance_valid(sprite):
 		return
-	var tween := create_tween()
+	var tween := effects_layer.create_tween()
 	tween.set_trans(Tween.TRANS_QUAD)
 	tween.set_ease(Tween.EASE_OUT)
 	tween.parallel().tween_property(sprite, "scale", final_scale, duration)
