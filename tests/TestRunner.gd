@@ -326,9 +326,7 @@ func _test_main_scene_runtime_match_flow() -> void:
 		_assert_true(str(match_node.get("match_result_key")) == "p1_win", "last stock loss resolves the winner as p1")
 	var hud := match_node.get_node_or_null("Hud")
 	if hud != null:
-		var p1_bar := hud.get_node_or_null("P1HpBar") as CanvasItem
 		var p1_label := hud.get_node_or_null("P1HpLabel") as Label
-		_assert_true(p1_bar != null and not p1_bar.visible, "smash HUD hides the HP bar")
 		_assert_true(p1_label != null and p1_label.text.find("%") != -1, "smash HUD shows damage percent")
 	if result_label is Label:
 		_assert_true((result_label as Label).text.strip_edges() != "", "runtime match flow shows result text on HUD")
@@ -2998,9 +2996,7 @@ func _test_training_sandbox_resets_on_ko_and_ring_out() -> void:
 		_assert_true(int((training_node.get("stocks") as Dictionary).get("p1", 0)) == int(training_node.get("stock_count")), "training ring-out resets the rep without consuming a stock")
 		_assert_true(not bool(training_node.get("match_over")), "platform drill ring-out reset keeps training sandbox active")
 		if hud != null:
-			var training_hp_bar := hud.get_node_or_null("P1HpBar") as CanvasItem
 			var training_hp_label := hud.get_node_or_null("P1HpLabel") as Label
-			_assert_true(training_hp_bar != null and not training_hp_bar.visible, "training uses the smash percent HUD")
 			_assert_true(training_hp_label != null and training_hp_label.text.find("%") != -1, "training HUD shows damage percent")
 		_assert_true(
 			p1.global_position.x > platform_stage_right_x + 40.0 and p1.global_position.y < platform_stage_floor_y - 40.0,

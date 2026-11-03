@@ -20,16 +20,6 @@ theme_override_colors/font_color = Color(0.94, 0.97, 1, 1)
 horizontal_alignment = 1
 text = "Time: 60"
 
-[node name="P1HpBar" type="TextureProgressBar" parent="."]
-offset_left = 20.0
-offset_top = 18.0
-offset_right = 248.0
-offset_bottom = 36.0
-min_value = 0.0
-max_value = 100.0
-value = 100.0
-show_percentage = false
-
 [node name="P1HpLabel" type="Label" parent="."]
 offset_left = 20.0
 offset_top = 38.0
@@ -37,17 +27,6 @@ offset_right = 248.0
 offset_bottom = 56.0
 theme_override_colors/font_color = Color(0.94, 0.97, 1, 1)
 text = "P1 HP: 100"
-
-[node name="P2HpBar" type="TextureProgressBar" parent="."]
-offset_left = 392.0
-offset_top = 18.0
-offset_right = 620.0
-offset_bottom = 36.0
-min_value = 0.0
-max_value = 100.0
-value = 100.0
-show_percentage = false
-fill_mode = 1
 
 [node name="P2HpLabel" type="Label" parent="."]
 offset_left = 392.0

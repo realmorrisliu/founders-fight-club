@@ -56,9 +56,6 @@ Stage/HUD textures now in use:
 
 - `sprites/arena/arena_bg.png`
 - `sprites/arena/arena_floor.png`
-- `sprites/ui/hp_under.png`
-- `sprites/ui/hp_fill_p1.png`
-- `sprites/ui/hp_fill_p2.png`
 - `sprites/ui/hud_timer_chip.png`
 - `sprites/ui/hud_result_chip.png`
 - `sprites/ui/hud_pause_panel.png`

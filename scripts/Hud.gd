@@ -7,9 +7,6 @@ const ROUND_TUNING_PATCH_SUMMARY_MAX_PARTS := 2
 const ROUND_TUNING_CARD_MAX_LINES := 2
 const TIMER_CHIP_TEXTURE_PATH := "res://assets/sprites/ui/hud_timer_chip.png"
 const RESULT_CHIP_TEXTURE_PATH := "res://assets/sprites/ui/hud_result_chip.png"
-const HP_UNDER_TEXTURE_PATH := "res://assets/sprites/ui/hp_under.png"
-const HP_FILL_P1_TEXTURE_PATH := "res://assets/sprites/ui/hp_fill_p1.png"
-const HP_FILL_P2_TEXTURE_PATH := "res://assets/sprites/ui/hp_fill_p2.png"
 const PAUSE_PANEL_TEXTURE_PATH := "res://assets/sprites/ui/hud_pause_panel.png"
 const TRAINING_PANEL_TEXTURE_PATH := "res://assets/sprites/ui/hud_training_panel.png"
 const ONBOARDING_PANEL_TEXTURE_PATH := "res://assets/sprites/ui/hud_onboarding_panel.png"
@@ -56,8 +53,6 @@ signal onboarding_replay_requested
 @onready var p1_profile_label := $P1ProfileLabel
 @onready var p2_profile_label := $P2ProfileLabel
 @onready var result_label := $ResultLabel
-@onready var p1_hp_bar := $P1HpBar
-@onready var p2_hp_bar := $P2HpBar
 @onready var result_chip := $ResultChip
 @onready var combat_callout_label := $CombatCalloutLabel
 @onready var hit_type_callout_label := $HitTypeCalloutLabel
@@ -215,13 +210,11 @@ func _layout_runtime_ui() -> void:
 	_set_control_rect(result_label, 160.0, 176.0, 480.0, 206.0)
 	_set_control_rect(combat_callout_label, 208.0, 118.0, 432.0, 144.0)
 	_set_control_rect(hit_type_callout_label, 220.0, 142.0, 420.0, 164.0)
-	_set_control_rect(p1_hp_bar, 20.0, 18.0, 228.0, 34.0)
 	_set_control_rect(p1_hp_label, 20.0, 38.0, 258.0, 54.0)
 	_set_control_rect(p1_hype_label, 20.0, 56.0, 258.0, 70.0)
 	_set_control_rect(p1_hype_bar, 20.0, 72.0, 228.0, 82.0)
 	_set_control_rect(p1_state_label, 20.0, 86.0, 264.0, 102.0)
 	_set_control_rect(p1_profile_label, 20.0, 104.0, 264.0, 118.0)
-	_set_control_rect(p2_hp_bar, 412.0, 18.0, 620.0, 34.0)
 	_set_control_rect(p2_hp_label, 382.0, 38.0, 620.0, 54.0)
 	_set_control_rect(p2_hype_label, 382.0, 56.0, 620.0, 70.0)
 	_set_control_rect(p2_hype_bar, 412.0, 72.0, 620.0, 82.0)
@@ -415,27 +408,6 @@ func _apply_runtime_textures() -> void:
 			Vector2i(380, 38),
 			Color(0.28, 0.20, 0.09, 0.92)
 		)
-	var hp_under := _load_texture_or_placeholder(
-		HP_UNDER_TEXTURE_PATH,
-		Vector2i(228, 18),
-		Color(0.12, 0.13, 0.18, 0.92)
-	)
-	var hp_fill_p1 := _load_texture_or_placeholder(
-		HP_FILL_P1_TEXTURE_PATH,
-		Vector2i(228, 18),
-		Color(0.30, 0.70, 0.88, 0.96)
-	)
-	var hp_fill_p2 := _load_texture_or_placeholder(
-		HP_FILL_P2_TEXTURE_PATH,
-		Vector2i(228, 18),
-		Color(0.88, 0.42, 0.44, 0.96)
-	)
-	if p1_hp_bar:
-		p1_hp_bar.texture_under = hp_under
-		p1_hp_bar.texture_progress = hp_fill_p1
-	if p2_hp_bar:
-		p2_hp_bar.texture_under = hp_under
-		p2_hp_bar.texture_progress = hp_fill_p2
 	if pause_background:
 		pause_background.texture = _load_texture_or_placeholder(
 			PAUSE_PANEL_TEXTURE_PATH,
@@ -554,10 +526,6 @@ func set_health(p1_hp: int, p2_hp: int) -> void:
 	var p2_damage_text := _format_stat(tr("HUD_P2_DAMAGE"), "P2 DMG: %d%%", p2_damage_percent)
 	p1_hp_label.text = "%s | %s" % [p1_stock_text, p1_damage_text]
 	p2_hp_label.text = "%s | %s" % [p2_stock_text, p2_damage_text]
-	if p1_hp_bar:
-		p1_hp_bar.visible = false
-	if p2_hp_bar:
-		p2_hp_bar.visible = false
 
 func set_stocks(p1_stocks: int, p2_stocks: int) -> void:
 	cached_p1_stocks = maxi(0, p1_stocks)
