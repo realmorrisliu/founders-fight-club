@@ -788,10 +788,22 @@ func _test_main_scene_ledge_recovery_flow() -> void:
 	_assert_true(p1 != null, "ledge recovery test resolves player1")
 	if p1 != null:
 		p1.set("is_ai", false)
+		p1.set("attack_state", "")
+		p1.set("is_dashing", false)
+		p1.set("is_blocking", false)
+		p1.set("dodge_time", 0.0)
+		p1.set("is_knocked_down", false)
+		p1.set("getup_time", 0.0)
+		p1.set("hitstun_time", 0.0)
+		p1.set("blockstun_time", 0.0)
+		p1.set("ledge_regrab_lock_time", 0.0)
 		var stage_right := float(match_node.get("stage_right_x"))
 		var stage_floor := float(match_node.get("stage_floor_y"))
+		p1.global_position = Vector2(stage_right + 200.0, stage_floor + 30.0)
+		p1.velocity = Vector2.ZERO
+		p1.move_and_slide()
 		p1.global_position = Vector2(stage_right + 10.0, stage_floor + 30.0)
-		p1.set("velocity", Vector2(0.0, 120.0))
+		p1.velocity = Vector2(0.0, 120.0)
 		p1.call("_physics_process", 1.0 / 60.0)
 		_assert_true(bool(p1.get("is_ledge_hanging")), "off-stage descent near edge enters ledge hang")
 		if bool(p1.get("is_ledge_hanging")):
