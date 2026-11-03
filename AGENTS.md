@@ -51,3 +51,10 @@ Damage percent is `100 - current_hp`. A real match spends a stock on ring-out or
 
 - Game UI must support English and Chinese; keep README and comments in English.
 - Player-facing strings belong in `i18n/en.tres` and `i18n/zh.tres`. Avoid new hard-coded gameplay UI copy.
+
+## Cursor Cloud specific instructions
+
+- `godot` on `PATH` is Godot 4.5.1 (`/usr/local/bin/godot`). `scripts/install_godot.sh` refreshes the project copy at `.godot-bin/godot` when that binary is missing. `just` 1.59.0 is on `PATH`.
+- Headless checks stay `bash scripts/test.sh` (smoke) and `bash scripts/test.sh full` (the CI suite).
+- `./scripts/godot.sh run` opens the menu on the desktop. This VM has no Vulkan device, so Godot logs a Vulkan error and falls back to OpenGL (llvmpipe). There is no sound card, so audio falls back to the dummy driver and the match still runs. The first launch shows a Choose Control Style overlay before the main menu.
+- Opening the project can rewrite `.import` files and add `.uid` files. Leave that editor churn uncommitted unless you added the asset.
