@@ -8,10 +8,8 @@ This directory is organized by purpose so production docs stay easy to find.
 docs/
   README.md
   CHANGELOG.md
-  archive/   superseded design docs; do not treat as current rules
   art/
   content/
-  plan/      historical execution notes
   project/
 ```
 
@@ -57,13 +55,6 @@ Recommended read order for gameplay content:
 3. `ROSTER_16_DETAIL.md`
 4. `SPECIAL_SKILL_DESIGN_V1.md`
 5. `DIALOGUE_PACK_V1.md`
-
-## Archive (`docs/archive/`)
-
-- `MVP.md`
-  - Superseded duel / HP-bar prototype design. Not current rules.
-
-`docs/plan/SMASH_ALIGNMENT_AND_FIX_PLAN.md` is also superseded as a migration plan. The Smash direction it argued for is now the only ruleset.
 
 ## Project Docs (`docs/project/`)
 

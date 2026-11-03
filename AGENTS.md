@@ -2,8 +2,6 @@
 
 Founders Fight Club is a Godot 4.5.1 Smash-style platform fighter. There is one ruleset: percent damage, knockback that scales with percent, stocks, ring-outs, platforms, air jumps, and ledges. Do not add an HP-bar or duel ruleset, and do not reintroduce a mode switch between them.
 
-`docs/archive/MVP.md` and `docs/plan/SMASH_ALIGNMENT_AND_FIX_PLAN.md` are superseded. They describe an older duel prototype and a migration plan. Current rules and commands are this file and the README.
-
 ## Project Structure & Module Organization
 
 - `project.godot` holds the Godot project configuration and input mappings. `run/main_scene` is `scenes/Menu.tscn`. The feature tag is `4.5`.
