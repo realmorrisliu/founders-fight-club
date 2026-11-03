@@ -1,13 +1,11 @@
 extends Node3D
 
-# Presentation only. Match and the driver call take_look, install, and cycle.
-# The script never writes positions, velocity, health, stocks, hitboxes, or input.
-
 const STAGE_NAME := "Hd2dStage"
 const PIXELS_PER_METER := 100.0
-# 5.6 m keeps zoom 1.42 near a 50 degree vertical field of view.
-# The north-star meter guesses assumed no stage yet. Bands below keep this plane sharp.
-const PLANE_DISTANCE_M := 5.6
+const CLOSE_ZOOM := 1.42
+const TARGET_FOV_Y_DEG := 50.0
+const REFERENCE_VIEWPORT_H := 720.0
+const FIGHTER_DRAW_ORDER_Z_M := 0.02
 const FRONT_LIP_M := 2.4
 const REAR_DEPTH_M := 5.2
 const PLATFORM_DEPTH_M := 1.5
@@ -19,6 +17,7 @@ const StageConfigStore := preload("res://scripts/config/StageConfig.gd")
 
 static var _look_id: StringName = &"0"
 static var _rows: Dictionary = {}
+static var _plane_distance_m := -1.0
 
 class Look:
 	var id: StringName
@@ -100,14 +99,57 @@ static func _row(id: String) -> Look:
 static func _build_rows() -> Dictionary:
 	var rows := {}
 	rows["0"] = _flat(&"0")
-	rows["a"] = _grade(&"a", 6.0, 0.06, 1.6, 16.0, 0.28, 0.04, 1.05, Color(1.0, 0.92, 0.80), 1.0, 0.70, 1.8, false)
-	rows["b"] = _grade(&"b", 10.0, 0.18, 3.4, 7.4, 0.85, 0.16, 0.80, Color(1.0, 0.90, 0.72), 1.2, 0.42, 0.7, true)
-	rows["c"] = _grade(&"c", 16.0, 0.28, 4.5, 6.6, 1.35, 0.36, 0.55, Color(1.0, 0.72, 0.45), 1.7, 0.20, 0.2, false)
+	rows["a"] = _grade({
+		"id": &"a",
+		"pitch_deg": 6.0,
+		"dof_amount": 0.06,
+		"dof_near_m": 1.6,
+		"dof_far_m": 16.0,
+		"glow_intensity": 0.28,
+		"glow_bloom": 0.04,
+		"glow_threshold": 1.05,
+		"key_color": Color(1.0, 0.92, 0.80),
+		"key_energy": 1.0,
+		"ambient_energy": 0.70,
+		"shadow_blur": 1.8,
+		"hit_light": false
+	})
+	rows["b"] = _grade({
+		"id": &"b",
+		"pitch_deg": 10.0,
+		"dof_amount": 0.18,
+		"dof_near_m": 3.4,
+		"dof_far_m": 7.4,
+		"glow_intensity": 0.85,
+		"glow_bloom": 0.16,
+		"glow_threshold": 0.80,
+		"key_color": Color(1.0, 0.90, 0.72),
+		"key_energy": 1.2,
+		"ambient_energy": 0.42,
+		"shadow_blur": 0.7,
+		"hit_light": true
+	})
+	rows["c"] = _grade({
+		"id": &"c",
+		"pitch_deg": 16.0,
+		"dof_amount": 0.28,
+		"dof_near_m": 4.5,
+		"dof_far_m": 6.6,
+		"glow_intensity": 1.35,
+		"glow_bloom": 0.36,
+		"glow_threshold": 0.55,
+		"key_color": Color(1.0, 0.72, 0.45),
+		"key_energy": 1.7,
+		"ambient_energy": 0.20,
+		"shadow_blur": 0.2,
+		"hit_light": false
+	})
+	var plane_m := _plane_distance()
 	for key in rows:
 		var look: Look = rows[key]
 		if look.flat:
 			continue
-		if look.dof_near_m >= PLANE_DISTANCE_M or PLANE_DISTANCE_M >= look.dof_far_m:
+		if look.dof_near_m >= plane_m or plane_m >= look.dof_far_m:
 			push_error("hd2d look %s leaves the fighter plane outside the sharp band" % String(look.id))
 	return rows
 
@@ -119,22 +161,30 @@ static func _flat(id: StringName) -> Look:
 	return look
 
 
-static func _grade(id: StringName, pitch: float, amount: float, near_m: float, far_m: float, glow_i: float, glow_b: float, glow_t: float, key: Color, key_energy: float, ambient: float, shadow_blur: float, hit_light: bool) -> Look:
+static func _plane_distance() -> float:
+	if _plane_distance_m > 0.0:
+		return _plane_distance_m
+	var visible_m := (REFERENCE_VIEWPORT_H / CLOSE_ZOOM) / PIXELS_PER_METER
+	_plane_distance_m = visible_m / (2.0 * tan(deg_to_rad(TARGET_FOV_Y_DEG * 0.5)))
+	return _plane_distance_m
+
+
+static func _grade(fields: Dictionary) -> Look:
 	var look := Look.new()
-	look.id = id
+	look.id = fields["id"]
 	look.flat = false
-	look.pitch_deg = pitch
-	look.dof_amount = amount
-	look.dof_near_m = near_m
-	look.dof_far_m = far_m
-	look.glow_intensity = glow_i
-	look.glow_bloom = glow_b
-	look.glow_threshold = glow_t
-	look.key_color = key
-	look.key_energy = key_energy
-	look.ambient_energy = ambient
-	look.shadow_blur = shadow_blur
-	look.hit_light = hit_light
+	look.pitch_deg = fields["pitch_deg"]
+	look.dof_amount = fields["dof_amount"]
+	look.dof_near_m = fields["dof_near_m"]
+	look.dof_far_m = fields["dof_far_m"]
+	look.glow_intensity = fields["glow_intensity"]
+	look.glow_bloom = fields["glow_bloom"]
+	look.glow_threshold = fields["glow_threshold"]
+	look.key_color = fields["key_color"]
+	look.key_energy = fields["key_energy"]
+	look.ambient_energy = fields["ambient_energy"]
+	look.shadow_blur = fields["shadow_blur"]
+	look.hit_light = fields["hit_light"]
 	return look
 
 
@@ -144,7 +194,7 @@ static func _pixel_to_meter(anchor_x: float, floor_y: float, px: Vector2) -> Vec
 
 static func _fov_y_deg(viewport_h: float, zoom: float, pitch_deg: float) -> float:
 	var visible_m := (viewport_h / maxf(zoom, 0.01)) / PIXELS_PER_METER
-	var perp_m := PLANE_DISTANCE_M * cos(deg_to_rad(pitch_deg))
+	var perp_m := _plane_distance() * cos(deg_to_rad(pitch_deg))
 	return rad_to_deg(2.0 * atan(visible_m / (2.0 * maxf(perp_m, 0.05))))
 
 
@@ -260,9 +310,6 @@ func _ensure_world() -> void:
 	for slot in 2:
 		var sprite := Sprite3D.new()
 		sprite.name = "Fighter%s" % slot
-		# A 16 degree pitch shortens a vertical card by about 4 percent.
-		# A camera-facing billboard casts a blob instead of the sprite's shadow.
-		sprite.billboard = BaseMaterial3D.BILLBOARD_DISABLED
 		sprite.double_sided = true
 		sprite.shaded = true
 		sprite.alpha_cut = SpriteBase3D.ALPHA_CUT_DISCARD
@@ -410,9 +457,10 @@ func _write_camera() -> void:
 	var look := _pixel_to_meter(_anchor_x, _floor_y, center)
 	var pitch := deg_to_rad(_look.pitch_deg)
 	var eye := look
-	eye.y += PLANE_DISTANCE_M * sin(pitch)
+	var plane_m := _plane_distance()
+	eye.y += plane_m * sin(pitch)
 	# Sit on +Z. A camera on -Z yaws 180 and swaps left and right.
-	eye.z += PLANE_DISTANCE_M * cos(pitch)
+	eye.z += plane_m * cos(pitch)
 	_camera.look_at_from_position(eye, look, Vector3.UP)
 	_camera.fov = _fov_y_deg(viewport_h, zoom, _look.pitch_deg)
 	_camera.make_current()
@@ -434,8 +482,7 @@ func _write_fighters() -> void:
 		sprite.offset = visual.offset
 		sprite.scale = Vector3(absf(visual.scale.x), absf(visual.scale.y), 1.0)
 		var point := _pixel_to_meter(_anchor_x, _floor_y, visual.global_position)
-		# Slot 1 sits slightly toward the camera so P2 still draws over P1.
-		point.z = 0.02 * float(slot)
+		point.z = FIGHTER_DRAW_ORDER_Z_M * float(slot)
 		sprite.position = point
 
 
