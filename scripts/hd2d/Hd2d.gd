@@ -6,12 +6,17 @@ const CLOSE_ZOOM := 1.42
 const TARGET_FOV_Y_DEG := 50.0
 const REFERENCE_VIEWPORT_H := 720.0
 const FIGHTER_DRAW_ORDER_Z_M := 0.02
+const FOOT_CONTACT_M := 0.10
+const FIGHTER_SCREEN_GAIN := 1.4
+const NIGHT_SKY := Color(0.07, 0.10, 0.18)
+const NIGHT_AMBIENT := Color(0.72, 0.80, 0.95)
+const FLOOR_SKIRT := Color(0.07, 0.08, 0.12)
+const PLATFORM_COLOR := Color(0.20, 0.23, 0.30)
 const FRONT_LIP_M := 2.4
 const REAR_DEPTH_M := 5.2
 const PLATFORM_DEPTH_M := 1.5
 const HIT_COLOR := Color(1.0, 0.84, 0.60, 1.0)
 const HIT_ENERGY := 1.2
-const FILL_COLOR := Color(1.0, 0.90, 0.82, 1.0)
 const FILL_ENERGY := 0.35
 const StageConfigStore := preload("res://scripts/config/StageConfig.gd")
 
@@ -109,8 +114,8 @@ static func _build_rows() -> Dictionary:
 		"glow_bloom": 0.04,
 		"glow_threshold": 1.05,
 		"key_color": Color(1.0, 0.92, 0.80),
-		"key_energy": 1.0,
-		"ambient_energy": 0.70,
+		"key_energy": 0.55,
+		"ambient_energy": 0.95,
 		"shadow_blur": 1.8,
 		"hit_light": false
 	})
@@ -124,8 +129,8 @@ static func _build_rows() -> Dictionary:
 		"glow_bloom": 0.16,
 		"glow_threshold": 0.80,
 		"key_color": Color(1.0, 0.90, 0.72),
-		"key_energy": 1.2,
-		"ambient_energy": 0.42,
+		"key_energy": 0.8,
+		"ambient_energy": 0.78,
 		"shadow_blur": 0.7,
 		"hit_light": true
 	})
@@ -139,8 +144,8 @@ static func _build_rows() -> Dictionary:
 		"glow_bloom": 0.36,
 		"glow_threshold": 0.55,
 		"key_color": Color(1.0, 0.72, 0.45),
-		"key_energy": 1.7,
-		"ambient_energy": 0.20,
+		"key_energy": 1.15,
+		"ambient_energy": 0.55,
 		"shadow_blur": 0.2,
 		"hit_light": false
 	})
@@ -193,7 +198,7 @@ static func _pixel_to_meter(anchor_x: float, floor_y: float, px: Vector2) -> Vec
 
 
 static func _fov_y_deg(viewport_h: float, zoom: float, pitch_deg: float) -> float:
-	var visible_m := (viewport_h / maxf(zoom, 0.01)) / PIXELS_PER_METER
+	var visible_m := (viewport_h / maxf(zoom, 0.01)) / PIXELS_PER_METER / FIGHTER_SCREEN_GAIN
 	var perp_m := _plane_distance() * cos(deg_to_rad(pitch_deg))
 	return rad_to_deg(2.0 * atan(visible_m / (2.0 * maxf(perp_m, 0.05))))
 
@@ -211,6 +216,7 @@ var _hit: OmniLight3D
 var _env: Environment
 var _attributes: CameraAttributesPractical
 var _fighters: Array[Sprite3D] = []
+var _sparks: Array[Sprite3D] = []
 
 
 func bind(match_root: Node, look: Look) -> void:
@@ -251,6 +257,7 @@ func _on_pre_draw() -> void:
 	_hide_world_roots()
 	_write_camera()
 	_write_fighters()
+	_write_sparks()
 	_write_hit_light()
 
 
@@ -262,8 +269,8 @@ func _ensure_world() -> void:
 	_env = Environment.new()
 	_env.background_mode = Environment.BG_COLOR
 	_env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	_env.ambient_light_color = Color(1.0, 0.86, 0.72)
-	_env.tonemap_mode = Environment.TONE_MAPPER_ACES
+	_env.ambient_light_color = NIGHT_AMBIENT
+	_env.tonemap_mode = Environment.TONE_MAPPER_LINEAR
 	_env.glow_enabled = true
 	_env.glow_blend_mode = Environment.GLOW_BLEND_MODE_SOFTLIGHT
 	world.environment = _env
@@ -291,7 +298,7 @@ func _ensure_world() -> void:
 	_fill = DirectionalLight3D.new()
 	_fill.name = "Fill"
 	_fill.shadow_enabled = false
-	_fill.light_color = FILL_COLOR
+	_fill.light_color = Color(0.62, 0.74, 0.95)
 	_fill.light_energy = FILL_ENERGY
 	_fill.rotation_degrees = Vector3(-20.0, 150.0, 0.0)
 	add_child(_fill)
@@ -311,7 +318,7 @@ func _ensure_world() -> void:
 		var sprite := Sprite3D.new()
 		sprite.name = "Fighter%s" % slot
 		sprite.double_sided = true
-		sprite.shaded = true
+		sprite.shaded = false
 		sprite.alpha_cut = SpriteBase3D.ALPHA_CUT_DISCARD
 		sprite.alpha_scissor_threshold = 0.5
 		sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
@@ -324,23 +331,37 @@ func _ensure_world() -> void:
 
 
 func _add_floor() -> void:
-	var mesh_node := MeshInstance3D.new()
-	mesh_node.name = "Floor"
-	var box := BoxMesh.new()
-	box.size = Vector3(7.6, 0.4, FRONT_LIP_M + REAR_DEPTH_M)
-	mesh_node.mesh = box
-	mesh_node.position = Vector3(0.0, -0.2, (FRONT_LIP_M - REAR_DEPTH_M) * 0.5)
-	mesh_node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var root := Node3D.new()
+	root.name = "Floor"
+	add_child(root)
+	var top := MeshInstance3D.new()
+	top.name = "Top"
+	var plane := PlaneMesh.new()
+	plane.size = Vector2(7.6, FRONT_LIP_M + REAR_DEPTH_M)
+	top.mesh = plane
+	top.position = Vector3(0.0, 0.01, (FRONT_LIP_M - REAR_DEPTH_M) * 0.5)
+	top.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	var material := StandardMaterial3D.new()
-	material.albedo_color = Color(0.72, 0.48, 0.32)
-	material.roughness = 0.88
+	material.albedo_color = Color(1, 1, 1)
+	material.roughness = 0.92
 	var texture := load("res://assets/sprites/arena/arena_floor.png")
 	if texture is Texture2D:
 		material.albedo_texture = texture
-		material.uv1_scale = Vector3(2.4, 1.2, 1.0)
 		material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
-	mesh_node.material_override = material
-	add_child(mesh_node)
+	top.material_override = material
+	root.add_child(top)
+	var skirt := MeshInstance3D.new()
+	skirt.name = "Skirt"
+	var box := BoxMesh.new()
+	box.size = Vector3(7.6, 0.35, FRONT_LIP_M + REAR_DEPTH_M)
+	skirt.mesh = box
+	skirt.position = Vector3(0.0, -0.18, (FRONT_LIP_M - REAR_DEPTH_M) * 0.5)
+	skirt.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var skirt_material := StandardMaterial3D.new()
+	skirt_material.albedo_color = FLOOR_SKIRT
+	skirt_material.roughness = 1.0
+	skirt.material_override = skirt_material
+	root.add_child(skirt)
 
 
 func _add_platforms() -> void:
@@ -352,36 +373,30 @@ func _add_platforms() -> void:
 		mesh_node.mesh = box
 		mesh_node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		var material := StandardMaterial3D.new()
-		material.albedo_color = Color(0.86, 0.62, 0.40)
-		material.roughness = 0.8
+		material.albedo_color = PLATFORM_COLOR
+		material.roughness = 0.9
 		mesh_node.material_override = material
 		add_child(mesh_node)
 
 
 func _add_backdrops() -> void:
-	var specs := [
-		{"name": "BackdropFar", "z": -14.0, "y": 4.2, "size": Vector2(34.0, 18.0), "color": Color(0.55, 0.32, 0.22), "texture": true},
-		{"name": "BackdropMid", "z": -8.0, "y": 1.6, "size": Vector2(22.0, 4.2), "color": Color(0.28, 0.14, 0.10), "texture": false},
-		{"name": "BackdropNear", "z": -4.4, "y": 0.85, "size": Vector2(16.0, 1.5), "color": Color(0.42, 0.22, 0.14), "texture": false}
-	]
+	var mesh_node := MeshInstance3D.new()
+	mesh_node.name = "BackdropFar"
+	var quad := QuadMesh.new()
+	quad.size = Vector2(20.0, 11.0)
+	mesh_node.mesh = quad
+	mesh_node.position = Vector3(0.0, 3.1, -7.5)
+	mesh_node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var material := StandardMaterial3D.new()
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.albedo_color = Color(1, 1, 1)
+	material.cull_mode = BaseMaterial3D.CULL_DISABLED
 	var painting := load("res://assets/sprites/arena/arena_bg.png")
-	for spec in specs:
-		var mesh_node := MeshInstance3D.new()
-		mesh_node.name = str(spec["name"])
-		var quad := QuadMesh.new()
-		quad.size = spec["size"]
-		mesh_node.mesh = quad
-		mesh_node.position = Vector3(0.0, float(spec["y"]), float(spec["z"]))
-		mesh_node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		var material := StandardMaterial3D.new()
-		material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		material.albedo_color = spec["color"]
-		material.cull_mode = BaseMaterial3D.CULL_DISABLED
-		if bool(spec["texture"]) and painting is Texture2D:
-			material.albedo_texture = painting
-			material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
-		mesh_node.material_override = material
-		add_child(mesh_node)
+	if painting is Texture2D:
+		material.albedo_texture = painting
+		material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
+	mesh_node.material_override = material
+	add_child(mesh_node)
 
 
 func _measure() -> void:
@@ -395,12 +410,18 @@ func _measure() -> void:
 		var center := shape_node.global_position
 		_anchor_x = center.x
 		_floor_y = center.y - size.y * 0.5
-		var floor := get_node_or_null("Floor") as MeshInstance3D
-		if floor != null and floor.mesh is BoxMesh:
-			var box := floor.mesh as BoxMesh
-			box.size = Vector3(size.x / PIXELS_PER_METER, size.y / PIXELS_PER_METER, FRONT_LIP_M + REAR_DEPTH_M)
-			var mid := _pixel_to_meter(_anchor_x, _floor_y, Vector2(center.x, _floor_y))
-			floor.position = Vector3(mid.x, -box.size.y * 0.5, (FRONT_LIP_M - REAR_DEPTH_M) * 0.5)
+		var width_m := size.x / PIXELS_PER_METER
+		var depth_m := FRONT_LIP_M + REAR_DEPTH_M
+		var mid := _pixel_to_meter(_anchor_x, _floor_y, Vector2(center.x, _floor_y))
+		var center_z := (FRONT_LIP_M - REAR_DEPTH_M) * 0.5
+		var top := get_node_or_null("Floor/Top") as MeshInstance3D
+		if top != null and top.mesh is PlaneMesh:
+			(top.mesh as PlaneMesh).size = Vector2(width_m, depth_m)
+			top.position = Vector3(mid.x, 0.01, center_z)
+		var skirt := get_node_or_null("Floor/Skirt") as MeshInstance3D
+		if skirt != null and skirt.mesh is BoxMesh:
+			(skirt.mesh as BoxMesh).size = Vector3(width_m, 0.35, depth_m)
+			skirt.position = Vector3(mid.x, -0.18, center_z)
 	else:
 		_anchor_x = (StageConfigStore.DEFAULT_LEFT_X + StageConfigStore.DEFAULT_RIGHT_X) * 0.5
 		_floor_y = StageConfigStore.DEFAULT_FLOOR_Y
@@ -432,7 +453,8 @@ func _place_platform(slot: int, node_name: String) -> void:
 
 
 func _write_grade() -> void:
-	_env.background_color = Color(0.10, 0.05, 0.04)
+	_env.background_color = NIGHT_SKY
+	_env.ambient_light_color = NIGHT_AMBIENT
 	_env.ambient_light_energy = _look.ambient_energy
 	_env.glow_intensity = _look.glow_intensity
 	_env.glow_bloom = _look.glow_bloom
@@ -482,8 +504,72 @@ func _write_fighters() -> void:
 		sprite.offset = visual.offset
 		sprite.scale = Vector3(absf(visual.scale.x), absf(visual.scale.y), 1.0)
 		var point := _pixel_to_meter(_anchor_x, _floor_y, visual.global_position)
+		point.y -= FOOT_CONTACT_M
 		point.z = FIGHTER_DRAW_ORDER_Z_M * float(slot)
 		sprite.position = point
+
+
+func _write_sparks() -> void:
+	var effects := _match.get_node_or_null("Effects")
+	var sources: Array[CanvasItem] = []
+	if effects != null:
+		for child in effects.get_children():
+			if child is CanvasItem and (child as CanvasItem).visible and (child as CanvasItem).modulate.a > 0.02:
+				sources.append(child)
+	while _sparks.size() < sources.size():
+		var spark := Sprite3D.new()
+		spark.name = "Spark%s" % _sparks.size()
+		spark.double_sided = true
+		spark.shaded = false
+		spark.centered = true
+		spark.pixel_size = 1.0 / PIXELS_PER_METER
+		spark.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+		spark.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		spark.alpha_cut = SpriteBase3D.ALPHA_CUT_DISABLED
+		add_child(spark)
+		_sparks.append(spark)
+	for index in _sparks.size():
+		var spark := _sparks[index]
+		if index >= sources.size():
+			spark.visible = false
+			continue
+		_apply_spark(spark, sources[index])
+
+
+func _apply_spark(spark: Sprite3D, source: CanvasItem) -> void:
+	var texture := _spark_texture(source)
+	spark.visible = texture != null
+	if texture == null:
+		return
+	spark.texture = texture
+	spark.modulate = source.modulate
+	var additive := false
+	if source.material is CanvasItemMaterial:
+		additive = (source.material as CanvasItemMaterial).blend_mode == CanvasItemMaterial.BLEND_MODE_ADD
+	var material := StandardMaterial3D.new()
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.albedo_texture = texture
+	material.albedo_color = source.modulate
+	material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST if source is AnimatedSprite2D else BaseMaterial3D.TEXTURE_FILTER_LINEAR
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	if additive:
+		material.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	spark.material_override = material
+	var flat := source as Node2D
+	spark.scale = Vector3(absf(flat.scale.x), absf(flat.scale.y), 1.0)
+	spark.rotation.z = -flat.rotation
+	var point := _pixel_to_meter(_anchor_x, _floor_y, flat.global_position)
+	point.z = 0.12
+	spark.position = point
+
+
+func _spark_texture(source: CanvasItem) -> Texture2D:
+	if source is AnimatedSprite2D:
+		return _frame_texture(source)
+	if source is Sprite2D:
+		return (source as Sprite2D).texture
+	return null
 
 
 func _frame_texture(visual: Node) -> Texture2D:
