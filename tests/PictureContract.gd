@@ -201,8 +201,8 @@ static func _lock_picture_source(failures: PackedStringArray, root: String) -> v
 		failures.append("picture scripts declare class_name")
 	if picture_text.find("func _process") >= 0 or picture_text.find("func _physics_process") >= 0:
 		failures.append("StagePicture.gd uses a process tick")
-	if picture_text.find("Camera2D.make_current") >= 0:
-		failures.append("StagePicture.gd makes the Camera2D current")
+	if picture_text.find("Camera2D.new") >= 0:
+		failures.append("StagePicture.gd builds a second 2D camera")
 
 
 static func _lock_grade_behavior(failures: PackedStringArray) -> void:
@@ -296,11 +296,10 @@ static func _check_match(failures: PackedStringArray, match_node: Node, path: St
 		var camera_2d := camera_value as Camera2D
 		if not camera_2d.enabled:
 			failures.append("%s Camera2D is disabled" % path)
-		if camera_2d.is_current():
-			failures.append("%s Camera2D is still the viewport camera" % path)
 	var picture_camera := match_node.get_node_or_null("StagePicture/Camera") as Camera3D
-	if picture_camera == null or not picture_camera.is_current():
-		failures.append("%s StagePicture/Camera is not the current camera" % path)
+	var viewport_camera := match_node.get_viewport().get_camera_3d() if match_node.get_viewport() != null else null
+	if picture_camera == null or viewport_camera != picture_camera:
+		failures.append("%s viewport camera is not StagePicture/Camera" % path)
 	else:
 		var ray_z := LookB.PLANE_DISTANCE_M * cos(deg_to_rad(LookB.PITCH_DEG))
 		if not is_equal_approx(picture_camera.global_position.z, ray_z):

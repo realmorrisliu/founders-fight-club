@@ -6,7 +6,6 @@ const StageConfigStore := preload("res://scripts/config/StageConfig.gd")
 const PICTURE_SCRIPT := "res://scripts/picture/StagePicture.gd"
 const PICTURE_NAME := "StagePicture"
 const CAMERA_NAME := "Camera"
-const RELEASE_NAME := "Release"
 const WORLD_NAME := "World"
 const KEY_NAME := "Key"
 const FILL_NAME := "Fill"
@@ -31,7 +30,6 @@ const SPARK_PREFIX := "Spark"
 var _match: Node
 var _hidden: Dictionary = {}
 var _camera: Camera3D
-var _release: Camera2D
 var _hit: OmniLight3D
 var _floor_top: MeshInstance3D
 var _floor_skirt: MeshInstance3D
@@ -297,8 +295,6 @@ func _present_camera(read: FrameRead) -> void:
 		_camera.look_at_from_position(pose_value.eye, pose_value.aim, Vector3.UP)
 		_camera.fov = pose_value.fov_y_deg
 	_camera.make_current()
-	# Godot leaves an enabled Camera2D current until a different Camera2D takes the viewport.
-	_release.make_current()
 
 
 func _present_floor(read: FrameRead) -> void:
@@ -465,9 +461,6 @@ func _build_camera() -> void:
 	attributes.dof_blur_far_distance = LookB.DOF_FAR_M
 	_camera.attributes = attributes
 	add_child(_camera)
-	_release = Camera2D.new()
-	_release.name = RELEASE_NAME
-	add_child(_release)
 
 
 func _build_lights() -> void:

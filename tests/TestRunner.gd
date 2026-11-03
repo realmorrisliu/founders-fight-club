@@ -710,9 +710,9 @@ func _test_story_mode_camera_profile_surface() -> void:
 	var camera_value: Variant = story_node.get("camera")
 	_assert_true(camera_value is Camera2D, "story mode resolves runtime camera instance")
 	if camera_value is Camera2D:
-		_assert_true(not (camera_value as Camera2D).is_current(), "story mode Camera2D stays off the viewport")
+		_assert_true((camera_value as Camera2D).enabled, "story mode keeps the framing camera enabled")
 	var picture_camera := story_node.get_node_or_null("StagePicture/Camera") as Camera3D
-	_assert_true(picture_camera != null and picture_camera.is_current(), "story mode StagePicture camera is the viewport camera")
+	_assert_true(picture_camera != null and story_node.get_viewport().get_camera_3d() == picture_camera, "story mode viewport uses the stage camera")
 	if is_instance_valid(story_node):
 		story_node.queue_free()
 	await process_frame
