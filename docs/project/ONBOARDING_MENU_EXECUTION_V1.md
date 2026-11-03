@@ -1,4 +1,4 @@
-# Onboarding and Menu Execution V1 (14-Point Delivery)
+# Onboarding and Menu Execution V1 (13-Point Delivery)
 
 ## Goals
 - 30-second promise: new players can move, jump, guard, dodge, attack, throw, and use a special action within one short guided flow.
@@ -19,15 +19,14 @@
 3. Guided replay path added from menu (`Guided Start`).
 4. Menu IA clarified with flow subtitle and mode-specific hints.
 5. Loadout tooltip now includes explicit readiness/fallback status.
-6. Round tuning anti-snowball lock added for far-ahead players (`round_tuning_leader_lock_stock_gap`).
-7. Skip and replay controls added to HUD onboarding panel.
-8. Onboarding completion persisted in settings.
-9. Forced onboarding replay supported through session keys.
-10. Menu event telemetry written to `user://menu_metrics.jsonl`.
-11. Match telemetry includes structured onboarding summary.
-12. Regression tests added for onboarding settings/surface and round-tuning leader lock.
-13. Bilingual localization coverage added for new onboarding/menu strings.
-14. Changelog and docs index updated.
+6. Skip and replay controls added to HUD onboarding panel.
+7. Onboarding completion persisted in settings.
+8. Forced onboarding replay supported through session keys.
+9. Menu event telemetry written to `user://menu_metrics.jsonl`.
+10. Match telemetry includes structured onboarding summary.
+11. Regression tests added for onboarding settings/surface.
+12. Bilingual localization coverage added for new onboarding/menu strings.
+13. Changelog and docs index updated.
 
 ## Metrics Added
 - `match_metrics.jsonl` now includes `onboarding.started/completed/skipped/forced_replay/steps_completed/completed_at_seconds`.
@@ -35,6 +34,5 @@
 
 ## Next Tuning Knobs
 - `Match.gd::onboarding_enabled`
-- `Match.gd::round_tuning_leader_lock_stock_gap`
 - `GameSettings.gd::onboarding.completed`
 - `GameSettings.gd::onboarding.hints_enabled`

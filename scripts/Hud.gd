@@ -3,15 +3,11 @@ extends CanvasLayer
 const LocalizationRegistryStore := preload("res://scripts/config/LocalizationRegistry.gd")
 const GameSettingsStore := preload("res://scripts/GameSettings.gd")
 const UiSkinStore := preload("res://scripts/ui/UiSkin.gd")
-const ROUND_TUNING_PATCH_SUMMARY_MAX_PARTS := 2
-const ROUND_TUNING_CARD_MAX_LINES := 2
 const TIMER_CHIP_TEXTURE_PATH := "res://assets/sprites/ui/hud_timer_chip.png"
 const RESULT_CHIP_TEXTURE_PATH := "res://assets/sprites/ui/hud_result_chip.png"
 const PAUSE_PANEL_TEXTURE_PATH := "res://assets/sprites/ui/hud_pause_panel.png"
 const TRAINING_PANEL_TEXTURE_PATH := "res://assets/sprites/ui/hud_training_panel.png"
 const ONBOARDING_PANEL_TEXTURE_PATH := "res://assets/sprites/ui/hud_onboarding_panel.png"
-const ROUND_TUNING_PANEL_TEXTURE_PATH := "res://assets/sprites/ui/hud_round_tuning_panel.png"
-const ROUND_TUNING_CARD_TEXTURE_PATH := "res://assets/sprites/ui/hud_choice_card.png"
 const DIALOGUE_PANEL_FILL := Color(0.07, 0.10, 0.18, 0.92)
 const DIALOGUE_PANEL_BORDER := Color(0.36, 0.62, 0.94, 0.94)
 const HUD_BUTTON_PRIMARY_PALETTE := {
@@ -36,7 +32,6 @@ signal restart_requested
 signal menu_requested
 signal locale_changed(locale: String)
 signal training_options_changed(options: Dictionary)
-signal round_tuning_option_selected(option_id: String)
 signal onboarding_skip_requested
 signal onboarding_replay_requested
 
@@ -80,23 +75,6 @@ signal onboarding_replay_requested
 @onready var language_label := $PausePanel/LanguageLabel
 @onready var lang_en_button := $PausePanel/LangEnButton
 @onready var lang_zh_button := $PausePanel/LangZhButton
-@onready var round_tuning_panel := $RoundTuningPanel
-@onready var round_tuning_title_label := $RoundTuningPanel/TitleLabel
-@onready var round_tuning_hint_label := $RoundTuningPanel/HintLabel
-@onready var round_tuning_option_a_card := $RoundTuningPanel/OptionACard
-@onready var round_tuning_option_a_title_label := $RoundTuningPanel/OptionACard/TitleLabel
-@onready var round_tuning_option_a_benefits_header_label := $RoundTuningPanel/OptionACard/BenefitsHeaderLabel
-@onready var round_tuning_option_a_benefits_label := $RoundTuningPanel/OptionACard/BenefitsLabel
-@onready var round_tuning_option_a_tradeoffs_header_label := $RoundTuningPanel/OptionACard/TradeoffsHeaderLabel
-@onready var round_tuning_option_a_tradeoffs_label := $RoundTuningPanel/OptionACard/TradeoffsLabel
-@onready var round_tuning_option_b_card := $RoundTuningPanel/OptionBCard
-@onready var round_tuning_option_b_title_label := $RoundTuningPanel/OptionBCard/TitleLabel
-@onready var round_tuning_option_b_benefits_header_label := $RoundTuningPanel/OptionBCard/BenefitsHeaderLabel
-@onready var round_tuning_option_b_benefits_label := $RoundTuningPanel/OptionBCard/BenefitsLabel
-@onready var round_tuning_option_b_tradeoffs_header_label := $RoundTuningPanel/OptionBCard/TradeoffsHeaderLabel
-@onready var round_tuning_option_b_tradeoffs_label := $RoundTuningPanel/OptionBCard/TradeoffsLabel
-@onready var round_tuning_option_a_button := $RoundTuningPanel/OptionAButton
-@onready var round_tuning_option_b_button := $RoundTuningPanel/OptionBButton
 @onready var onboarding_panel := $OnboardingPanel
 @onready var onboarding_title_label := $OnboardingPanel/TitleLabel
 @onready var onboarding_step_label := $OnboardingPanel/StepLabel
@@ -138,7 +116,6 @@ var training_panel_visible := true
 var training_controls_visible := true
 var training_log_entries: Array[Dictionary] = []
 const TRAINING_LOG_MAX_ENTRIES := 8
-var round_tuning_options: Array[Dictionary] = []
 var ui_texture_cache := {}
 var onboarding_state := {
 	"visible": false,
@@ -169,8 +146,6 @@ func _ready() -> void:
 		dialogue_label.visible = false
 	if dialogue_panel:
 		dialogue_panel.visible = false
-	if round_tuning_panel:
-		round_tuning_panel.visible = false
 	if onboarding_panel:
 		onboarding_panel.visible = false
 	resume_button.pressed.connect(_on_resume_pressed)
@@ -182,10 +157,6 @@ func _ready() -> void:
 	training_dummy_button.pressed.connect(_on_training_dummy_pressed)
 	training_tech_button.pressed.connect(_on_training_tech_pressed)
 	training_detail_button.pressed.connect(_on_training_detail_pressed)
-	if round_tuning_option_a_button:
-		round_tuning_option_a_button.pressed.connect(_on_round_tuning_option_a_pressed)
-	if round_tuning_option_b_button:
-		round_tuning_option_b_button.pressed.connect(_on_round_tuning_option_b_pressed)
 	if onboarding_skip_button:
 		onboarding_skip_button.pressed.connect(_on_onboarding_skip_pressed)
 	if onboarding_replay_button:
@@ -243,23 +214,6 @@ func _layout_runtime_ui() -> void:
 	_set_control_rect(training_detail_label, 10.0, 166.0, 326.0, 210.0)
 	_set_control_rect(training_log_title_label, 10.0, 214.0, 120.0, 232.0)
 	_set_control_rect(training_log_label, 10.0, 236.0, 326.0, 384.0)
-	_set_control_rect(round_tuning_panel, 98.0, 102.0, 542.0, 318.0)
-	_set_control_rect(round_tuning_title_label, 18.0, 12.0, 426.0, 32.0)
-	_set_control_rect(round_tuning_hint_label, 18.0, 36.0, 426.0, 54.0)
-	_set_control_rect(round_tuning_option_a_card, 18.0, 64.0, 210.0, 174.0)
-	_set_control_rect(round_tuning_option_b_card, 234.0, 64.0, 426.0, 174.0)
-	_set_control_rect(round_tuning_option_a_title_label, 10.0, 8.0, 182.0, 28.0)
-	_set_control_rect(round_tuning_option_b_title_label, 10.0, 8.0, 182.0, 28.0)
-	_set_control_rect(round_tuning_option_a_benefits_header_label, 10.0, 30.0, 182.0, 46.0)
-	_set_control_rect(round_tuning_option_b_benefits_header_label, 10.0, 30.0, 182.0, 46.0)
-	_set_control_rect(round_tuning_option_a_benefits_label, 10.0, 46.0, 182.0, 80.0)
-	_set_control_rect(round_tuning_option_b_benefits_label, 10.0, 46.0, 182.0, 80.0)
-	_set_control_rect(round_tuning_option_a_tradeoffs_header_label, 10.0, 82.0, 182.0, 98.0)
-	_set_control_rect(round_tuning_option_b_tradeoffs_header_label, 10.0, 82.0, 182.0, 98.0)
-	_set_control_rect(round_tuning_option_a_tradeoffs_label, 10.0, 98.0, 182.0, 126.0)
-	_set_control_rect(round_tuning_option_b_tradeoffs_label, 10.0, 98.0, 182.0, 126.0)
-	_set_control_rect(round_tuning_option_a_button, 18.0, 182.0, 210.0, 208.0)
-	_set_control_rect(round_tuning_option_b_button, 234.0, 182.0, 426.0, 208.0)
 
 func _apply_runtime_typography() -> void:
 	timer_label.add_theme_font_size_override("font_size", 13)
@@ -284,26 +238,6 @@ func _apply_runtime_typography() -> void:
 	onboarding_progress_label.add_theme_font_size_override("font_size", 10)
 	onboarding_skip_button.add_theme_font_size_override("font_size", 10)
 	onboarding_replay_button.add_theme_font_size_override("font_size", 10)
-	round_tuning_title_label.add_theme_font_size_override("font_size", 13)
-	round_tuning_hint_label.add_theme_font_size_override("font_size", 10)
-	for label in [
-		round_tuning_option_a_title_label,
-		round_tuning_option_b_title_label
-	]:
-		label.add_theme_font_size_override("font_size", 11)
-	for label in [
-		round_tuning_option_a_benefits_header_label,
-		round_tuning_option_b_benefits_header_label,
-		round_tuning_option_a_tradeoffs_header_label,
-		round_tuning_option_b_tradeoffs_header_label,
-		round_tuning_option_a_benefits_label,
-		round_tuning_option_b_benefits_label,
-		round_tuning_option_a_tradeoffs_label,
-		round_tuning_option_b_tradeoffs_label
-	]:
-		label.add_theme_font_size_override("font_size", 10)
-	for button in [round_tuning_option_a_button, round_tuning_option_b_button]:
-		button.add_theme_font_size_override("font_size", 10)
 	training_summary_label.add_theme_font_size_override("font_size", 10)
 	training_stun_label.add_theme_font_size_override("font_size", 10)
 	training_recovery_label.add_theme_font_size_override("font_size", 10)
@@ -320,7 +254,7 @@ func _set_control_rect(control: Control, left: float, top: float, right: float, 
 	control.offset_bottom = bottom
 
 func _apply_runtime_skin() -> void:
-	for panel in [dialogue_panel, training_panel, onboarding_panel, round_tuning_panel, round_tuning_option_a_card, round_tuning_option_b_card, pause_panel]:
+	for panel in [dialogue_panel, training_panel, onboarding_panel, pause_panel]:
 		if panel is Panel:
 			UiSkinStore.clear_panel_skin(panel as Panel)
 	if dialogue_panel:
@@ -355,26 +289,6 @@ func _apply_runtime_skin() -> void:
 			"BackdropTexture",
 			_load_ui_texture(ONBOARDING_PANEL_TEXTURE_PATH, Vector2i(270, 114), Color(0.22, 0.18, 0.12, 0.98))
 		)
-	if round_tuning_panel:
-		UiSkinStore.ensure_backdrop(
-			round_tuning_panel,
-			"BackdropTexture",
-			_load_ui_texture(ROUND_TUNING_PANEL_TEXTURE_PATH, Vector2i(444, 216), Color(0.10, 0.16, 0.28, 0.98))
-		)
-	if round_tuning_option_a_card:
-		UiSkinStore.ensure_backdrop(
-			round_tuning_option_a_card,
-			"BackdropTexture",
-			_load_ui_texture(ROUND_TUNING_CARD_TEXTURE_PATH, Vector2i(192, 110), Color(0.12, 0.18, 0.30, 0.96)),
-			Color(0.90, 1.0, 0.92, 1.0)
-		)
-	if round_tuning_option_b_card:
-		UiSkinStore.ensure_backdrop(
-			round_tuning_option_b_card,
-			"BackdropTexture",
-			_load_ui_texture(ROUND_TUNING_CARD_TEXTURE_PATH, Vector2i(192, 110), Color(0.12, 0.18, 0.30, 0.96)),
-			Color(1.0, 0.93, 0.88, 1.0)
-		)
 	for button in [
 		training_mode_button,
 		training_dummy_button,
@@ -389,9 +303,7 @@ func _apply_runtime_skin() -> void:
 		UiSkinStore.apply_button_skin(button, HUD_BUTTON_PRIMARY_PALETTE)
 	for button in [
 		onboarding_skip_button,
-		onboarding_replay_button,
-		round_tuning_option_a_button,
-		round_tuning_option_b_button
+		onboarding_replay_button
 	]:
 		UiSkinStore.apply_button_skin(button, HUD_BUTTON_WARM_PALETTE)
 
@@ -425,33 +337,6 @@ func _load_ui_texture(path: String, size: Vector2i, fill: Color) -> Texture2D:
 	var texture := UiSkinStore.load_texture_or_placeholder(path, size, fill)
 	ui_texture_cache[cache_key] = texture
 	return texture
-
-func show_round_tuning_options(options: Array[Dictionary], title_text: String = "") -> void:
-	round_tuning_options.clear()
-	for option_variant in options:
-		if typeof(option_variant) != TYPE_DICTIONARY:
-			continue
-		round_tuning_options.append((option_variant as Dictionary).duplicate(true))
-	if round_tuning_options.is_empty():
-		hide_round_tuning_options()
-		return
-	if round_tuning_panel:
-		round_tuning_panel.visible = true
-	pause_panel.visible = false
-	if title_text.strip_edges() != "":
-		round_tuning_title_label.text = title_text
-	else:
-		round_tuning_title_label.text = _tr_or_fallback("HUD_ROUND_TUNING_TITLE", "Round Tuning")
-	round_tuning_hint_label.text = _tr_or_fallback(
-		"HUD_ROUND_TUNING_HINT",
-		"Pick 1 upgrade for the next rounds."
-	)
-	_refresh_round_tuning_option_buttons()
-
-func hide_round_tuning_options() -> void:
-	round_tuning_options.clear()
-	if round_tuning_panel:
-		round_tuning_panel.visible = false
 
 func set_training_data(info: Dictionary) -> void:
 	cached_training_info = info.duplicate(true)
@@ -663,10 +548,6 @@ func _refresh_ui_text() -> void:
 	lang_en_button.text = tr("PAUSE_LANG_EN")
 	lang_zh_button.text = tr("PAUSE_LANG_ZH")
 	_update_language_buttons()
-	if round_tuning_panel and round_tuning_panel.visible:
-		round_tuning_title_label.text = _tr_or_fallback("HUD_ROUND_TUNING_TITLE", "Round Tuning")
-		round_tuning_hint_label.text = _tr_or_fallback("HUD_ROUND_TUNING_HINT", "Pick 1 upgrade for the next rounds.")
-		_refresh_round_tuning_option_buttons()
 
 func set_combat_state(p1_state: Dictionary, p2_state: Dictionary) -> void:
 	cached_p1_combat_state = p1_state.duplicate(true)
@@ -1567,288 +1448,11 @@ func _on_lang_en_pressed() -> void:
 func _on_lang_zh_pressed() -> void:
 	_set_locale("zh")
 
-func _refresh_round_tuning_option_buttons() -> void:
-	if round_tuning_option_a_button == null or round_tuning_option_b_button == null:
-		return
-	var fallback_a := _tr_or_fallback("HUD_ROUND_TUNING_OPTION_FALLBACK_A", "Option A")
-	var fallback_b := _tr_or_fallback("HUD_ROUND_TUNING_OPTION_FALLBACK_B", "Option B")
-	var benefits_header := _tr_or_fallback("HUD_ROUND_TUNING_BENEFITS", "Benefits")
-	var tradeoffs_header := _tr_or_fallback("HUD_ROUND_TUNING_TRADEOFFS", "Trade-offs")
-	if round_tuning_option_a_benefits_header_label:
-		round_tuning_option_a_benefits_header_label.text = benefits_header
-	if round_tuning_option_b_benefits_header_label:
-		round_tuning_option_b_benefits_header_label.text = benefits_header
-	if round_tuning_option_a_tradeoffs_header_label:
-		round_tuning_option_a_tradeoffs_header_label.text = tradeoffs_header
-	if round_tuning_option_b_tradeoffs_header_label:
-		round_tuning_option_b_tradeoffs_header_label.text = tradeoffs_header
-	_refresh_round_tuning_option_card(
-		0,
-		fallback_a,
-		round_tuning_option_a_title_label,
-		round_tuning_option_a_benefits_label,
-		round_tuning_option_a_tradeoffs_label,
-		round_tuning_option_a_button
-	)
-	_refresh_round_tuning_option_card(
-		1,
-		fallback_b,
-		round_tuning_option_b_title_label,
-		round_tuning_option_b_benefits_label,
-		round_tuning_option_b_tradeoffs_label,
-		round_tuning_option_b_button
-	)
-
-func _refresh_round_tuning_option_card(
-	index: int,
-	fallback: String,
-	title_label: Label,
-	benefits_label: Label,
-	tradeoffs_label: Label,
-	choose_button: Button
-) -> void:
-	var has_option := index >= 0 and index < round_tuning_options.size()
-	if title_label:
-		title_label.visible = has_option
-	if benefits_label:
-		benefits_label.visible = has_option
-	if tradeoffs_label:
-		tradeoffs_label.visible = has_option
-	if choose_button:
-		choose_button.visible = has_option
-		if not has_option:
-			choose_button.text = fallback
-			choose_button.tooltip_text = ""
-	if not has_option:
-		return
-	var option := round_tuning_options[index]
-	var title_text := _resolve_round_tuning_option_title(option, fallback)
-	if title_label:
-		title_label.text = title_text
-	var split := _split_round_tuning_patch_parts(option)
-	var benefits := split.get("benefits", []) as Array[String]
-	var tradeoffs := split.get("tradeoffs", []) as Array[String]
-	if benefits_label:
-		benefits_label.text = _format_round_tuning_card_lines(
-			benefits,
-			"HUD_ROUND_TUNING_NO_BENEFIT",
-			"No direct benefit"
-		)
-	if tradeoffs_label:
-		tradeoffs_label.text = _format_round_tuning_card_lines(
-			tradeoffs,
-			"HUD_ROUND_TUNING_NO_TRADEOFF",
-			"No immediate trade-off"
-		)
-	if choose_button:
-		choose_button.text = _tr_or_fallback("HUD_ROUND_TUNING_CHOOSE", "Choose")
-		choose_button.tooltip_text = _resolve_round_tuning_option_text(option, fallback)
-
-func _resolve_round_tuning_option_text(option: Dictionary, fallback: String) -> String:
-	var base_text := _resolve_round_tuning_option_title(option, fallback)
-	var patch_summary := _build_round_tuning_patch_summary(option)
-	if patch_summary == "":
-		return base_text
-	return "%s\n%s" % [base_text, patch_summary]
-
-func _resolve_round_tuning_option_title(option: Dictionary, fallback: String) -> String:
-	var key := str(option.get("display_name_key", "")).strip_edges()
-	var fallback_text := str(option.get("display_name_fallback", fallback)).strip_edges()
-	if fallback_text == "":
-		fallback_text = fallback
-	if key == "":
-		return fallback_text
-	return _tr_or_fallback(key, fallback_text)
-
-func _build_round_tuning_patch_summary(option: Dictionary) -> String:
-	var patch_value: Variant = option.get("patch", {})
-	if typeof(patch_value) != TYPE_DICTIONARY:
-		return ""
-	var patch := patch_value as Dictionary
-	var parts: Array[String] = []
-	if patch.has("cooldown_seconds_delta"):
-		parts.append("%s %+.1fs" % [
-			_tr_or_fallback("HUD_ROUND_TUNING_PATCH_COOLDOWN", "Cooldown"),
-			float(patch.get("cooldown_seconds_delta", 0.0))
-		])
-	if patch.has("trigger_value_delta"):
-		parts.append("%s %+.0f" % [
-			_tr_or_fallback("HUD_ROUND_TUNING_PATCH_TRIGGER", "Trigger"),
-			float(patch.get("trigger_value_delta", 0.0))
-		])
-	if patch.has("max_charges_delta"):
-		parts.append("%s %+.0f" % [
-			_tr_or_fallback("HUD_ROUND_TUNING_PATCH_CHARGES", "Charges"),
-			float(patch.get("max_charges_delta", 0.0))
-		])
-	var payload_patch_value: Variant = patch.get("effect_payload_patch", {})
-	if typeof(payload_patch_value) == TYPE_DICTIONARY:
-		var payload_patch := payload_patch_value as Dictionary
-		if payload_patch.has("duration"):
-			parts.append("%s %+.1fs" % [
-				_tr_or_fallback("HUD_ROUND_TUNING_PATCH_DURATION", "Duration"),
-				float(payload_patch.get("duration", 0.0))
-			])
-		if payload_patch.has("amount"):
-			parts.append("%s %+.0f" % [
-				_tr_or_fallback("HUD_ROUND_TUNING_PATCH_HYPE", "Hype"),
-				float(payload_patch.get("amount", 0.0))
-			])
-		if payload_patch.has("damage_multiplier"):
-			parts.append("%s %+.0f%%" % [
-				_tr_or_fallback("HUD_ROUND_TUNING_PATCH_DAMAGE", "Damage"),
-				float(payload_patch.get("damage_multiplier", 0.0)) * 100.0
-			])
-		if payload_patch.has("speed_multiplier"):
-			parts.append("%s %+.0f%%" % [
-				_tr_or_fallback("HUD_ROUND_TUNING_PATCH_SPEED", "Speed"),
-				float(payload_patch.get("speed_multiplier", 0.0)) * 100.0
-			])
-		if payload_patch.has("startup_multiplier"):
-			parts.append("%s %+.0f%%" % [
-				_tr_or_fallback("HUD_ROUND_TUNING_PATCH_STARTUP", "Startup"),
-				float(payload_patch.get("startup_multiplier", 0.0)) * 100.0
-			])
-		if payload_patch.has("chip_bonus"):
-			parts.append("%s %+.0f%%" % [
-				_tr_or_fallback("HUD_ROUND_TUNING_PATCH_CHIP", "Chip"),
-				float(payload_patch.get("chip_bonus", 0.0)) * 100.0
-			])
-	if parts.size() <= ROUND_TUNING_PATCH_SUMMARY_MAX_PARTS:
-		return ", ".join(parts)
-	var truncated: Array[String] = []
-	for index in range(ROUND_TUNING_PATCH_SUMMARY_MAX_PARTS):
-		truncated.append(parts[index])
-	truncated.append("+%d" % (parts.size() - ROUND_TUNING_PATCH_SUMMARY_MAX_PARTS))
-	return ", ".join(truncated)
-
-func _split_round_tuning_patch_parts(option: Dictionary) -> Dictionary:
-	var benefits: Array[String] = []
-	var tradeoffs: Array[String] = []
-	var patch_value: Variant = option.get("patch", {})
-	if typeof(patch_value) != TYPE_DICTIONARY:
-		return {"benefits": benefits, "tradeoffs": tradeoffs}
-	var patch := patch_value as Dictionary
-	if patch.has("cooldown_seconds_delta"):
-		var delta := float(patch.get("cooldown_seconds_delta", 0.0))
-		var text := "%s %+.1fs" % [
-			_tr_or_fallback("HUD_ROUND_TUNING_PATCH_COOLDOWN", "Cooldown"),
-			delta
-		]
-		_route_round_tuning_patch_text(benefits, tradeoffs, text, delta, true)
-	if patch.has("trigger_value_delta"):
-		var delta := float(patch.get("trigger_value_delta", 0.0))
-		var text := "%s %+.0f" % [
-			_tr_or_fallback("HUD_ROUND_TUNING_PATCH_TRIGGER", "Trigger"),
-			delta
-		]
-		_route_round_tuning_patch_text(benefits, tradeoffs, text, delta, true)
-	if patch.has("max_charges_delta"):
-		var delta := float(patch.get("max_charges_delta", 0.0))
-		var text := "%s %+.0f" % [
-			_tr_or_fallback("HUD_ROUND_TUNING_PATCH_CHARGES", "Charges"),
-			delta
-		]
-		_route_round_tuning_patch_text(benefits, tradeoffs, text, delta, false)
-	var payload_patch_value: Variant = patch.get("effect_payload_patch", {})
-	if typeof(payload_patch_value) != TYPE_DICTIONARY:
-		return {"benefits": benefits, "tradeoffs": tradeoffs}
-	var payload_patch := payload_patch_value as Dictionary
-	if payload_patch.has("duration"):
-		var delta := float(payload_patch.get("duration", 0.0))
-		var text := "%s %+.1fs" % [
-			_tr_or_fallback("HUD_ROUND_TUNING_PATCH_DURATION", "Duration"),
-			delta
-		]
-		_route_round_tuning_patch_text(benefits, tradeoffs, text, delta, false)
-	if payload_patch.has("amount"):
-		var delta := float(payload_patch.get("amount", 0.0))
-		var text := "%s %+.0f" % [
-			_tr_or_fallback("HUD_ROUND_TUNING_PATCH_HYPE", "Hype"),
-			delta
-		]
-		_route_round_tuning_patch_text(benefits, tradeoffs, text, delta, false)
-	if payload_patch.has("damage_multiplier"):
-		var delta := float(payload_patch.get("damage_multiplier", 0.0)) * 100.0
-		var text := "%s %+.0f%%" % [
-			_tr_or_fallback("HUD_ROUND_TUNING_PATCH_DAMAGE", "Damage"),
-			delta
-		]
-		_route_round_tuning_patch_text(benefits, tradeoffs, text, delta, false)
-	if payload_patch.has("speed_multiplier"):
-		var delta := float(payload_patch.get("speed_multiplier", 0.0)) * 100.0
-		var text := "%s %+.0f%%" % [
-			_tr_or_fallback("HUD_ROUND_TUNING_PATCH_SPEED", "Speed"),
-			delta
-		]
-		_route_round_tuning_patch_text(benefits, tradeoffs, text, delta, false)
-	if payload_patch.has("startup_multiplier"):
-		var delta := float(payload_patch.get("startup_multiplier", 0.0)) * 100.0
-		var text := "%s %+.0f%%" % [
-			_tr_or_fallback("HUD_ROUND_TUNING_PATCH_STARTUP", "Startup"),
-			delta
-		]
-		_route_round_tuning_patch_text(benefits, tradeoffs, text, delta, true)
-	if payload_patch.has("chip_bonus"):
-		var delta := float(payload_patch.get("chip_bonus", 0.0)) * 100.0
-		var text := "%s %+.0f%%" % [
-			_tr_or_fallback("HUD_ROUND_TUNING_PATCH_CHIP", "Chip"),
-			delta
-		]
-		_route_round_tuning_patch_text(benefits, tradeoffs, text, delta, false)
-	return {"benefits": benefits, "tradeoffs": tradeoffs}
-
-func _route_round_tuning_patch_text(
-	benefits: Array[String],
-	tradeoffs: Array[String],
-	text: String,
-	delta: float,
-	lower_is_better: bool
-) -> void:
-	if is_zero_approx(delta):
-		return
-	var positive := delta < 0.0 if lower_is_better else delta > 0.0
-	if positive:
-		benefits.append(text)
-	else:
-		tradeoffs.append(text)
-
-func _format_round_tuning_card_lines(lines: Array[String], empty_key: String, empty_fallback: String) -> String:
-	if lines.is_empty():
-		return _tr_or_fallback(empty_key, empty_fallback)
-	var visible_count := mini(lines.size(), ROUND_TUNING_CARD_MAX_LINES)
-	var parts: Array[String] = []
-	for index in range(visible_count):
-		parts.append("- %s" % lines[index])
-	if lines.size() > visible_count:
-		var more_template := _tr_or_fallback("HUD_ROUND_TUNING_MORE", "+%d more")
-		var more_count := lines.size() - visible_count
-		if more_template.find("%") == -1:
-			parts.append("+%d" % more_count)
-		else:
-			parts.append(more_template % more_count)
-	return "\n".join(parts)
-
-func _on_round_tuning_option_a_pressed() -> void:
-	_emit_round_tuning_option_selected(0)
-
-func _on_round_tuning_option_b_pressed() -> void:
-	_emit_round_tuning_option_selected(1)
-
 func _on_onboarding_skip_pressed() -> void:
 	onboarding_skip_requested.emit()
 
 func _on_onboarding_replay_pressed() -> void:
 	onboarding_replay_requested.emit()
-
-func _emit_round_tuning_option_selected(index: int) -> void:
-	if index < 0 or index >= round_tuning_options.size():
-		return
-	var option := round_tuning_options[index]
-	var option_id := str(option.get("id", "")).strip_edges()
-	if option_id == "":
-		return
-	round_tuning_option_selected.emit(option_id)
 
 func _set_locale(locale: String) -> void:
 	if TranslationServer.get_locale().begins_with(locale):

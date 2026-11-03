@@ -15,7 +15,6 @@ This spec is the execution baseline for engineering, content design, and QA.
 - Strategy depth comes from:
   - slot allocation,
   - point budget,
-  - round-between tuning,
   - in-match item evolution triggers.
 
 ## 3. Scope and Non-Goals
@@ -24,7 +23,6 @@ This spec is the execution baseline for engineering, content design, and QA.
 - Skill pool + item pool per character.
 - Fixed slot system with legality validation.
 - Point-budget constraints.
-- Round-between micro-upgrade choice (2 options, choose 1).
 - Trigger-based item evolution (single upgrade step).
 - Save and reuse loadout presets.
 
@@ -76,7 +74,6 @@ scripts/
     LoadoutValidator.gd
     LoadoutResolver.gd
     EvolutionEngine.gd
-    RoundTuningEngine.gd
   resources/
     SkillDef.gd
     ItemDef.gd
@@ -127,12 +124,6 @@ Required fields:
 
 Optional fields:
 - `evolution_id: String`
-- `round_tuning_options: Array[Dictionary]`
-
-`round_tuning_options` entry schema:
-- `id: String`
-- `display_name_key: String`
-- `payload_patch: Dictionary`
 
 ### 5.4 PassiveDef Resource Schema
 `scripts/resources/PassiveDef.gd`
@@ -184,13 +175,6 @@ Stored as dictionary in `user://settings.cfg` and optional content preset files:
   - preserve or reset cooldown based on definition flag (default: preserve remaining cooldown),
   - fire HUD evolution toast.
 
-### 6.4 Round-Between Tuning
-At round end (except final round):
-1. Generate 2 legal tuning options from equipped item definition.
-2. Player chooses 1 option during short intermission.
-3. `RoundTuningEngine` applies `payload_patch` to current runtime item state.
-4. Choice lasts for remaining rounds in current match only.
-
 ## 7. Integration With Existing Runtime
 
 ### 7.1 Existing Files to Extend
@@ -200,8 +184,6 @@ At round end (except final round):
   - Add selected loadout payload for P1/P2.
 - `scripts/Player.gd`
   - Accept resolved loadout entries and runtime hooks.
-- `scripts/Match.gd`
-  - Add round-between tuning selection state.
 - `scripts/player/PlayerAttackRuntimeBuilder.gd`
   - Merge equipped skill entries into runtime attacks.
 
@@ -220,7 +202,6 @@ Add keys in `scripts/config/SessionKeys.gd`:
 - Slot compatibility must match selected slot.
 - Budget and tag constraints must pass.
 - Evolution target must reference same `owner_character_id`.
-- Round tuning options must not violate budget or tag constraints after patch.
 
 Validation failures:
 - Content-time: fail in data validation test.
@@ -230,7 +211,6 @@ Validation failures:
 Track per match:
 - Pick rate per skill/item/passive id.
 - Win rate by full loadout signature.
-- Round tuning option pick rate.
 - Evolution success rate and average trigger time.
 
 Store locally first (`user://match_metrics.jsonl`), external pipeline can be added later.
@@ -245,7 +225,6 @@ Add tests in `tests/TestRunner.gd`:
 - Default preset fallback when payload missing.
 - Item trigger and cooldown behavior.
 - Evolution trigger success/failure boundaries.
-- Round-between tuning application and persistence in-match.
 - Menu confirm disabled on invalid loadout.
 
 Required command gates:
@@ -278,13 +257,6 @@ Done criteria:
 Done criteria:
 - Equipped item and selected signatures affect real combat behavior.
 
-### Phase D: Round-Between Tuning
-- Add round intermission choice panel (2 choose 1).
-- Apply tuning patch with legality checks.
-
-Done criteria:
-- Choice affects later rounds in same match and never leaks to next match.
-
 ### Phase E: Polish and Balance Loop
 - Add telemetry writes.
 - Add tuning tables for first 4 characters.
@@ -309,7 +281,6 @@ Done criteria:
 - [x] All items are owner-bound and validated.
 - [x] Loadout legality gates block invalid starts.
 - [x] Runtime fallback path works without crashes.
-- [x] Round-between tuning works for at least one character.
 - [x] Evolution path works for at least one item (V1 scope).
 - [x] Smoke/full test suites pass.
 

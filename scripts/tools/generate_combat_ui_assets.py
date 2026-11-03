@@ -188,16 +188,6 @@ def build_hud_panel(size: tuple[int, int], accent: tuple[int, int, int, int]) ->
 	return image
 
 
-def build_hud_card(size: tuple[int, int], accent: tuple[int, int, int, int]) -> Image.Image:
-	image = vertical_gradient(size, rgba("#10192D"), rgba("#16233E"))
-	add_diagonal_pattern(image, (3, 3, size[0] - 3, size[1] - 3), rgba("#1C3A64", 66), 8)
-	draw = ImageDraw.Draw(image, "RGBA")
-	draw.rectangle((8, 8, size[0] - 9, 26), fill=rgba("#13233F", 155))
-	draw.line((10, 24, size[0] - 11, 24), fill=accent, width=1)
-	draw_panel_frame(image, (0, 0, size[0], size[1]), rgba("#08101E"), rgba("#2C5DAE"), accent)
-	return image
-
-
 def draw_city_layer(
 	draw: ImageDraw.ImageDraw,
 	rng: random.Random,
@@ -436,8 +426,6 @@ def main() -> None:
 	save(build_pause_panel(), UI_DIR / "hud_pause_panel.png")
 	save(build_hud_panel((336, 196), rgba("#69D8FF")), UI_DIR / "hud_training_panel.png")
 	save(build_hud_panel((392, 110), rgba("#FFD36E")), UI_DIR / "hud_onboarding_panel.png")
-	save(build_hud_panel((556, 298), rgba("#69D8FF")), UI_DIR / "hud_round_tuning_panel.png")
-	save(build_hud_card((248, 170), rgba("#FFD36E")), UI_DIR / "hud_choice_card.png")
 	save(build_guided_icon(), UI_DIR / "icon_guided.png")
 	save(build_story_icon(), UI_DIR / "icon_story.png")
 	save(build_versus_icon(), UI_DIR / "icon_versus.png")
