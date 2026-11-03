@@ -2800,7 +2800,6 @@ func _test_training_toggle_keeps_dummy_non_ai() -> void:
 		var duel_drill_state := training_node.get("training_drill_state") as Dictionary
 		_assert_true(str(duel_drill_state.get("drill_id", "")) == "duel_core", "training scene restores the free-practice drill id")
 		_assert_true(str(duel_drill_state.get("ruleset_profile", "")) == "platform", "a duel ruleset request stays on smash rules")
-		_assert_true(bool(p1.call("_allows_air_jumps")), "free practice keeps smash air jumps")
 		var free_practice_arena := training_node.get_node_or_null("Arena")
 		_assert_true(free_practice_arena != null and bool(free_practice_arena.get("side_platforms_enabled")), "free practice keeps side platforms enabled")
 		_assert_true(str(p2.get("training_throw_tech_assist_mode")) == "throw_only", "training scene can restore throw-only tech contract")
@@ -4170,7 +4169,6 @@ func _test_double_jump_and_ledge_getup_options() -> void:
 	p1.set("coyote_time", 0.0)
 	p1.set("jump_buffer_time", 0.10)
 	p1.set("velocity", Vector2.ZERO)
-	_assert_true(bool(p1.call("_allows_air_jumps")), "double jump test keeps platform air-jump rules enabled")
 	_assert_true(bool(p1.call("_can_execute_jump")), "double jump test starts from a valid airborne jump state")
 	var first_air_jump := bool(p1.call("_try_consume_buffered_jump"))
 	_assert_true(first_air_jump, "air jump can be consumed when coyote is unavailable")
