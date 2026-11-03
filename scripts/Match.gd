@@ -7,6 +7,7 @@ const SessionKeysStore := preload("res://scripts/config/SessionKeys.gd")
 const StageConfigStore := preload("res://scripts/config/StageConfig.gd")
 const SessionStateStore := preload("res://scripts/SessionState.gd")
 const LoadoutResolverStore := preload("res://scripts/loadout/LoadoutResolver.gd")
+const StagePictureScript := preload("res://scripts/picture/StagePicture.gd")
 
 const ROUND_TIME_SECONDS := 60.0
 const RULESET_PLATFORM := "platform"
@@ -482,6 +483,7 @@ func _ready() -> void:
 	_update_hud()
 	_refresh_result_text()
 	_trigger_pre_fight_dialogue()
+	StagePictureScript.attach(self)
 
 func _pin_child_pausable(child: Node) -> void:
 	if child.process_mode != Node.PROCESS_MODE_INHERIT:

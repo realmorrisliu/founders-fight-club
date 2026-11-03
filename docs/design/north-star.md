@@ -73,13 +73,13 @@ Leave the goals out of this table.
 
 | Date | Decision | Options shown | Pick | Where it is encoded |
 | --- | --- | --- | --- | --- |
-| 2026-11-03 | HD-2D camera, focus, and light | Looks 0, A, B, and C, in draft [PR #34](https://github.com/realmorrisliu/founders-fight-club/pull/34) | B | `docs/design/north-star.md`, Camera, focus, and light |
+| 2026-11-03 | HD-2D camera, focus, and light | Looks 0, A, B, and C, in draft [PR #34](https://github.com/realmorrisliu/founders-fight-club/pull/34) | B | `scripts/picture/LookB.gd` |
 
 Use `YYYY-MM-DD` in the date column.
 
 Look B, the pick, uses these values from that draft. Pitch is 10 degrees. Depth of field near distance is 3.4 m, far distance is 7.4 m, and amount is 0.18. Bloom intensity is 0.85, bloom is 0.16, and the HDR threshold is 0.80. The key light is red 1.0, green 0.90, blue 0.72, at energy 0.8. The hit point light is red 1.0, green 0.84, blue 0.60, at energy 1.2, range 3.2 m, and it is on during hitstun. The camera is 5.436778 m from the fighter plane. At zoom 1.42, pitch 10 degrees, and a 720 px tall window, the vertical field of view is 37.37 degrees.
 
-Measured on that draft. Fighters in the mid-fight frame were about 185 px tall, against 126 px in look 0. One replay hash, `34e8c9d2c9b376b280109eb8d9577d8d1699aa1ee2e99d2255e6862bfffce085`, was byte-identical with the prototype off and with looks A, B, and C on. Depth of field and bloom require Forward+. Compatibility skips them. The real build is not in the tree yet.
+Measured on that draft. Fighters in the mid-fight frame were about 185 px tall, against 126 px in look 0. One replay hash, `34e8c9d2c9b376b280109eb8d9577d8d1699aa1ee2e99d2255e6862bfffce085`, was byte-identical with the prototype off and with looks A, B, and C on. Depth of field and bloom require Forward+. Compatibility skips them. The picture is `scripts/picture/StagePicture.gd`, and the `Camera2D` still owns zoom, shake, and the hit punch.
 
 ## Bars
 

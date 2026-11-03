@@ -18,6 +18,7 @@ This directory is the maintained source for verifying player-facing behavior. Re
 - Menu presses go through `bash scripts/ffc.sh ui --press ...`.
 - Match inputs go through `bash scripts/ffc.sh run` or `replay` and a JSON input file.
 - Do not call a disabled menu button a successful entry. The command exits 1 and names the button.
+- A match screenshot is the 3D picture from `scripts/picture/StagePicture.gd`. The state log stays 2D pixels on `Node2D` fighters. The stage id stays `grand_arena`. HUD and the screen flash stay canvas layers. There is no look switch. Headless hashes do not prove the picture. `--render xvfb` does, and only while `StagePicture/Camera` is current.
 
 ## Proof and skip reporting
 

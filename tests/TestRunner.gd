@@ -102,6 +102,7 @@ func _run_smoke_suite() -> void:
 	await _test_hitstop_tier_resolution()
 	await _test_result_banner_clears_stat_rows()
 	_test_driver_examples_are_valid_replays_or_inputs()
+	await _test_picture_contract()
 
 func _run_full_suite() -> void:
 	await _run_smoke_suite()
@@ -111,6 +112,7 @@ func _run_full_suite() -> void:
 	await _test_wave1_vertical_slice_skills()
 	await _test_full_roster_signature_coverage()
 	await _test_match_driver_replay_is_deterministic()
+	await _test_look_b_seed_hashes()
 
 func _resolve_suite_from_args(args: PackedStringArray) -> String:
 	var requested := ""
@@ -708,7 +710,9 @@ func _test_story_mode_camera_profile_surface() -> void:
 	var camera_value: Variant = story_node.get("camera")
 	_assert_true(camera_value is Camera2D, "story mode resolves runtime camera instance")
 	if camera_value is Camera2D:
-		_assert_true((camera_value as Camera2D).is_current(), "story mode camera becomes the active viewport camera")
+		_assert_true(not (camera_value as Camera2D).is_current(), "story mode Camera2D stays off the viewport")
+	var picture_camera := story_node.get_node_or_null("StagePicture/Camera") as Camera3D
+	_assert_true(picture_camera != null and picture_camera.is_current(), "story mode StagePicture camera is the viewport camera")
 	if is_instance_valid(story_node):
 		story_node.queue_free()
 	await process_frame
@@ -4313,6 +4317,96 @@ func _run_ffc_cli(args: PackedStringArray) -> Dictionary:
 		if line.begins_with("hash="):
 			hash_value = line.substr(5).strip_edges()
 	return {"code": code, "text": text, "hash": hash_value}
+
+func _test_picture_contract() -> void:
+	var picture_contract = load("res://tests/PictureContract.gd")
+	var root := ProjectSettings.globalize_path("res://")
+	var scan_failures: PackedStringArray = picture_contract.scan(root)
+	_assert_true(scan_failures.is_empty(), "picture contract scan: %s" % _packed_failure_text(scan_failures))
+	var boot_failures: PackedStringArray = await picture_contract.boot(self)
+	_assert_true(boot_failures.is_empty(), "picture contract boot: %s" % _packed_failure_text(boot_failures))
+
+func _test_look_b_seed_hashes() -> void:
+	var cases: Array[Dictionary] = [
+		{
+			"label": "heavy",
+			"hash": "759285127e8e3dfe1f1a22543b0d06a27b0589ad8347b004dc879d5e71b54c85",
+			"args": [
+				"run", "--seed", "11", "--mode", "local", "--frames", "90",
+				"--p1", "elon_mvsk", "--p2", "mark_zuck",
+				"--setup-p1-x", "400", "--setup-p1-y", "300",
+				"--setup-p2-x", "448", "--setup-p2-y", "300", "--setup-p2-percent", "50",
+				"--input", "res://scripts/driver/examples/heavy.json"
+			]
+		},
+		{
+			"label": "cpu",
+			"hash": "278257fa9fc089508802bc29f8e1dbe8eb23500230f47dd44a33d31f71dea7e3",
+			"args": [
+				"run", "--seed", "11", "--mode", "cpu", "--frames", "180",
+				"--p1", "elon_mvsk", "--p2", "mark_zuck",
+				"--input", "res://scripts/driver/examples/cpu-punish.json"
+			]
+		},
+		{
+			"label": "train",
+			"hash": "44ee34f263a5ab07b851176d154ae35a6fc2921cd6145cfe64401adc0d96601b",
+			"args": [
+				"run", "--seed", "11", "--mode", "training", "--frames", "120",
+				"--input", "res://scripts/driver/examples/platform-drop.json"
+			]
+		},
+		{
+			"label": "story",
+			"hash": "6a52aeb7b7cfa4f8b279b9fe04c8456336b276a4c13c4f39c6ea2d723dbc6fdc",
+			"args": [
+				"run", "--seed", "11", "--mode", "story", "--frames", "90",
+				"--input", "res://scripts/driver/examples/walk-right.json"
+			]
+		},
+		{
+			"label": "pause",
+			"hash": "4f0febfeaeb70dae757fb8c115374edbf3cb5d22b32269f3eebd1adf67ae84c3",
+			"args": [
+				"run", "--seed", "11", "--mode", "local", "--frames", "90",
+				"--input", "res://scripts/driver/examples/pause.json"
+			]
+		},
+		{
+			"label": "restart",
+			"hash": "b3e73932cab77bc3aa06c63a9ff78f3770f5a074c933bac7baa38de4842a5965",
+			"args": [
+				"run", "--seed", "11", "--mode", "local", "--frames", "120",
+				"--input", "res://scripts/driver/examples/restart.json"
+			]
+		}
+	]
+	for spec in cases:
+		var args := PackedStringArray()
+		for item in spec["args"]:
+			var text := str(item)
+			if text.begins_with("res://"):
+				text = ProjectSettings.globalize_path(text)
+			args.append(text)
+		var label := str(spec["label"])
+		args.append("--out")
+		args.append(ProjectSettings.globalize_path("user://lookb-%s.jsonl" % label))
+		var result := _run_ffc_cli(args)
+		_assert_true(int(result.get("code", 1)) == 0, "%s replay exits 0: %s" % [label, _tail_text(str(result.get("text", "")))])
+		_assert_true(str(result.get("hash", "")) == str(spec["hash"]), "%s hash %s" % [label, result.get("hash", "")])
+
+func _packed_failure_text(lines: PackedStringArray) -> String:
+	var text := ""
+	for line in lines:
+		if text != "":
+			text += " | "
+		text += line
+	return text
+
+func _tail_text(text: String) -> String:
+	if text.length() <= 400:
+		return text
+	return text.substr(text.length() - 400)
 
 func _test_driver_examples_are_valid_replays_or_inputs() -> void:
 	var replay_script := load("res://scripts/driver/ReplayScript.gd")
