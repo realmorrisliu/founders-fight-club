@@ -1,0 +1,8 @@
+[
+  {"frame": 40, "p1": {"attack_light": 1}},
+  {"frame": 44, "p1": {}},
+  {"frame": 70, "p1": {"attack_light": 1}},
+  {"frame": 74, "p1": {}},
+  {"frame": 100, "p1": {"attack_heavy": 1}},
+  {"frame": 104, "p1": {}}
+]

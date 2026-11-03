@@ -211,8 +211,8 @@ func _ensure_runtime_overlay_nodes() -> void:
 func _layout_runtime_ui() -> void:
 	_set_control_rect(timer_chip, 260.0, 14.0, 380.0, 42.0)
 	_set_control_rect(timer_label, 278.0, 18.0, 364.0, 40.0)
-	_set_control_rect(result_chip, 150.0, 82.0, 490.0, 118.0)
-	_set_control_rect(result_label, 160.0, 88.0, 480.0, 122.0)
+	_set_control_rect(result_chip, 150.0, 168.0, 490.0, 214.0)
+	_set_control_rect(result_label, 160.0, 176.0, 480.0, 206.0)
 	_set_control_rect(combat_callout_label, 208.0, 118.0, 432.0, 144.0)
 	_set_control_rect(hit_type_callout_label, 220.0, 142.0, 420.0, 164.0)
 	_set_control_rect(p1_hp_bar, 20.0, 18.0, 228.0, 34.0)

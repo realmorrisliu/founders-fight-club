@@ -1,0 +1,5 @@
+[
+  {"frame": 0, "p1": {"move_right": 1}},
+  {"frame": 12, "p1": {"restart": 1}},
+  {"frame": 13, "p1": {}}
+]

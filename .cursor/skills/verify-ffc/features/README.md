@@ -1,0 +1,38 @@
+# Founders Fight Club verification map
+
+This directory is the maintained source for verifying player-facing behavior. Read this index, then use the matching feature file.
+
+## Baseline preconditions
+
+- Run from the repo root.
+- `bash scripts/ffc.sh doctor` prints `godot=4.5.1` and `ok=1`.
+- Each `ffc.sh` process gets a new `HOME` under `.ffc-home/`. A fresh profile shows the first-launch control overlay and disables Versus, Story, and Training until Modern or Classic is chosen.
+- Pass `--out` and `--screenshot-dir` outside `.ffc-home/`. Cleanup deletes the home and leaves those files.
+- The only stage id is `grand_arena`.
+
+## Driving conventions
+
+- Start from the baseline unless the feature file adds a precondition.
+- Treat every command as literal.
+- Menu presses go through `bash scripts/ffc.sh ui --press ...`.
+- Match inputs go through `bash scripts/ffc.sh run` or `replay` and a JSON input file.
+- Do not call a disabled menu button a successful entry. The command exits 1 and names the button.
+
+## Proof and skip reporting
+
+- Quote frame numbers and state-log fields, or the `ui` JSON fields the feature names.
+- A passing unit test does not replace that quote.
+- Record which feature file and which entry point produced the artifact.
+- If an entry point cannot be reached, report the command and the unmet precondition. Do not substitute a different entry point and call it verified.
+
+## Feature entry contract
+
+Each feature file has an H1, one opening paragraph, then these H2 sections in order: `Sub-features`, `How to get to it (user POV)`, `Driving it with ffc.sh`, `Gotchas`.
+
+## Features
+
+- [Versus and CPU](./versus-cpu.md) covers local versus and the CPU brain the versus menu does not start.
+- [Story mode](./story.md) covers the menu path that starts a CPU rival.
+- [Training mode](./training.md) covers the dummy and the disabled round timer.
+- [Menu and control style](./menu.md) covers the first-launch overlay, routes, and Modern versus Classic.
+- [Pause and rematch](./pause.md) covers pause, resume, and restart.

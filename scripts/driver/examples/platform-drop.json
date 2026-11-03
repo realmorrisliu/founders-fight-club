@@ -1,0 +1,7 @@
+[
+  {"frame": 8, "p1": {"move_left": 1, "jump": 1}},
+  {"frame": 16, "p1": {"move_left": 1, "jump": 1}},
+  {"frame": 36, "p1": {}},
+  {"frame": 58, "p1": {"move_down": 1, "jump": 1}},
+  {"frame": 62, "p1": {}}
+]

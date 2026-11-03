@@ -25,6 +25,7 @@ Damage percent is `100 - current_hp`. A real match spends a stock on ring-out or
 - Headless tests, smoke subset: `bash scripts/test.sh` or `just test`
 - The test script downloads the official 4.5.1 build into `.godot-bin/` when needed. `GODOT_BIN` must be a 4.5.1 executable if you set it.
 - CI (`.github/workflows/test.yml`) runs `bash scripts/test.sh full` on pull requests and on pushes to `main`.
+- Headless matches: `bash scripts/ffc.sh --help` or `just ffc`. The verification skill is `.cursor/skills/verify-ffc/SKILL.md`.
 - Exports: use the Godot editor export presets for Windows/macOS/Linux when ready.
 
 ## Coding Style & Naming Conventions
