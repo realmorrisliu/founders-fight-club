@@ -8,37 +8,18 @@ Usage:
 
 Examples:
   scripts/test.sh
-  scripts/test.sh smoke
+  scripts/test.sh full
+
+The suite runs headless on the Godot version in GODOT_VERSION.
+scripts/test.sh downloads that official build into .godot-bin/ when needed.
 
 Env:
-  GODOT_BIN=/path/to/godot  # optional override
+  GODOT_BIN=/path/to/godot  # optional override; must match GODOT_VERSION
 USAGE
 }
 
-resolve_godot_bin() {
-	if [ -n "${GODOT_BIN:-}" ]; then
-		printf '%s\n' "$GODOT_BIN"
-		return 0
-	fi
-
-	if command -v godot4 >/dev/null 2>&1; then
-		command -v godot4
-		return 0
-	fi
-
-	if command -v godot >/dev/null 2>&1; then
-		command -v godot
-		return 0
-	fi
-
-	if [ -x "/Applications/Godot.app/Contents/MacOS/Godot" ]; then
-		printf '%s\n' "/Applications/Godot.app/Contents/MacOS/Godot"
-		return 0
-	fi
-
-	echo "error: Godot executable not found. Set GODOT_BIN=/path/to/godot" >&2
-	return 1
-}
+# shellcheck source=scripts/godot_bin.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/godot_bin.sh"
 
 suite="${1:-smoke}"
 if [ "${suite}" = "-h" ] || [ "${suite}" = "--help" ] || [ "${suite}" = "help" ]; then
@@ -47,7 +28,7 @@ if [ "${suite}" = "-h" ] || [ "${suite}" = "--help" ] || [ "${suite}" = "help" ]
 fi
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-godot_bin="$(resolve_godot_bin)"
+godot_bin="$(resolve_godot_bin "$repo_root")"
 user_data_dir="$repo_root/.godot-user"
 test_home_dir="${GODOT_TEST_HOME:-$repo_root/.godot-test-home}"
 mkdir -p "$user_data_dir/logs"
