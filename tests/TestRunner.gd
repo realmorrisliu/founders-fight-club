@@ -54,6 +54,7 @@ func _run_smoke_suite() -> void:
 	await _test_platform_drop_through_collision_mask()
 	await _test_ledge_slot_occupancy_arbitration()
 	await _test_pause_panel_menu_route()
+	await _test_pause_freezes_fighters()
 	await _test_training_timer_visibility()
 	await _test_training_quick_start_hint_renders()
 	await _test_onboarding_settings_and_guided_start_surface()
@@ -361,6 +362,81 @@ func _test_main_scene_stock_ring_out_flow() -> void:
 	if is_instance_valid(match_node):
 		match_node.queue_free()
 	await process_frame
+
+func _test_pause_freezes_fighters() -> void:
+	var out_path := ProjectSettings.globalize_path("user://pause-freeze.jsonl")
+	var input_path := ProjectSettings.globalize_path("res://scripts/driver/examples/pause-hold.json")
+	var result := _run_ffc_cli([
+		"run", "--seed", "11", "--mode", "local", "--frames", "30",
+		"--input", input_path,
+		"--out", out_path
+	])
+	_assert_true(int(result.get("code", 1)) == 0, "pause freeze replay exits 0: %s" % str(result.get("text", "")))
+	if int(result.get("code", 1)) != 0:
+		return
+	var paused_rows: Array[Dictionary] = []
+	for row in _read_state_rows(out_path):
+		if bool(row.get("paused", false)):
+			paused_rows.append(row)
+	_assert_true(paused_rows.size() >= 2, "pause freeze replay stays paused for more than one frame")
+	if paused_rows.size() < 2:
+		return
+	var first_paused: Dictionary = paused_rows[0]
+	var last_paused: Dictionary = paused_rows[paused_rows.size() - 1]
+	var stable := true
+	for row in paused_rows:
+		if not _same_pause_snapshot(first_paused, row):
+			stable = false
+	var first_p1 := _state_row_player(first_paused, "p1")
+	var last_p1 := _state_row_player(last_paused, "p1")
+	var frozen_x := float(first_p1.get("x", 0.0))
+	_assert_true(
+		stable,
+		"paused fighters stay put with move_right held, p1 x %s then %s" % [first_p1.get("x", 0.0), last_p1.get("x", 0.0)]
+	)
+	_assert_true(float(first_p1.get("vx", 0.0)) > 0.0, "pause begins while p1 is moving right")
+	var resumed_x := frozen_x
+	var seen_pause := false
+	for row in _read_state_rows(out_path):
+		if bool(row.get("paused", false)):
+			seen_pause = true
+			continue
+		if not seen_pause:
+			continue
+		var p1 := _state_row_player(row, "p1")
+		resumed_x = float(p1.get("x", 0.0))
+	_assert_true(resumed_x > frozen_x + 0.5, "unpause with move_right held walks p1 forward from x %s" % frozen_x)
+
+func _same_pause_snapshot(left: Dictionary, right: Dictionary) -> bool:
+	if not is_equal_approx(float(left.get("time_left", 0.0)), float(right.get("time_left", 0.0))):
+		return false
+	for side in ["p1", "p2"]:
+		var a := _state_row_player(left, side)
+		var b := _state_row_player(right, side)
+		for key in ["x", "y", "vx", "vy", "hitstun"]:
+			if not is_equal_approx(float(a.get(key, 0.0)), float(b.get(key, 0.0))):
+				return false
+	return true
+
+func _read_state_rows(path: String) -> Array[Dictionary]:
+	var rows: Array[Dictionary] = []
+	for line in FileAccess.get_file_as_string(path).split("\n", false):
+		var parsed: Variant = JSON.parse_string(line)
+		if typeof(parsed) == TYPE_DICTIONARY:
+			rows.append(parsed as Dictionary)
+	return rows
+
+func _state_row_player(row: Dictionary, side: String) -> Dictionary:
+	var players_value: Variant = row.get("players", [])
+	if typeof(players_value) != TYPE_ARRAY:
+		return {}
+	for player_value in players_value as Array:
+		if typeof(player_value) != TYPE_DICTIONARY:
+			continue
+		var player := player_value as Dictionary
+		if str(player.get("id", "")) == side:
+			return player
+	return {}
 
 func _test_pause_panel_menu_route() -> void:
 	var packed := load("res://scenes/ui/Hud.tscn")
