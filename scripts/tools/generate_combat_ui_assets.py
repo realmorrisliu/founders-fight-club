@@ -127,25 +127,6 @@ def build_result_chip() -> Image.Image:
 	return image
 
 
-def build_hp_under() -> Image.Image:
-	image = vertical_gradient((228, 18), rgba("#171B29"), rgba("#2D3449"))
-	draw = ImageDraw.Draw(image, "RGBA")
-	for x in range(6, 222, 12):
-		draw.line((x, 4, x, 13), fill=rgba("#414B66", 110))
-	draw_panel_frame(image, (0, 0, 228, 18), rgba("#0B1020"), rgba("#4F5B7F"), rgba("#7B87AE"))
-	return image
-
-
-def build_hp_fill(primary: tuple[int, int, int, int], secondary: tuple[int, int, int, int]) -> Image.Image:
-	image = vertical_gradient((228, 18), primary, secondary)
-	add_diagonal_pattern(image, (2, 2, 226, 16), rgba("#FFFFFF", 44), 9)
-	draw = ImageDraw.Draw(image, "RGBA")
-	draw.line((2, 2, 225, 2), fill=rgba("#FFF6E8", 110))
-	draw.line((2, 15, 225, 15), fill=rgba("#34202C", 90))
-	draw_panel_frame(image, (0, 0, 228, 18), rgba("#3C2433"), rgba("#FFD9C1", 70), rgba("#FFE5C3", 110))
-	return image
-
-
 def build_pause_panel() -> Image.Image:
 	image = vertical_gradient((320, 260), rgba("#0A1224"), rgba("#111B34"))
 	add_diagonal_pattern(image, (6, 6, 314, 254), rgba("#1A2A4E", 85), 10)
@@ -452,9 +433,6 @@ def main() -> None:
 	save(build_menu_slot_card(), UI_DIR / "menu_slot_card.png")
 	save(build_timer_chip(), UI_DIR / "hud_timer_chip.png")
 	save(build_result_chip(), UI_DIR / "hud_result_chip.png")
-	save(build_hp_under(), UI_DIR / "hp_under.png")
-	save(build_hp_fill(rgba("#FF7466"), rgba("#C94850")), UI_DIR / "hp_fill_p1.png")
-	save(build_hp_fill(rgba("#52C7FF"), rgba("#2C73E4")), UI_DIR / "hp_fill_p2.png")
 	save(build_pause_panel(), UI_DIR / "hud_pause_panel.png")
 	save(build_hud_panel((336, 196), rgba("#69D8FF")), UI_DIR / "hud_training_panel.png")
 	save(build_hud_panel((392, 110), rgba("#FFD36E")), UI_DIR / "hud_onboarding_panel.png")
