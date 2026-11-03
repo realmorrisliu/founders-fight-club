@@ -12,8 +12,6 @@ const LoadoutValidatorStore := preload("res://scripts/loadout/LoadoutValidator.g
 const VS_SCENE_PATH := "res://scenes/Main.tscn"
 const STORY_SCENE_PATH := "res://scenes/Story.tscn"
 const TRAINING_SCENE_PATH := "res://scenes/Training.tscn"
-const MENU_METRICS_LOG_PATH := "user://menu_metrics.jsonl"
-const MENU_METRICS_SCHEMA_VERSION := 1
 const MENU_BG_TEXTURE_PATH := "res://assets/sprites/ui/menu_bg.png"
 const MENU_CENTER_PANEL_TEXTURE_PATH := "res://assets/sprites/ui/menu_center_panel.png"
 const MENU_SUMMARY_PANEL_TEXTURE_PATH := "res://assets/sprites/ui/menu_summary_panel.png"
@@ -667,28 +665,24 @@ func _on_versus_pressed() -> void:
 	_clear_onboarding_replay_session_flags()
 	_store_character_selection("vs")
 	SessionStateStore.set_value(SessionKeysStore.ONBOARDING_ENTRY_POINT, "vs")
-	_append_menu_metrics_log("enter_vs")
 	get_tree().change_scene_to_file(VS_SCENE_PATH)
 
 func _on_story_pressed() -> void:
 	_clear_onboarding_replay_session_flags()
 	_store_character_selection("story")
 	SessionStateStore.set_value(SessionKeysStore.ONBOARDING_ENTRY_POINT, "story")
-	_append_menu_metrics_log("enter_story")
 	get_tree().change_scene_to_file(STORY_SCENE_PATH)
 
 func _on_training_pressed() -> void:
 	_clear_onboarding_replay_session_flags()
 	_store_character_selection("training")
 	SessionStateStore.set_value(SessionKeysStore.ONBOARDING_ENTRY_POINT, "training")
-	_append_menu_metrics_log("enter_training")
 	get_tree().change_scene_to_file(TRAINING_SCENE_PATH)
 
 func _on_guided_start_pressed() -> void:
 	_store_character_selection("training")
 	SessionStateStore.set_value(SessionKeysStore.ONBOARDING_FORCE_REPLAY, true)
 	SessionStateStore.set_value(SessionKeysStore.ONBOARDING_ENTRY_POINT, "guided_start")
-	_append_menu_metrics_log("enter_guided_start")
 	get_tree().change_scene_to_file(TRAINING_SCENE_PATH)
 
 func _set_locale(locale: String) -> void:
@@ -1070,39 +1064,6 @@ func _clear_onboarding_replay_session_flags() -> void:
 			SessionKeysStore.ONBOARDING_ENTRY_POINT
 		])
 	)
-
-func _append_menu_metrics_log(event_name: String) -> void:
-	if event_name.strip_edges() == "":
-		return
-	var p1_character_id := _get_selected_character_id("p1")
-	var p2_character_id := _get_selected_character_id("p2")
-	var p1_loadout := _resolve_selected_loadout("p1", p1_character_id)
-	var p2_loadout := _resolve_selected_loadout("p2", p2_character_id)
-	var p1_resolved := LoadoutResolverStore.resolve_character_loadout(p1_character_id, p1_loadout)
-	var p2_resolved := LoadoutResolverStore.resolve_character_loadout(p2_character_id, p2_loadout)
-	var record := {
-		"schema_version": MENU_METRICS_SCHEMA_VERSION,
-		"timestamp_utc": Time.get_datetime_string_from_system(true),
-		"event": event_name,
-		"locale": TranslationServer.get_locale(),
-		"control_preset": current_control_preset,
-		"window_mode": current_window_mode,
-		"resolution": GameSettingsStore.resolution_to_string(current_resolution),
-		"p1_character_id": p1_character_id,
-		"p2_character_id": p2_character_id,
-		"p1_loadout_fallback": bool(p1_resolved.get("used_fallback", false)),
-		"p2_loadout_fallback": bool(p2_resolved.get("used_fallback", false))
-	}
-	var line := JSON.stringify(record)
-	if line == "":
-		return
-	var file := FileAccess.open(MENU_METRICS_LOG_PATH, FileAccess.READ_WRITE)
-	if file == null:
-		file = FileAccess.open(MENU_METRICS_LOG_PATH, FileAccess.WRITE)
-	if file == null:
-		return
-	file.seek_end()
-	file.store_string("%s\n" % line)
 
 func _resolve_selected_loadout(player_key: String, character_id: String) -> Dictionary:
 	var current := current_p1_loadout if player_key == "p1" else current_p2_loadout
