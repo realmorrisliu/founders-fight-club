@@ -265,6 +265,7 @@ static func _boot_match(tree: SceneTree, path: String) -> PackedStringArray:
 	await tree.process_frame
 	await tree.process_frame
 	_check_match(failures, match_node, path)
+	_check_world_sprite(failures, match_node, path)
 	var picture_script = load(_PICTURE_SCRIPT)
 	picture_script.attach(match_node)
 	if _count_named(match_node, "StagePicture") != 1:
@@ -323,6 +324,32 @@ static func _check_match(failures: PackedStringArray, match_node: Node, path: St
 		failures.append("%s arena is not hidden" % path)
 	_check_lamp(failures, match_node, path)
 	_check_fighter_cards(failures, match_node, path)
+
+
+static func _check_world_sprite(failures: PackedStringArray, match_node: Node, path: String) -> void:
+	var image := Image.create(4, 4, false, Image.FORMAT_RGBA8)
+	image.fill(Color(0.2, 0.8, 0.4, 1.0))
+	var texture := ImageTexture.create_from_image(image)
+	var root := Node2D.new()
+	root.name = "ProbeProjectile"
+	var sprite := Sprite2D.new()
+	sprite.texture = texture
+	sprite.position = Vector2(12, -8)
+	root.add_child(sprite)
+	root.global_position = Vector2(450, 300)
+	match_node.add_child(root)
+	var picture := match_node.get_node_or_null("StagePicture")
+	if picture != null and picture.has_method("_publish"):
+		picture._publish()
+	var found := false
+	if picture != null:
+		for child in picture.get_children():
+			if child is Sprite3D and (child as Sprite3D).texture == texture and (child as Sprite3D).visible:
+				found = true
+	if not found:
+		failures.append("%s hid a match sprite that is not an impact spark" % path)
+	if is_instance_valid(root):
+		root.queue_free()
 
 
 static func _check_lamp(failures: PackedStringArray, match_node: Node, path: String) -> void:

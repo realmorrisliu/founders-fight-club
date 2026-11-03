@@ -122,12 +122,12 @@ func _exit_tree() -> void:
 func _publish() -> void:
 	if _match == null or not is_instance_valid(_match):
 		return
-	var read := _read(_match)
+	var read := _read(_match, _hidden)
 	_present(read)
 	_hide_world_roots(_match)
 
 
-static func _read(match_root: Node) -> FrameRead:
+static func _read(match_root: Node, shown_memory: Dictionary) -> FrameRead:
 	var read := FrameRead.new()
 	read.framing.viewport_height_px = _viewport_height(match_root)
 	var camera := _find_camera(match_root)
@@ -137,7 +137,7 @@ static func _read(match_root: Node) -> FrameRead:
 		read.framing.zoom = camera.zoom.x
 	_read_floor(match_root, read)
 	_read_fighters(match_root, read)
-	_read_sparks(match_root, read)
+	_read_sparks(match_root, read, shown_memory)
 	return read
 
 
@@ -220,29 +220,58 @@ static func _read_fighters(match_root: Node, read: FrameRead) -> void:
 		read.fighters.append(card)
 
 
-static func _read_sparks(match_root: Node, read: FrameRead) -> void:
+static func _read_sparks(match_root: Node, read: FrameRead, shown_memory: Dictionary) -> void:
 	var effects := match_root.get_node_or_null(EFFECTS_NAME)
-	if effects == null:
+	if effects != null:
+		for child in effects.get_children():
+			_collect_world_sprite(child, read, Color(1, 1, 1, 1), false)
+	for child in match_root.get_children():
+		if _is_structural_child(child):
+			continue
+		if not (child is CanvasItem):
+			continue
+		if not _was_shown(child as CanvasItem, shown_memory):
+			continue
+		_collect_world_sprite(child, read, Color(1, 1, 1, 1), true)
+
+
+static func _is_structural_child(child: Node) -> bool:
+	if child is Camera2D or child is CanvasLayer:
+		return true
+	var child_name := str(child.name)
+	if child_name == PICTURE_NAME or child_name == ARENA_NAME or child_name == EFFECTS_NAME:
+		return true
+	return child_name == FIGHTER_NAMES[0] or child_name == FIGHTER_NAMES[1]
+
+
+static func _was_shown(item: CanvasItem, shown_memory: Dictionary) -> bool:
+	if shown_memory.has(item):
+		return bool(shown_memory[item])
+	return item.visible
+
+
+static func _collect_world_sprite(node: Node, read: FrameRead, tint: Color, force_shown: bool) -> void:
+	if not (node is CanvasItem):
 		return
-	for child in effects.get_children():
-		if not (child is CanvasItem) or not (child is Node2D):
-			continue
-		var item := child as CanvasItem
-		if not item.visible or item.modulate.a <= LookB.SPARK_ALPHA_FLOOR:
-			continue
+	var item := node as CanvasItem
+	if not force_shown and not item.visible:
+		return
+	var color := tint * item.modulate
+	if color.a > LookB.SPARK_ALPHA_FLOOR and (node is Sprite2D or node is AnimatedSprite2D):
 		var texture := _spark_texture(item)
-		if texture == null:
-			continue
-		var flat := child as Node2D
-		var card := SparkCard.new()
-		card.texture = texture
-		card.modulate = item.modulate
-		card.scale = flat.scale
-		card.rotation = flat.rotation
-		card.origin = flat.global_position
-		card.nearest = item is AnimatedSprite2D
-		card.additive = _is_additive(item)
-		read.sparks.append(card)
+		if texture != null and node is Node2D:
+			var flat := node as Node2D
+			var card := SparkCard.new()
+			card.texture = texture
+			card.modulate = color
+			card.scale = flat.scale
+			card.rotation = flat.rotation
+			card.origin = flat.global_position
+			card.nearest = node is AnimatedSprite2D
+			card.additive = _is_additive(item)
+			read.sparks.append(card)
+	for child in node.get_children():
+		_collect_world_sprite(child, read, color, false)
 
 
 static func _is_additive(item: CanvasItem) -> bool:
