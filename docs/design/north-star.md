@@ -69,16 +69,21 @@ Use this sequence for a visual choice or a feel choice.
 
 ## Decisions log
 
-No pick has been logged. Leave the goals out of this table.
+Leave the goals out of this table.
 
 | Date | Decision | Options shown | Pick | Where it is encoded |
 | --- | --- | --- | --- | --- |
+| 2026-11-03 | HD-2D camera, focus, and light | Looks 0, A, B, and C, in draft [PR #34](https://github.com/realmorrisliu/founders-fight-club/pull/34) | B | `docs/design/north-star.md`, Camera, focus, and light |
 
 Use `YYYY-MM-DD` in the date column.
 
+Look B, the pick, uses these values from that draft. Pitch is 10 degrees. Depth of field near distance is 3.4 m, far distance is 7.4 m, and amount is 0.18. Bloom intensity is 0.85, bloom is 0.16, and the HDR threshold is 0.80. The key light is red 1.0, green 0.90, blue 0.72, at energy 0.8. The hit point light is red 1.0, green 0.84, blue 0.60, at energy 1.2, range 3.2 m, and it is on during hitstun. The camera is 5.436778 m from the fighter plane. At zoom 1.42, pitch 10 degrees, and a 720 px tall window, the vertical field of view is 37.37 degrees.
+
+Measured on that draft. Fighters in the mid-fight frame were about 185 px tall, against 126 px in look 0. One replay hash, `34e8c9d2c9b376b280109eb8d9577d8d1699aa1ee2e99d2255e6862bfffce085`, was byte-identical with the prototype off and with looks A, B, and C on. Depth of field and bloom require Forward+. Compatibility skips them. The real build is not in the tree yet.
+
 ## Bars
 
-Every bar is PROVISIONAL until a prototype or a headless run replaces it, and the pick is logged.
+A bar stays PROVISIONAL until a prototype or a headless run replaces it, and the pick is logged. Camera, focus, and light is logged. The other bars stay PROVISIONAL.
 
 ### Frame rate
 
@@ -112,14 +117,18 @@ Morris approved that length. `ROUND_TIME_SECONDS` is 60 and the timer starts ena
 
 ### Camera, focus, and light
 
-The fighters stay on the 2D plane. These settings are the prototypes. Distances in meters are guesses until a 3D stage exists. The floor in `scenes/Arena.tscn` is 760 by 40.
+Morris picked look B on 2026-11-03. These are the targets. The real build must match them. The fighters stay on the 2D plane. The floor in `scenes/Arena.tscn` is 760 by 40. One hundred pixels is one meter.
 
-Pitch. Try 6, 10, and 16 degrees above a side view. The 10 is FeatherBrain's estimate, linked above.
+Pitch. 10 degrees above a side view.
 
-Depth of field. Off, mild, and strong, on `CameraAttributesPractical`. [Godot 4.5](https://docs.godotengine.org/en/4.5/classes/class_cameraattributespractical.html) defaults `dof_blur_far_enabled` and `dof_blur_near_enabled` to false, `dof_blur_amount` to 0.1, far distance to 10, and near distance to 2. Mild uses amount 0.08, far distance 8, near distance 1.5. Strong uses amount 0.2, far distance 4, near distance 2.5. Blur runs in Forward+ and Mobile, not Compatibility. `project.godot` sets no renderer.
+Depth of field. `CameraAttributesPractical`, with near blur and far blur on. Near distance 3.4 m, far distance 7.4 m, amount 0.18. [Godot 4.5](https://docs.godotengine.org/en/4.5/classes/class_cameraattributespractical.html) runs this blur in Forward+ and Mobile, not Compatibility. `project.godot` sets no renderer. The pick requires Forward+.
 
-Bloom. Off, low, and medium. [Godot 4.5 Environment](https://docs.godotengine.org/en/4.5/classes/class_environment.html) defaults `glow_enabled` to false, `glow_intensity` to 0.8, `glow_bloom` to 0, and `glow_hdr_threshold` to 1. Low uses intensity 0.3 and bloom 0.05. Medium uses intensity 0.8 and bloom 0.15. Low and medium are guesses.
+Bloom. `glow_intensity` 0.85, `glow_bloom` 0.16, `glow_hdr_threshold` 0.80, blend mode soft light. [Godot 4.5 Environment](https://docs.godotengine.org/en/4.5/classes/class_environment.html) defaults `glow_enabled` to false.
 
-Key light. One warm light from the front, so a sprite casts a shadow on the floor. Soft is red 1.0, green 0.92, blue 0.80, energy 1.0. The heavy-hit flash in `SCREEN_FLASH_BY_TIER` is red 1.0, green 0.84, blue 0.60, used at energy 1.2. Strong is red 1.0, green 0.72, blue 0.45, energy 1.6. The flash color is from the project. The other colors and the energies are guesses. `style_lock.yaml` also asks for cool contrast. Warm wins until a logged pick.
+Key light. One warm directional light, so a sprite casts a shadow on the floor. Color is red 1.0, green 0.90, blue 0.72, energy 0.8. Warm is an accent on the night city and the floor art.
 
-KO zoom. Add 0.08 for 0.25 seconds, 0.15 for 0.40 seconds, or 0.25 for 0.55 seconds, and raise the upper clamp by the same amount. [Godot 4.5 Camera2D](https://docs.godotengine.org/en/4.5/classes/class_camera2d.html) says a higher zoom is more zoomed in. [camera_2d.cpp on 4.5-stable](https://github.com/godotengine/godot/blob/4.5-stable/scene/2d/camera_2d.cpp) sets `zoom_scale` to 1 divided by zoom. The current punch subtracts 0.020 to 0.060, which widens the view. The main scene clamps zoom from 1.08 to 1.42, so an add past 1.42 is cut off unless the clamp rises. The add amounts are guesses. Keep at least the heavy shake of 6.6 units for 0.14 seconds. A counter multiplies that shake by 1.42 and the duration by 1.15, which is 9.372 units for 0.161 seconds. Signature and ultimate shakes fall back to 2.8 units for 0.08 seconds.
+Hit point light. One omni light. Color is red 1.0, green 0.84, blue 0.60, energy 1.2, range 3.2 m. It is on while the defender is in hitstun. That color is the heavy-hit flash in `SCREEN_FLASH_BY_TIER`.
+
+Camera. The camera is 5.436778 m from the fighter plane. That distance yields a 50 degree vertical field of view at zoom 1.42 on a 720 px tall window, before the frame is tightened. The chosen frame divides the visible height by 1.4. At zoom 1.42 and a pitch of 10 degrees, the vertical field of view is 37.37 degrees. In the mid-fight capture, fighters were about 185 px tall. In look 0 they were 126 px tall.
+
+KO zoom stays PROVISIONAL. Add 0.08 for 0.25 seconds, 0.15 for 0.40 seconds, or 0.25 for 0.55 seconds, and raise the upper clamp by the same amount. [Godot 4.5 Camera2D](https://docs.godotengine.org/en/4.5/classes/class_camera2d.html) says a higher zoom is more zoomed in. [camera_2d.cpp on 4.5-stable](https://github.com/godotengine/godot/blob/4.5-stable/scene/2d/camera_2d.cpp) sets `zoom_scale` to 1 divided by zoom. The current punch subtracts 0.020 to 0.060, which widens the view. The main scene clamps zoom from 1.08 to 1.42, so an add past 1.42 is cut off unless the clamp rises. The add amounts are guesses. Keep at least the heavy shake of 6.6 units for 0.14 seconds. A counter multiplies that shake by 1.42 and the duration by 1.15, which is 9.372 units for 0.161 seconds. Signature and ultimate shakes fall back to 2.8 units for 0.08 seconds.
