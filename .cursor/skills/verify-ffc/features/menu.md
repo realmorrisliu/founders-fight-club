@@ -11,7 +11,7 @@ The menu picks a control style, then a route. A fresh profile asks for Modern or
 ## How to get to it (user POV)
 
 - Launch the game. The first screen that accepts a click is the control overlay: Modern or Classic.
-- Then choose Versus, Story, or Training.
+- Then choose Local VS, Story (Auto Rival), or Training Mode.
 - Choose Advanced Setup, then Control Style, to switch Modern and Classic.
 
 ## Driving it with ffc.sh
@@ -19,7 +19,7 @@ The menu picks a control style, then a route. A fresh profile asks for Modern or
 Preconditions:
 
 - `bash scripts/ffc.sh doctor` prints `ok=1`.
-- Each command is a new process, so each one starts from the overlay again.
+- Each command is a new process. It starts from the overlay again when `XDG_DATA_HOME` is unset or is not an absolute path.
 
 - **Overlay blocks Story.** Run `bash scripts/ffc.sh ui --press story --out /tmp/ffc-menu-blocked.json`. Exit code is 1. Stdout names `story` as disabled.
 - **Choose Modern.** Run `bash scripts/ffc.sh ui --press first-launch-modern --out /tmp/ffc-menu-modern.json`. The step `button_text_before` is `Modern`. `scene` stays `Menu`.
@@ -29,5 +29,5 @@ Preconditions:
 ## Gotchas
 
 - Control Style stays disabled until Advanced Setup is open. Pressing it immediately after the overlay fails.
-- The saved preset lives in that process's `HOME`. The next `ffc.sh` command is a fresh profile and shows the overlay again.
-- Button text is the proof. Do not infer the preset from the press name alone.
+- The saved preset lives at `user://settings.cfg`. The next `ffc.sh` command shows the overlay again when `XDG_DATA_HOME` is unset or is not an absolute path. An absolute `XDG_DATA_HOME` keeps the preset, and a later Story press then succeeds.
+- Button text is the proof. Do not infer the preset from the press name alone. The strings in this file are English. Locales `zh`, `zh_CN`, and `zh_TW` use `i18n/zh.tres`. A name such as `zho` still shows these English strings.

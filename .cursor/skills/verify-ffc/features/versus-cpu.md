@@ -5,7 +5,7 @@ Local versus starts a stock match between two human fighters. The CPU brain is t
 ## Sub-features
 
 - `versus-open` starts a human-versus-human match from the menu.
-- `versus-script` moves a fighter from a replay and records positions.
+- `versus-script` moves a fighter from an input array and records positions.
 - `cpu-approach` makes the CPU close distance, attack, and shield.
 - `cpu-recover-near` brings a CPU back from just off the side of the stage.
 - `cpu-recover-deep` shows whether a CPU under the stage saves the stock.
