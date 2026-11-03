@@ -105,6 +105,7 @@ func _run_smoke_suite() -> void:
 	await _test_knockback_growth_and_di_response()
 	await _test_hitstop_tier_resolution()
 	await _test_result_banner_clears_stat_rows()
+	_test_driver_examples_are_valid_replays_or_inputs()
 
 func _run_full_suite() -> void:
 	await _run_smoke_suite()
@@ -4470,6 +4471,67 @@ func _run_ffc_cli(args: PackedStringArray) -> Dictionary:
 		if line.begins_with("hash="):
 			hash_value = line.substr(5).strip_edges()
 	return {"code": code, "text": text, "hash": hash_value}
+
+func _test_driver_examples_are_valid_replays_or_inputs() -> void:
+	var replay_script := load("res://scripts/driver/ReplayScript.gd")
+	_assert_true(replay_script != null, "replay script loads for example validation")
+	if replay_script == null:
+		return
+	var heavy: Dictionary = replay_script.load_file("res://scripts/driver/examples/heavy.json")
+	_assert_true(bool(heavy.get("ok", false)), "heavy.json is a replay object: %s" % str(heavy.get("error", "")))
+	var heavy_spec: Dictionary = heavy.get("spec", {})
+	_assert_true(int(heavy_spec.get("frames", 0)) == 90, "heavy.json replay runs 90 frames")
+	_assert_true(str(heavy_spec.get("p1", "")) == "elon_mvsk", "heavy.json replay names p1")
+	var rejected: Dictionary = replay_script.normalize({
+		"mode": "local",
+		"frames": 10,
+		"seed": 1,
+		"setup": {"p2": {"percent": 150}}
+	})
+	_assert_true(not bool(rejected.get("ok", true)), "setup percent 150 is rejected")
+	var accepted: Dictionary = replay_script.normalize({
+		"mode": "local",
+		"frames": 10,
+		"seed": 1,
+		"setup": {"p2": {"percent": 100}}
+	})
+	_assert_true(bool(accepted.get("ok", false)), "setup percent 100 is accepted")
+	var dir := DirAccess.open("res://scripts/driver/examples")
+	_assert_true(dir != null, "driver example directory opens")
+	if dir == null:
+		return
+	var example_count := 0
+	dir.list_dir_begin()
+	while true:
+		var file_name := dir.get_next()
+		if file_name == "":
+			break
+		if dir.current_is_dir() or not file_name.ends_with(".json"):
+			continue
+		example_count += 1
+		var path := "res://scripts/driver/examples/%s" % file_name
+		var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+		if typeof(parsed) == TYPE_DICTIONARY:
+			var loaded: Dictionary = replay_script.load_file(path)
+			_assert_true(bool(loaded.get("ok", false)), "%s is a valid replay: %s" % [file_name, str(loaded.get("error", ""))])
+			continue
+		if typeof(parsed) != TYPE_ARRAY:
+			_assert_true(false, "%s is a JSON array or replay object" % file_name)
+			continue
+		var max_frame := 0
+		for sample_value in parsed:
+			if typeof(sample_value) == TYPE_DICTIONARY:
+				max_frame = maxi(max_frame, int((sample_value as Dictionary).get("frame", 0)))
+		var wrapped := {
+			"mode": "local",
+			"frames": max_frame + 1,
+			"seed": 1,
+			"inputs": parsed
+		}
+		var normalized: Dictionary = replay_script.normalize(wrapped)
+		_assert_true(bool(normalized.get("ok", false)), "%s is a valid input list: %s" % [file_name, str(normalized.get("error", ""))])
+	dir.list_dir_end()
+	_assert_true(example_count >= 6, "driver examples include the committed input and replay files")
 
 func _sha256_file(path: String) -> String:
 	var ctx := HashingContext.new()

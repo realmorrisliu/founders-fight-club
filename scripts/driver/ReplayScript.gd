@@ -95,9 +95,13 @@ static func normalize(raw: Dictionary) -> Dictionary:
 		"control_preset": _preset(raw.get("control_preset", "modern")),
 		"inputs": parsed_inputs.get("inputs", []),
 		"screenshots": screenshots.get("frames", []),
-		"setup": _parse_setup(raw.get("setup", {})),
+		"setup": {},
 		"overrides": {}
 	}
+	var parsed_setup := _parse_setup(raw.get("setup", {}))
+	if not bool(parsed_setup.get("ok", false)):
+		return parsed_setup
+	spec["setup"] = parsed_setup.get("setup", {})
 	var overrides: Dictionary = spec["overrides"]
 	if raw.has("stocks"):
 		var stocks := _as_int(raw.get("stocks", 3), 3)
@@ -208,7 +212,7 @@ static func _parse_frames(value: Variant, frames: int) -> Dictionary:
 static func _parse_setup(value: Variant) -> Dictionary:
 	var setup := {"p1": {}, "p2": {}}
 	if typeof(value) != TYPE_DICTIONARY:
-		return setup
+		return {"ok": true, "setup": setup}
 	var source := value as Dictionary
 	for side in ["p1", "p2"]:
 		var side_value: Variant = source.get(side, {})
@@ -216,11 +220,16 @@ static func _parse_setup(value: Variant) -> Dictionary:
 			continue
 		var side_raw := side_value as Dictionary
 		var side_setup := {}
-		for key in ["percent", "x", "y"]:
+		if side_raw.has("percent"):
+			var percent := float(side_raw.get("percent", 0.0))
+			if percent < 0.0 or percent > 100.0:
+				return {"ok": false, "error": "setup percent must be from 0 to 100"}
+			side_setup["percent"] = percent
+		for key in ["x", "y"]:
 			if side_raw.has(key):
 				side_setup[key] = float(side_raw.get(key, 0.0))
 		setup[side] = side_setup
-	return setup
+	return {"ok": true, "setup": setup}
 
 static func _as_int(value: Variant, fallback: int) -> int:
 	match typeof(value):

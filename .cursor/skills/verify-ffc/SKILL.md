@@ -36,19 +36,22 @@ Doctor does not start a match and does not write a state log.
 
 `scripts/ffc.sh` is the harness. A match replay is a JSON object. An input sample replaces that side's held buttons from that frame onward. Omit a side to leave it unchanged. Button names are `move_left`, `move_right`, `move_up`, `move_down`, `jump`, `attack_light`, `attack_heavy`, `attack_special`, `throw`, `dash`, `block`, `pause`, and `restart`. Aliases `left`, `right`, `up`, `down`, `light`, `heavy`, and `special` are accepted.
 
+`scripts/driver/examples/heavy.json` is a full replay object. This command runs it as written:
+
+```bash
+bash scripts/ffc.sh replay --replay scripts/driver/examples/heavy.json --out /tmp/ffc-heavy-replay.jsonl
+```
+
+Setup flags override fields in that replay:
+
 ```bash
 bash scripts/ffc.sh run \
-  --seed 11 \
-  --mode local \
-  --frames 90 \
-  --p1 elon_mvsk \
-  --p2 mark_zuck \
-  --setup-p1-x 400 --setup-p1-y 300 \
-  --setup-p2-x 448 --setup-p2-y 300 \
+  --replay scripts/driver/examples/heavy.json \
   --setup-p2-percent 50 \
-  --input scripts/driver/examples/heavy.json \
-  --out /tmp/ffc-heavy.jsonl
+  --out /tmp/ffc-heavy-50.jsonl
 ```
+
+`--input scripts/driver/examples/heavy.json` also works, because an input file may be a JSON array or an object that contains `inputs`. The other files in `scripts/driver/examples/` are input arrays.
 
 Modes:
 
@@ -66,7 +69,7 @@ bash scripts/ffc.sh ui \
   --out /tmp/ffc-ui-story.json
 ```
 
-`first-launch-classic` is the other overlay button. `advanced` then `control-style` toggles Modern and Classic. `versus` and `training` are the other route buttons. A disabled button fails the command. Do not treat a disabled press as a successful click.
+`first-launch-classic` is the other overlay button. `advanced` then `control-style` toggles Modern and Classic. `versus` is the Local VS button. `training` is the other route button. A disabled button fails the command. Do not treat a disabled press as a successful click.
 
 The match loop is one physics tick and one process tick per logged frame, launched with Godot `--fixed-fps 60`. Same seed and same inputs must produce byte-identical state logs. Confirm with two runs and `bash scripts/ffc.sh hash <log>`.
 
@@ -78,7 +81,7 @@ Write proof outside `.ffc-home/`. The harness deletes only that disposable home.
 - Quote the frame numbers and those fields. A green unit test is not a substitute for the log.
 - Menu proof is the JSON from `ui`. It must include the button text before and after each press, the scene name, `match_mode`, and `p2_is_ai` when a match loaded.
 - Screenshots need a virtual display. `--render headless` does not write PNGs. Use `--render xvfb --screenshots 20,112 --screenshot-dir <dir>`.
-- Percent is `100 - hp`. Hp does not go below 0 in a real hit, so 150% is not a state the match can reach. A fighter already at 0 hp ignores further hits.
+- Setup percent must be from 0 to 100. `--setup-p2-percent 150` exits 1 with `setup percent must be from 0 to 100`. A real hit still stops at 0 hp, so play cannot pass 100%. A fighter already at 0 hp ignores further hits.
 
 ## Cleanup
 
@@ -94,7 +97,7 @@ Do not delete the `--out` log, the `ui` JSON, or the screenshot directory. Those
 
 - `bash scripts/ffc.sh doctor`
 - `bash scripts/ffc.sh run ... --out <state.jsonl>`
-- `bash scripts/ffc.sh replay --replay <match.json> --out <state.jsonl>`
+- `bash scripts/ffc.sh replay --replay scripts/driver/examples/heavy.json --out /tmp/ffc-heavy-replay.jsonl`
 - `bash scripts/ffc.sh ui --press <button> --out <ui.json>`
 - `bash scripts/ffc.sh hash <state.jsonl>`
 - `just ffc <same arguments>`
