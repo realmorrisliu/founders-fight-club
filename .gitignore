@@ -1,4 +1,5 @@
 .godot/
+.godot-bin/
 .godot-home/
 .godot-user/
 .godot-test-home/

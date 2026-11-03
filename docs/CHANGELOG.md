@@ -1,5 +1,14 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+- **Ruleset**: Matches, story, and training use one Smash-style ruleset: percent damage, knockback that scales with that percent, stocks, ring-outs, and platforms. The duel / HP-bar ruleset and its mode switch are gone.
+- **Godot**: Pinned to 4.5.1. Headless tests are `bash scripts/test.sh full`.
+
+### Removed
+- Duel-only defense tuning, side-wall bounds, the HP-bar match HUD, and `_test_duel_ruleset_defense_profile`.
+
 ## [Unreleased] - MVP Implementation
 
 ### Removed

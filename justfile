@@ -13,7 +13,8 @@ editor:
 run-scene scene:
 	@./scripts/godot.sh run-scene "{{scene}}"
 
-# Run automated headless tests (default: smoke suite).
+# Run automated headless tests on the pinned Godot (default: smoke suite).
+# Full suite: just test full
 test suite="smoke":
 	@./scripts/test.sh "{{suite}}"
 

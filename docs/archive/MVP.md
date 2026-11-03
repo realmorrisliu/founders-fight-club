@@ -1,5 +1,7 @@
 # MVP Design Doc
 
+> **Superseded.** This document describes the early duel / HP-bar prototype. Founders Fight Club is now Smash-style only: percent damage, knockback that scales with that percent, stock ring-outs, and platforms. Do not use this file for current rules, win conditions, or scene layout. See the repository README and `AGENTS.md`.
+
 ## High Concept
 2D pixel-art 1v1 fighter set in a Silicon Valley founders brawl. Duel-first mainline: 60-second HP round, one prototype fighter, one arena. Stock and ring-out variants are experimental and stay off the default menu path.
 
