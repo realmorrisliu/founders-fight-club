@@ -122,9 +122,6 @@ static func get_control_preset() -> String:
 		return "" if meta_value == "" else normalize_control_preset(meta_value)
 	return normalize_control_preset(value)
 
-static func has_control_preset() -> bool:
-	return get_control_preset() != ""
-
 static func get_onboarding_settings() -> Dictionary:
 	var config := ConfigFile.new()
 	var load_error := config.load(SETTINGS_PATH)
@@ -141,9 +138,6 @@ static func get_onboarding_settings() -> Dictionary:
 		"hints_enabled": hints_enabled
 	}
 
-static func is_onboarding_completed() -> bool:
-	return bool(get_onboarding_settings().get("completed", false))
-
 static func set_onboarding_completed(completed: bool) -> void:
 	var settings := get_onboarding_settings()
 	_set_onboarding_settings(completed, bool(settings.get("hints_enabled", true)))
@@ -151,9 +145,6 @@ static func set_onboarding_completed(completed: bool) -> void:
 static func set_onboarding_hints_enabled(enabled: bool) -> void:
 	var settings := get_onboarding_settings()
 	_set_onboarding_settings(bool(settings.get("completed", false)), enabled)
-
-static func reset_onboarding_progress() -> void:
-	_set_onboarding_settings(false, true)
 
 static func get_video_settings() -> Dictionary:
 	var config := ConfigFile.new()
@@ -194,15 +185,6 @@ static func apply_control_preset(preset: String) -> void:
 		for key in keys:
 			_add_key_event(action_name, int(key))
 	Engine.set_meta(ENGINE_META_KEY, normalized)
-
-static func apply_saved_video_settings() -> void:
-	var settings := get_video_settings()
-	var window_mode := normalize_window_mode(str(settings.get("window_mode", WINDOW_MODE_WINDOWED)))
-	var resolution_value: Variant = settings.get("resolution", DEFAULT_RESOLUTION)
-	var resolution := DEFAULT_RESOLUTION
-	if resolution_value is Vector2i:
-		resolution = normalize_resolution(resolution_value as Vector2i)
-	apply_video_settings(window_mode, resolution)
 
 static func apply_video_settings(window_mode: String, resolution: Vector2i) -> void:
 	var normalized_mode := normalize_window_mode(window_mode)

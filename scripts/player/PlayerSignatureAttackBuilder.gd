@@ -401,30 +401,6 @@ static func build_generated_signature_attack(
 			entry["control"] = (control_value as Dictionary).duplicate(true)
 	return entry
 
-static func build_generated_signature_attack_from_special(
-	kind: String,
-	special_base: Dictionary,
-	config: Dictionary,
-	hitstun_seconds: float,
-	blockstun_seconds: float
-) -> Dictionary:
-	return build_generated_signature_attack(kind, config, hitstun_seconds, blockstun_seconds)
-
-static func _build_generated_signature_attack_from_special(
-	kind: String,
-	special_base: Dictionary,
-	config: Dictionary,
-	hitstun_seconds: float,
-	blockstun_seconds: float
-) -> Dictionary:
-	return build_generated_signature_attack_from_special(
-		kind,
-		special_base,
-		config,
-		hitstun_seconds,
-		blockstun_seconds
-	)
-
 static func _resolve_signature_skeleton_id(kind: String, config: Dictionary) -> String:
 	var explicit_skeleton := str(config.get("skeleton", "")).strip_edges().to_lower()
 	if explicit_skeleton != "":

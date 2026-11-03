@@ -29,14 +29,6 @@ const MENU_CONTROL_ICON_PATHS := {
 	GameSettingsStore.CONTROL_PRESET_CLASSIC: "res://assets/sprites/ui/icon_classic.png",
 	GameSettingsStore.CONTROL_PRESET_MODERN: "res://assets/sprites/ui/icon_modern.png"
 }
-const MENU_SLOT_ICON_PATHS := {
-	"signature_a": "res://assets/sprites/ui/icon_signature_a.png",
-	"signature_b": "res://assets/sprites/ui/icon_signature_b.png",
-	"signature_c": "res://assets/sprites/ui/icon_signature_c.png",
-	"ultimate": "res://assets/sprites/ui/icon_ultimate.png",
-	"item": "res://assets/sprites/ui/icon_item.png",
-	"passive": "res://assets/sprites/ui/icon_passive.png"
-}
 const MENU_SLOT_PREVIEW_CONFIG := [
 	{"key": "signature_a", "summary_key": "signature_a", "profile_key": "signature_primary", "label_key": "MENU_SUMMARY_SLOT_A", "fallback": "A"},
 	{"key": "signature_b", "summary_key": "signature_b", "profile_key": "signature_alt", "label_key": "MENU_SUMMARY_SLOT_B", "fallback": "B"},

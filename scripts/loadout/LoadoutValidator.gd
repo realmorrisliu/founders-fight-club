@@ -91,12 +91,6 @@ static func validate_loadout(character_id: String, loadout: Dictionary) -> Dicti
 		}
 	}
 
-static func sanitize_or_default_loadout(character_id: String, requested_loadout: Dictionary) -> Dictionary:
-	var validation := validate_loadout(character_id, requested_loadout)
-	if bool(validation.get("is_valid", false)):
-		return requested_loadout.duplicate(true)
-	return LoadoutCatalogStore.get_default_loadout(character_id)
-
 static func _validate_skill_slot(
 	slot_key: String,
 	skill_id: String,

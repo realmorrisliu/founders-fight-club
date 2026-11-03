@@ -86,13 +86,6 @@ static func get_required_tags() -> PackedStringArray:
 		tags.append(String(tag))
 	return tags
 
-static func get_wave1_character_tuning_profiles() -> Dictionary:
-	return WAVE1_CHARACTER_TUNING.duplicate(true)
-
-static func clear_cache() -> void:
-	_character_pool_cache.clear()
-	_character_move_name_cache.clear()
-
 static func get_character_pool(character_id: String) -> Dictionary:
 	var resolved_id := _resolve_character_id(character_id)
 	if _character_pool_cache.has(resolved_id):

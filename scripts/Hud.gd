@@ -446,12 +446,6 @@ func _apply_runtime_textures() -> void:
 func _load_texture_or_placeholder(path: String, size: Vector2i, fill: Color) -> Texture2D:
 	return _load_ui_texture(path, size, fill)
 
-func _is_headless_runtime() -> bool:
-	return UiSkinStore.is_headless_runtime()
-
-func _make_solid_texture(size: Vector2i, fill: Color) -> Texture2D:
-	return UiSkinStore.make_solid_texture(size, fill)
-
 func _load_ui_texture(path: String, size: Vector2i, fill: Color) -> Texture2D:
 	var cache_key := "%s|%d|%d|%s" % [path, size.x, size.y, fill.to_html()]
 	if ui_texture_cache.has(cache_key):
