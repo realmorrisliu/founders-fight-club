@@ -396,8 +396,6 @@ var telemetry_session_log_written := false
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	# The match root stays active so pause and restart still arrive while paused.
-	# Children inherit that mode, which kept fighters simulating. Pin them pausable.
 	child_entered_tree.connect(_pin_child_pausable)
 	for child in get_children():
 		_pin_child_pausable(child)
