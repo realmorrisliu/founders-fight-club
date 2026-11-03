@@ -396,6 +396,9 @@ var telemetry_session_log_written := false
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	child_entered_tree.connect(_pin_child_pausable)
+	for child in get_children():
+		_pin_child_pausable(child)
 	_clear_hitstop()
 	camera_rng.randomize()
 	dialogue_rng.randomize()
@@ -492,6 +495,11 @@ func _ready() -> void:
 	_refresh_result_text()
 	_trigger_pre_fight_dialogue()
 
+func _pin_child_pausable(child: Node) -> void:
+	if child.process_mode != Node.PROCESS_MODE_INHERIT:
+		return
+	child.process_mode = Node.PROCESS_MODE_PAUSABLE
+
 func _exit_tree() -> void:
 	_clear_hitstop()
 	if dialogue_timer and is_instance_valid(dialogue_timer):
@@ -507,10 +515,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		_toggle_pause()
 
 func _process(delta: float) -> void:
-	_update_hitstop_state(delta)
-	_update_screen_fx(delta)
 	if get_tree().paused:
 		return
+	_update_hitstop_state(delta)
+	_update_screen_fx(delta)
 	match_elapsed_seconds += maxf(0.0, delta)
 	_update_onboarding_progress(delta)
 	if match_over:
@@ -3362,7 +3370,7 @@ func _tween_transient_effect(
 ) -> void:
 	if sprite == null or not is_instance_valid(sprite):
 		return
-	var tween := create_tween()
+	var tween := effects_layer.create_tween()
 	tween.set_trans(Tween.TRANS_QUAD)
 	tween.set_ease(Tween.EASE_OUT)
 	tween.parallel().tween_property(sprite, "scale", final_scale, duration)
