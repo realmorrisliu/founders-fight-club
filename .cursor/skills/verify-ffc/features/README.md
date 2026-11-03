@@ -6,7 +6,7 @@ This directory is the maintained source for verifying player-facing behavior. Re
 
 - Run from the repo root.
 - `bash scripts/ffc.sh doctor` prints `godot=4.5.1` and `ok=1`.
-- Each `ffc.sh` process gets a new `HOME` under `.ffc-home/`. A fresh profile shows the first-launch control overlay and disables Versus, Story, and Training until Modern or Classic is chosen.
+- Each `ffc.sh` process gets a new `HOME` under `.ffc-home/`. A fresh profile shows the first-launch control overlay and disables Local VS, Story, and Training until Modern or Classic is chosen.
 - Pass `--out` and `--screenshot-dir` outside `.ffc-home/`. Cleanup deletes the home and leaves those files.
 - The only stage id is `grand_arena`.
 
@@ -36,3 +36,10 @@ Each feature file has an H1, one opening paragraph, then these H2 sections in or
 - [Training mode](./training.md) covers the dummy and the disabled round timer.
 - [Menu and control style](./menu.md) covers the first-launch overlay, routes, and Modern versus Classic.
 - [Pause and rematch](./pause.md) covers pause, resume, and restart.
+- [Knockback](./knockback.md) covers a heavy hit and how travel grows with percent.
+- [Ring-out](./ring-out.md) covers a blast-zone stock loss and respawn.
+- [Result banner](./result-banner.md) covers the end-of-match banner under the stat rows.
+
+## Known issues
+
+- On `Training.tscn` the training panel (y 144 to 392) intersects the result chip (y 168 to 214). Training does not show a match result today, so the overlap is not reachable. See [Result banner](./result-banner.md).

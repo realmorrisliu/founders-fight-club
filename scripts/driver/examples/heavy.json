@@ -1,4 +1,20 @@
-[
-  {"frame": 24, "p1": {"attack_heavy": 1}},
-  {"frame": 28, "p1": {}}
-]
+{
+  "version": 1,
+  "seed": 11,
+  "mode": "local",
+  "stage": "grand_arena",
+  "frames": 90,
+  "p1": "elon_mvsk",
+  "p2": "mark_zuck",
+  "p1_control": "script",
+  "p2_control": "idle",
+  "onboarding": false,
+  "setup": {
+    "p1": {"x": 400, "y": 300, "percent": 0},
+    "p2": {"x": 448, "y": 300, "percent": 0}
+  },
+  "inputs": [
+    {"frame": 24, "p1": {"attack_heavy": 1}},
+    {"frame": 28, "p1": {}}
+  ]
+}

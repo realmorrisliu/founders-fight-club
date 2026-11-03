@@ -27,3 +27,4 @@ Preconditions:
 - Training P2 is a dummy. `p2-control cpu` does not turn on the story CPU while the dummy is active. A log that only shows `mode cpu` is not this feature.
 - The drill id `duel_core` is the free-practice drill. It is not a second ruleset.
 - Stocks are still displayed. Leaving the stage in training resets the drill instead of ending a versus stock.
+- If a result banner were shown during training, its chip (y 168 to 214) would intersect the training panel (y 144 to 392). Training does not show that banner today.
