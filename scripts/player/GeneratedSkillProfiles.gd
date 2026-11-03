@@ -313,9 +313,6 @@ static func get_profile(character_id: String) -> Dictionary:
 		return {}
 	return _normalize_profile(character_id, (value as Dictionary).duplicate(true))
 
-static func get_generated_archetype(profile: Dictionary) -> String:
-	return str(profile.get("generated_archetype", PlayerDataStore.ARCHETYPE_ALL_ROUNDER))
-
 static func get_slot_contract(profile: Dictionary, slot_key: String) -> Dictionary:
 	var slot_contracts_value: Variant = profile.get("slot_contracts", {})
 	if typeof(slot_contracts_value) == TYPE_DICTIONARY:

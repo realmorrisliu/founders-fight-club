@@ -1829,13 +1829,9 @@ func _apply_stage_bounds_to_players() -> void:
 	if player_1:
 		if player_1.has_method("set_stage_geometry"):
 			player_1.call("set_stage_geometry", stage_left_x, stage_right_x, stage_floor_y)
-		elif player_1.has_method("set_stage_bounds"):
-			player_1.call("set_stage_bounds", stage_left_x, stage_right_x)
 	if player_2:
 		if player_2.has_method("set_stage_geometry"):
 			player_2.call("set_stage_geometry", stage_left_x, stage_right_x, stage_floor_y)
-		elif player_2.has_method("set_stage_bounds"):
-			player_2.call("set_stage_bounds", stage_left_x, stage_right_x)
 
 func _resolve_spawn_point_for_player(fighter: CharacterBody2D) -> Vector2:
 	if fighter == null:
@@ -2479,15 +2475,6 @@ func _update_onboarding_scenario_lesson(step: Dictionary, delta: float) -> void:
 				_queue_onboarding_lesson_outcome(step, "fail", "HUD_ONBOARDING_FEEDBACK_DODGE_FAIL_TIMEOUT", "The punish window closed. Dodge first, then hit back.", "timeout")
 			"special_punish":
 				_queue_onboarding_lesson_outcome(step, "fail", "HUD_ONBOARDING_FEEDBACK_SPECIAL_FAIL_TIMEOUT", "The opening closed. Wait for the whiff, then cash out.", "timeout")
-
-func _sync_current_onboarding_lesson_state() -> void:
-	var step := _resolve_onboarding_step(onboarding_step_index)
-	if step.is_empty():
-		onboarding_lesson_state.clear()
-		onboarding_lesson_runtime.clear()
-		return
-	onboarding_lesson_state = _build_onboarding_lesson_state(step)
-	onboarding_lesson_runtime = _build_onboarding_lesson_runtime(step)
 
 func _update_onboarding_progress(delta: float = 0.0) -> void:
 	if not onboarding_active:

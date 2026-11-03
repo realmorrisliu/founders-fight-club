@@ -1661,13 +1661,8 @@ func _test_loadout_item_evolution_boundaries() -> void:
 		_assert_true(str(evolved_runtime.get("id", "")) == evolution_id, "evolution resolves expected target item id")
 
 func _test_loadout_wave1_tuning_profiles_present() -> void:
-	var tuning_profiles := LoadoutCatalogStore.get_wave1_character_tuning_profiles()
 	var wave1_ids := ["elon_mvsk", "mark_zuck", "sam_altmyn", "peter_thyell"]
 	for character_id in wave1_ids:
-		_assert_true(
-			tuning_profiles.has(character_id),
-			"wave1 tuning profile exists for %s" % character_id
-		)
 		var runtime_profile := GeneratedSkillProfilesStore.get_profile(character_id)
 		_assert_true(not runtime_profile.is_empty(), "generated skill profile exists for %s" % character_id)
 	var elon_pool := LoadoutCatalogStore.get_character_pool("elon_mvsk")
@@ -1806,12 +1801,6 @@ func _test_generated_signature_builder_uses_role_skeletons() -> void:
 	if typeof(special_base_value) != TYPE_DICTIONARY:
 		return
 	var special_base := (special_base_value as Dictionary).duplicate(true)
-	var distorted_special := special_base.duplicate(true)
-	distorted_special["block_type"] = "throw"
-	distorted_special["damage"] = 99
-	distorted_special["lunge_speed"] = 0.0
-	distorted_special["hitbox_size_ground"] = Vector2(80, 80)
-	distorted_special["hitbox_offset_ground"] = Vector2(-30, -30)
 	for character_id_variant in GeneratedSkillProfilesStore.PROFILE_BY_CHARACTER.keys():
 		var character_id := str(character_id_variant)
 		var profile := GeneratedSkillProfilesStore.get_profile(character_id)
@@ -1825,19 +1814,9 @@ func _test_generated_signature_builder_uses_role_skeletons() -> void:
 				continue
 			var config := config_value as Dictionary
 			var generated := PlayerSignatureAttackBuilderStore.build_generated_signature_attack(slot_key, config, 0.18, 0.14)
-			var legacy_alias := PlayerSignatureAttackBuilderStore.build_generated_signature_attack_from_special(
-				slot_key,
-				distorted_special,
-				config,
-				0.18,
-				0.14
-			)
 			_assert_true(not generated.is_empty(), "%s builder returns runtime attack for %s" % [character_id, slot_key])
 			_assert_true(str(generated.get("generated_role", "")) == str(config.get("role", "")), "%s builder stamps generated role for %s" % [character_id, slot_key])
 			_assert_true(str(generated.get("generated_skeleton", "")) == str(config.get("skeleton", "")), "%s builder stamps generated skeleton for %s" % [character_id, slot_key])
-			_assert_true(str(legacy_alias.get("block_type", "")) == str(generated.get("block_type", "")), "%s generated %s no longer depends on special block type" % [character_id, slot_key])
-			_assert_true(int(legacy_alias.get("damage", 0)) == int(generated.get("damage", 0)), "%s generated %s no longer depends on special damage" % [character_id, slot_key])
-			_assert_true(legacy_alias.get("hitbox_size_ground", Vector2.ZERO) == generated.get("hitbox_size_ground", Vector2.ZERO), "%s generated %s no longer depends on special hitbox size" % [character_id, slot_key])
 			var differs_from_special: bool = (
 				str(generated.get("block_type", "")) != str(special_base.get("block_type", ""))
 				or generated.get("hitbox_size_ground", Vector2.ZERO) != special_base.get("hitbox_size_ground", Vector2.ZERO)

@@ -2,7 +2,6 @@ extends CharacterBody2D
 
 const PlayerDataStore := preload("res://scripts/player/PlayerData.gd")
 const GeneratedSkillProfilesStore := preload("res://scripts/player/GeneratedSkillProfiles.gd")
-const PlayerSignatureAttackBuilderStore := preload("res://scripts/player/PlayerSignatureAttackBuilder.gd")
 const PlayerAttackRuntimeBuilderStore := preload("res://scripts/player/PlayerAttackRuntimeBuilder.gd")
 const StageConfigStore := preload("res://scripts/config/StageConfig.gd")
 const GameSettingsStore := preload("res://scripts/GameSettings.gd")
@@ -39,7 +38,6 @@ const KNOCKDOWN_VERTICAL_THRESHOLD := 145.0
 const KNOCKDOWN_GROUND_SECONDS := 0.42
 const GETUP_SECONDS := 0.30
 const TECH_GETUP_SECONDS := 0.18
-const TECH_QUICK_KNOCKDOWN_SECONDS := 0.04
 const TECH_SLIDE_DURATION := 0.12
 const TECH_SLIDE_SPEED := 180.0
 const WAKE_INVULN_SECONDS := 0.18
@@ -47,7 +45,6 @@ const RESPAWN_INVULN_SECONDS := 0.72
 const THROW_TECH_BUFFER_SECONDS := 0.08
 const THROW_TECH_ASSIST_BUFFER_SECONDS := 0.03
 const THROW_TECH_PUSHBACK := 112.0
-const THROW_TECH_AI_CHANCE := 0.20
 const THROW_TECH_ASSIST_OFF := "off"
 const THROW_TECH_ASSIST_THROW_ONLY := "throw_only"
 const THROW_TECH_ASSIST_BUTTON_ASSIST := "button_assist"
@@ -165,7 +162,6 @@ const ATTACK_FX_ACCENT_BY_KIND := {
 const SIGNATURE_TRAIL_TEXTURE_SIZE := Vector2i(152, 92)
 const GROUND_TRACE_TEXTURE_SIZE := Vector2i(144, 40)
 const TRANSIENT_VISUAL_Z_INDEX := 6
-const TRANSIENT_VISUAL_BLEND := 0.22
 const GROUND_TRACE_INTERVAL := 0.055
 const GROUND_TRACE_SPEED_THRESHOLD := 190.0
 const LANDING_TRACE_SPEED_THRESHOLD := 250.0
@@ -679,9 +675,6 @@ func _ready() -> void:
 	platform_drop_through_time = 0.0
 	air_dodge_end_lag_time = 0.0
 	_update_platform_collision_mask()
-
-func _uses_guard_meter() -> bool:
-	return true
 
 func _allows_ground_defensive_dodge() -> bool:
 	return true
@@ -1801,12 +1794,6 @@ func set_training_throw_tech_options(enabled: bool, assist_mode: String) -> void
 	training_throw_tech_assist_mode = normalized
 	_clear_throw_tech_buffer()
 
-func get_training_dummy_options() -> Dictionary:
-	return {
-		"enabled": training_dummy_enabled,
-		"dummy_mode": training_dummy_mode
-	}
-
 func apply_loadout_runtime(resolved_loadout: Dictionary) -> void:
 	loadout_attack_overrides.clear()
 	loadout_item_runtime.clear()
@@ -2128,10 +2115,6 @@ func _notify_loadout_item_event(event_type: String, event_payload: Dictionary = 
 			should_progress = event_type == "hit_landed"
 		"block_count":
 			should_progress = event_type == "block_landed"
-		"attack_count":
-			should_progress = event_type == "attack_started"
-		"combo_count":
-			should_progress = event_type == "combo_step"
 		_:
 			should_progress = false
 	if not should_progress:
@@ -2200,20 +2183,8 @@ func _activate_loadout_item_effect() -> void:
 			_apply_install_buff(payload)
 		"hype":
 			_gain_hype(float(payload.get("amount", 0.0)))
-		"cooldown_refund":
-			_apply_item_cooldown_refund(payload)
 		_:
 			pass
-
-func _apply_item_cooldown_refund(payload: Dictionary) -> void:
-	if payload.is_empty():
-		return
-	var refund_seconds := maxf(0.0, float(payload.get("seconds", 0.0)))
-	if refund_seconds <= 0.0:
-		return
-	for key in skill_cooldowns.keys():
-		var kind := str(key)
-		skill_cooldowns[kind] = maxf(0.0, float(skill_cooldowns.get(kind, 0.0)) - refund_seconds)
 
 func _update_skill_entity_visual(entity: Dictionary, is_delayed: bool) -> void:
 	var node_value: Variant = entity.get("node", null)
@@ -3601,25 +3572,6 @@ func _apply_status_from_meta(attack_meta: Dictionary, blocked: bool) -> void:
 	if root_seconds > 0.0:
 		status_root_time = maxf(status_root_time, minf(STATUS_ROOT_CAP_SECONDS, root_seconds))
 
-func _inject_generated_signature_attacks() -> void:
-	runtime_attack_data = PlayerSignatureAttackBuilderStore.inject_generated_signature_attacks(
-		runtime_attack_data,
-		get_character_id(),
-		ATTACK_DATA,
-		SIGNATURE_ATTACK_KEYS,
-		HITSTUN_SECONDS,
-		BLOCKSTUN_SECONDS
-	)
-
-func _build_generated_signature_attack_from_special(kind: String, special_base: Dictionary, config: Dictionary) -> Dictionary:
-	return PlayerSignatureAttackBuilderStore.build_generated_signature_attack_from_special(
-		kind,
-		special_base,
-		config,
-		HITSTUN_SECONDS,
-		BLOCKSTUN_SECONDS
-	)
-
 func _get_generated_skill_profile_for_character(character_id: String) -> Dictionary:
 	return GeneratedSkillProfilesStore.get_profile(character_id)
 
@@ -3828,12 +3780,6 @@ func _apply_loadout_passive_runtime() -> void:
 	loadout_passive_startup_multiplier = clampf(float(payload.get("startup_multiplier", 1.0)), 0.60, 1.0)
 	loadout_passive_chip_bonus = maxf(0.0, float(payload.get("chip_bonus", 0.0)))
 
-func _inject_directional_basic_attack_variants() -> void:
-	runtime_attack_data = PlayerAttackRuntimeBuilderStore.inject_directional_basic_attack_variants(runtime_attack_data)
-
-func _build_directional_variant_attack(base_data: Dictionary, overrides: Dictionary) -> Dictionary:
-	return PlayerAttackRuntimeBuilderStore.build_directional_variant_attack(base_data, overrides)
-
 func _load_external_attack_table() -> Dictionary:
 	return PlayerAttackRuntimeBuilderStore.load_external_attack_table(
 		use_external_attack_table,
@@ -3843,30 +3789,12 @@ func _load_external_attack_table() -> Dictionary:
 		self
 	)
 
-func _extract_attack_table_dictionary(resource: Resource) -> Dictionary:
-	return PlayerAttackRuntimeBuilderStore.extract_attack_table_dictionary(resource)
-
-func _sanitize_runtime_attack_data() -> void:
-	runtime_attack_data = PlayerAttackRuntimeBuilderStore.sanitize_runtime_attack_data(
-		runtime_attack_data,
-		ATTACK_DATA,
-		SIGNATURE_ATTACK_KEYS,
-		REQUIRED_BASE_ATTACK_KEYS,
-		self
-	)
-
 func _default_attack_entry_for_kind(kind: String) -> Dictionary:
 	return PlayerAttackRuntimeBuilderStore.default_attack_entry_for_kind(
 		kind,
 		ATTACK_DATA,
 		SIGNATURE_ATTACK_KEYS
 	)
-
-func _merge_attack_defaults(target: Dictionary, defaults: Dictionary) -> void:
-	PlayerAttackRuntimeBuilderStore.merge_attack_defaults(target, defaults)
-
-func _sanitize_attack_field_types(entry: Dictionary, defaults: Dictionary, attack_key: String) -> void:
-	PlayerAttackRuntimeBuilderStore.sanitize_attack_field_types(entry, defaults, attack_key, self)
 
 func _has_attack_kind(kind: String) -> bool:
 	return runtime_attack_data.has(kind)
@@ -4837,12 +4765,6 @@ func apply_damage(
 		result["defeated"] = true
 
 	return result
-
-func get_current_attack_block_type() -> String:
-	if attack_state == "":
-		return "mid"
-	var attack_data := _get_attack_data(attack_state)
-	return str(attack_data.get("block_type", "mid"))
 
 func get_last_training_info() -> Dictionary:
 	return last_training_info.duplicate(true)
