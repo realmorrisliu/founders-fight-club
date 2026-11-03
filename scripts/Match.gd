@@ -7,6 +7,7 @@ const SessionKeysStore := preload("res://scripts/config/SessionKeys.gd")
 const StageConfigStore := preload("res://scripts/config/StageConfig.gd")
 const SessionStateStore := preload("res://scripts/SessionState.gd")
 const LoadoutResolverStore := preload("res://scripts/loadout/LoadoutResolver.gd")
+const Hd2d := preload("res://scripts/hd2d/Hd2d.gd")
 
 const ROUND_TIME_SECONDS := 60.0
 const RULESET_PLATFORM := "platform"
@@ -491,6 +492,7 @@ func _ready() -> void:
 	_update_hud()
 	_refresh_result_text()
 	_trigger_pre_fight_dialogue()
+	Hd2d.install(self)
 
 func _exit_tree() -> void:
 	_clear_hitstop()
@@ -501,6 +503,10 @@ func _exit_tree() -> void:
 	_append_session_metrics_on_exit("scene_exit")
 
 func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("cycle_hd2d"):
+		Hd2d.cycle(self)
+		get_viewport().set_input_as_handled()
+		return
 	if event.is_action_pressed("restart"):
 		_restart_match()
 	elif event.is_action_pressed("pause"):
