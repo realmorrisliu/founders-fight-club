@@ -23,10 +23,6 @@ Current player first-pass frames also include block / hit reaction / knockdown f
 - `sprites/player/first_pass/fall_*.png`
 - `sprites/player/first_pass/getup_*.png`
 
-Impact effect runtime animation resource:
-
-- `sprites/effects/ImpactSpriteFrames.tres`
-
 Combat UI / arena / impact art generator:
 
 - `scripts/tools/generate_combat_ui_assets.py`
