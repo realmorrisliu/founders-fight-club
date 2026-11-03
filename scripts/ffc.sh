@@ -28,6 +28,7 @@ Options for run/replay:
   --screenshot-dir DIR
   --setup-p1-percent N  and the p2 / x / y variants
   --render headless|xvfb
+  --look 0|a|b|c
 
 The simulation steps at a fixed 60Hz and does not follow the wall clock.
 headless is the default. xvfb opens a virtual display so PNG capture can use

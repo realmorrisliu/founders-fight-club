@@ -1,6 +1,7 @@
 extends SceneTree
 
 const ReplayScriptStore := preload("res://scripts/driver/ReplayScript.gd")
+const Hd2d := preload("res://scripts/hd2d/Hd2d.gd")
 const MatchDriverScript := preload("res://scripts/driver/MatchDriver.gd")
 const SessionKeysStore := preload("res://scripts/config/SessionKeys.gd")
 const SessionStateStore := preload("res://scripts/SessionState.gd")
@@ -71,6 +72,12 @@ func _hash_command(args: PackedStringArray) -> void:
 	quit(0)
 
 func _run_command(args: PackedStringArray) -> void:
+	var taken := Hd2d.take_look(args)
+	if not bool(taken.get("ok", false)):
+		print("error: %s" % str(taken.get("error", "bad look")))
+		quit(1)
+		return
+	args = taken["args"]
 	var parsed := _parse_run_args(args)
 	if not bool(parsed.get("ok", false)):
 		print("error: %s" % str(parsed.get("error", "bad arguments")))
@@ -439,6 +446,7 @@ func _print_help() -> void:
 	print("  ffc.sh replay --replay match.json --out states.jsonl")
 	print("  ffc.sh ui --press first-launch-modern --press story --out ui.json")
 	print("  ffc.sh hash states.jsonl")
+	print("  --look 0|a|b|c selects the flat picture or a diorama. Default is 0.")
 	print("Buttons in an input sample: move_left, move_right, move_up, move_down, jump,")
 	print("attack_light, attack_heavy, attack_special, throw, dash, block, pause, restart.")
 	print("A sample replaces that side's held buttons. Omit a side to leave it unchanged.")
