@@ -57,7 +57,7 @@ Pages and video:
 - [Square Enix introduction video, March edition](https://www.youtube.com/watch?v=kPor-DgiHBE), on the Square Enix YouTube channel. Watch this for the picture.
 - [Square Enix Web CM Vol.1](https://www.youtube.com/watch?v=tuZg9WaXtDE), on the same channel.
 - [Digital Foundry, 18 July 2018, Thomas Morgan](https://www.digitalfoundry.net/articles/digitalfoundry-2018-octopath-traveler-a-hybrid-game-for-a-hybrid-console). This is the write-up on how the picture is built.
-- [Unreal Engine spotlight on the HD-2D art](https://www.unrealengine.com/en-US/spotlights/octopath-traveler-s-hd-2d-art-style-and-story-make-for-a-jrpg-dream-come-true). Acquire and Square Enix describe the production choices summarized below.
+- [Unreal Engine spotlight on the HD-2D art](https://www.unrealengine.com/en-US/spotlights/octopath-traveler-s-hd-2d-art-style-and-story-make-for-a-jrpg-dream-come-true). Acquire and Square Enix describe the production choices summarized below. A scripted request to this URL gets HTTP 403 from Cloudflare. The Takahashi and Iizuka sentences below are from search excerpts of that same URL.
 - [A community camera estimate on the Unreal Engine forums](https://forums.unrealengine.com/t/paper-2d-sprites-top-down-camera-how-to-get-shadows-consistent-with-3d-space-4-26/505228). FeatherBrain wrote this on 9 March 2022. The angle below is that post's estimate. Acquire did not publish the number.
 
 Take the sprite on a 3D stage, the shallow focus, and a point light that casts a shadow during a hit.
@@ -129,7 +129,9 @@ PROVISIONAL. Hold simulation delay to one physics tick. At 60 ticks per second, 
 
 The input buffers are a different number. `scripts/Player.gd` sets `DIRECTION_INPUT_BUFFER_SECONDS` to 0.10 and `INPUT_BUFFER_SECONDS` to 0.22. Those windows keep a press that arrives a little before the fighter can act. The latency bar is the wait before the game applies a press.
 
-Guess. The full path from key to pixels on a monitor is longer than one physics tick, because the frame still has to draw and the display still has to show it. There is no number for that path yet. The next prototype should measure it. Until then, the bar to hold is one physics tick. A change that adds another tick of delay fails the bar.
+Guess. The full path from key to pixels on a monitor is longer than one physics tick, because the frame still has to draw and the display still has to show it. There is no number for that path yet. The next prototype should measure it. Until then, the bar to hold is one physics tick on ticks where hit-stop is off. A change that adds another tick of delay on those ticks fails the bar.
+
+Hit-stop is a separate bar. While `hitstop_active` is true, `scripts/Player.gd` returns from `_physics_process` before it updates input buffers or reads an attack. The freeze lasts 48 to 172 milliseconds, which is several ticks at 60 Hz. Those ticks do not apply a direction or an attack.
 
 ### Hit-stop
 
@@ -139,7 +141,7 @@ From the project. `scripts/Match.gd` sets `HITSTOP_BY_TIER` to 0.055 seconds for
 
 At 60 ticks per second, 0.0473 seconds is under 3 ticks, and 0.172 seconds is a little over 10. That conversion is arithmetic. The code stores seconds.
 
-[SmashWiki's hitlag page](https://www.ssbwiki.com/Hitlag) is a community record of the Smash formulas. It is not a Nintendo document in this repo. The page says Ultimate hitlag for a plain hit includes a `+ 6` frame term and caps at 30 frames. Thirty frames at 60 Hz is 0.5 seconds. Our band stays under 0.172 seconds because controls have to answer on the next tick. A prototype still has to show whether 0.055 seconds of freeze is enough weight for a light hit. That choice has no log row yet.
+[SmashWiki's hitlag page](https://www.ssbwiki.com/Hitlag) is a community record of the Smash formulas. It is not a Nintendo document in this repo. The page says Ultimate hitlag for a plain hit includes a `+ 6` frame term and caps at 30 frames. Thirty frames at 60 Hz is 0.5 seconds. The top of our band is 0.172 seconds. A prototype still has to show whether 0.055 seconds of freeze is enough weight for a light hit. That choice has no log row yet.
 
 ### Round length
 
@@ -153,11 +155,11 @@ Guess. Once stock rules are the match, two equal bots on 3 stocks should finish 
 
 ### KO rate
 
-PROVISIONAL. For two equal bots with 3 stocks each, the match produces 3 to 5 ring-outs. It ends because one fighter reaches 0 stocks. It does not end in the first 30 seconds, and it does not hit the timer with zero ring-outs.
+PROVISIONAL. For two equal bots with 3 stocks each, the match produces 3 to 5 stock losses. It ends because one fighter reaches 0 stocks. It does not end in the first 30 seconds, and it does not hit the timer with zero stock losses.
 
 Guess. This repo has no headless bot-vs-bot runs. The driver that would produce them is a separate change. Do not cite these counts as measured.
 
-The 3 is from the project. The loser must be rung out 3 times when `stock_count` is 3. The extra 0 to 2 ring-outs are a guess about a close game, in which the winner also loses stocks. Three ring-outs means the winner lost none. Five means the winner lost two. More than 5, or a match over in under 30 seconds, misses the guess. The 30 second floor is a guess too. When verify-ffc can run a batch, a passing batch lands inside this band, and a logged pick can replace the band with the measured rate.
+The 3 is from the project. `stock_count` defaults to 3, so the loser must lose 3 stocks. A stock loss has two paths. Under the stock rule, `_on_player_defeated` in `scripts/Match.gd` calls `_lose_stock` when `current_hp` hits 0. The blast-zone path is separate, in `_update_stock_ring_out_state`. After a non-final stock loss, `_respawn_player_by_key` calls `force_respawn`, which sets `current_hp` back to `MAX_HP`. Three HP defeats can end the match with the ring-out count still at 0. The extra 0 to 2 stock losses are a guess about a close game, in which the winner also loses stocks. Three losses means the winner lost none. Five means the winner lost two. The 30 second floor is a guess too. When verify-ffc can run a batch, count stock losses. A logged pick can later require those losses to be blast-zone ring-outs, which is the approved launch-off-stage goal.
 
 ### Camera, focus, and light
 
@@ -195,7 +197,7 @@ From the project, and from the 4.2 engine. The [Godot 4.2 Camera2D page](https:/
 
 `CAMERA_PUNCH_BY_TIER` subtracts 0.020 to 0.060 from zoom for 0.080 to 0.170 seconds. That subtraction widens the view. The current hit punch is a short zoom-out. `scripts/Match.gd` clamps zoom between `camera_zoom_min_limit` and the larger of the near and far zooms. On the main scene that clamp is 1.08 to 1.42. Adding zoom past 1.42 is cut back to 1.42, so a zoom-in also has to raise the upper clamp.
 
-`CAMERA_SHAKE_BY_ATTACK` offsets the camera by up to 3.0 scene units on a light hit and 7.4 on a special, for 0.09 to 0.16 seconds. A heavy hit uses 6.6 units for 0.14 seconds. The floor in `scenes/Arena.tscn` is 760 units wide, so 6.6 is under 1 percent of that width.
+`CAMERA_SHAKE_BY_ATTACK` offsets the camera by 3.0 scene units on a light hit and 7.4 on a special, for 0.09 to 0.16 seconds. A heavy hit uses 6.6 units for 0.14 seconds. The floor in `scenes/Arena.tscn` is 760 units wide, so 6.6 is under 1 percent of that width. Those are the base table values. A counter multiplies shake strength by `COUNTER_SHAKE_MULTIPLIER`, which is 1.42, and multiplies the duration by 1.15. A counter heavy shake is 9.372 units for 0.161 seconds. A counter special shake is 10.508 units for 0.184 seconds. `signature` and `ultimate` are absent from that table, so those hits use the fallback of 2.8 units for 0.08 seconds. A block punch multiplies duration by 0.92 and the zoom amount by `CAMERA_PUNCH_BLOCK_SCALE`, which is 0.64. The light block punch subtracts 0.0128 for 0.0736 seconds. A counter punch multiplies the zoom amount by `COUNTER_CAMERA_PUNCH_SCALE`, which is 1.14, so an ultimate counter subtracts 0.0684. The base punch span of 0.020 to 0.060 is the unscaled hit.
 
 Guess. Three KO zoom-ins, each added on top of the resting zoom, with the upper clamp raised by the same amount. Keep at least the heavy shake of 6.6 units for 0.14 seconds.
 
