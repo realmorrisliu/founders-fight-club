@@ -18,7 +18,7 @@ Story mode starts a stock match whose second fighter is a CPU rival. Winning or 
 Preconditions:
 
 - `bash scripts/ffc.sh doctor` prints `ok=1`.
-- Use a fresh `ffc.sh` process so the first-launch overlay is up.
+- Use a fresh `ffc.sh` process without an absolute `XDG_DATA_HOME` so the first-launch overlay is up.
 
 - **Open story.** Choose Modern, then Story. Run `bash scripts/ffc.sh ui --press first-launch-modern --press story --out /tmp/ffc-story-ui.json`. `steps` shows `Story (Auto Rival)` before the press. After the click, `scene` is `Story`, `match_mode` is `story`, `p2_is_ai` is true, `p1_is_ai` is false, `stocks` is 3, and `timer_enabled` is true.
 - **Watch the rival.** Run `bash scripts/ffc.sh run --seed 8 --mode story --frames 180 --p1 elon_mvsk --out /tmp/ffc-story.jsonl`. P2 `character` is `mark_zuck` when P1 is `elon_mvsk` (the first rival that is not P1). P2 `is_ai` is true. P2 `x` changes toward P1 and some frames have `state` `attack` or `dash`.

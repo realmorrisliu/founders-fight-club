@@ -6,7 +6,8 @@ This directory is the maintained source for verifying player-facing behavior. Re
 
 - Run from the repo root.
 - `bash scripts/ffc.sh doctor` prints `godot=4.5.1` and `ok=1`.
-- Each `ffc.sh` process gets a new `HOME` under `.ffc-home/`. A fresh profile shows the first-launch control overlay and disables Local VS, Story, and Training until Modern or Classic is chosen.
+- Each `ffc.sh` process gets a new `HOME` under `.ffc-home/`. That profile is fresh when `XDG_DATA_HOME` is unset or is not an absolute path. Godot keeps the control preset at `user://settings.cfg`. An absolute `XDG_DATA_HOME` keeps that preset across homes. A fresh profile shows the first-launch control overlay and disables Local VS, Story (Auto Rival), and Training Mode until Modern or Classic is chosen.
+- Button text quoted in the feature files is the English copy in `i18n/en.tres`. Locales `zh`, `zh_CN`, and `zh_TW` use `i18n/zh.tres`. `scripts/Menu.gd` leaves a locale that begins with `en` or `zh` unchanged. A name such as `zho` still shows the English source strings.
 - Pass `--out` and `--screenshot-dir` outside `.ffc-home/`. Cleanup deletes the home and leaves those files.
 - The only stage id is `grand_arena`.
 

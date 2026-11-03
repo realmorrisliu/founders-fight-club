@@ -17,7 +17,7 @@ From the repo root:
 bash scripts/ffc.sh doctor
 ```
 
-Ready means stdout contains `godot=4.5.1` and `ok=1`. The command downloads the pinned Godot into `.godot-bin/` when it is missing. There is no port and no login. A fresh `HOME` has no saved control preset, so the menu opens on the first-launch control overlay.
+Ready means stdout contains `godot=4.5.1` and `ok=1`. The command downloads the pinned Godot into `.godot-bin/` when it is missing. There is no port and no login. A fresh `HOME` has no saved control preset when `XDG_DATA_HOME` is unset or is not an absolute path, so the menu opens on the first-launch control overlay. Godot stores that preset at `user://settings.cfg`. An absolute `XDG_DATA_HOME` wins over the disposable `HOME`. After one command saves the preset there, the next command skips the overlay.
 
 `just ffc` is the same entry. Example: `just ffc doctor`.
 
