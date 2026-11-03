@@ -25,8 +25,6 @@ signal loadout_item_evolved(
 	elapsed_seconds: float
 )
 
-const RULESET_DUEL := "duel"
-const RULESET_PLATFORM := "platform"
 const MAX_HP := 100
 const MOVE_SPEED := 220.0
 const JUMP_VELOCITY := -380.0
@@ -46,7 +44,7 @@ const TECH_SLIDE_DURATION := 0.12
 const TECH_SLIDE_SPEED := 180.0
 const WAKE_INVULN_SECONDS := 0.18
 const RESPAWN_INVULN_SECONDS := 0.72
-const THROW_TECH_DUEL_BUFFER_SECONDS := 0.08
+const THROW_TECH_BUFFER_SECONDS := 0.08
 const THROW_TECH_ASSIST_BUFFER_SECONDS := 0.03
 const THROW_TECH_PUSHBACK := 112.0
 const THROW_TECH_AI_CHANCE := 0.20
@@ -86,19 +84,6 @@ const SPOT_DODGE_INVULN_SECONDS := 0.13
 const ROLL_DODGE_DURATION := 0.24
 const ROLL_DODGE_INVULN_SECONDS := 0.15
 const ROLL_DODGE_SPEED := 255.0
-const DUEL_DODGE_COOLDOWN_SECONDS := 0.38
-const DUEL_SPOT_DODGE_DURATION := 0.16
-const DUEL_SPOT_DODGE_INVULN_SECONDS := 0.09
-const DUEL_ROLL_DODGE_DURATION := 0.20
-const DUEL_ROLL_DODGE_INVULN_SECONDS := 0.10
-const DUEL_ROLL_DODGE_SPEED := 220.0
-const DUEL_AIR_DODGE_DURATION := 0.18
-const DUEL_AIR_DODGE_INVULN_SECONDS := 0.10
-const DUEL_AIR_DODGE_SPEED := 180.0
-const DUEL_AIR_DODGE_FALL_SPEED := 52.0
-const DUEL_AIR_DODGE_END_LAG_SECONDS := 0.28
-const DUEL_THROW_WHIFF_RECOVERY_SECONDS := 0.32
-const DUEL_THROW_TECH_RECOVERY_SECONDS := 0.28
 const AIR_DODGE_DURATION := 0.24
 const AIR_DODGE_INVULN_SECONDS := 0.16
 const AIR_DODGE_SPEED := 220.0
@@ -645,7 +630,6 @@ var dodge_direction := 1
 var air_dodge_end_lag_time := 0.0
 var air_dodge_available := true
 var air_jumps_remaining := MAX_AIR_JUMPS
-var ruleset_profile := RULESET_PLATFORM
 var control_preset := GameSettingsStore.CONTROL_PRESET_MODERN
 var local_input_prefix := "p1"
 var local_gamepad_device := 0
@@ -695,26 +679,6 @@ func _ready() -> void:
 	air_dodge_end_lag_time = 0.0
 	_update_platform_collision_mask()
 
-func set_ruleset_profile(profile: String) -> void:
-	var normalized := str(profile).strip_edges().to_lower()
-	if normalized != RULESET_DUEL and normalized != RULESET_PLATFORM:
-		normalized = RULESET_DUEL
-	if ruleset_profile == normalized:
-		return
-	ruleset_profile = normalized
-	if _uses_duel_ruleset():
-		_clear_platform_ruleset_state()
-	shield_meter = SHIELD_MAX
-	shield_regen_delay = 0.0
-	shield_break_time = 0.0
-	shield_broken = false
-	_reset_air_mobility_resources()
-	_update_platform_collision_mask()
-	_refresh_ai_style_profile()
-
-func _uses_duel_ruleset() -> bool:
-	return ruleset_profile == RULESET_DUEL
-
 func _uses_guard_meter() -> bool:
 	return true
 
@@ -725,42 +689,23 @@ func _allows_air_dodge() -> bool:
 	return true
 
 func _allows_ledge_actions() -> bool:
-	return not _uses_duel_ruleset()
+	return true
 
 func _allows_platform_drop_through() -> bool:
-	return not _uses_duel_ruleset()
+	return true
 
 func _allows_air_jumps() -> bool:
-	return not _uses_duel_ruleset()
+	return true
 
 func _uses_directional_influence() -> bool:
 	return true
 
 func _get_initial_air_jump_count() -> int:
-	return MAX_AIR_JUMPS if _allows_air_jumps() else 0
+	return MAX_AIR_JUMPS
 
 func _reset_air_mobility_resources() -> void:
 	air_dodge_available = _allows_air_dodge()
 	air_jumps_remaining = _get_initial_air_jump_count()
-
-func _clear_platform_ruleset_state() -> void:
-	if is_ledge_hanging:
-		_end_ledge_hang()
-	else:
-		_release_occupied_ledge()
-	is_ledge_hanging = false
-	ledge_side = 0
-	ledge_hold_time = 0.0
-	ledge_regrab_lock_time = 0.0
-	dodge_state = ""
-	dodge_time = 0.0
-	dodge_cooldown_time = 0.0
-	air_dodge_end_lag_time = 0.0
-	platform_drop_through_time = 0.0
-	shield_break_time = 0.0
-	shield_broken = false
-	shield_regen_delay = 0.0
-	shield_meter = SHIELD_MAX
 
 func _exit_tree() -> void:
 	_release_occupied_ledge()
@@ -1992,22 +1937,6 @@ func _refresh_ai_style_profile() -> void:
 		var overrides := override_value as Dictionary
 		for key in overrides.keys():
 			ai_style_profile[str(key)] = overrides[key]
-	if _uses_duel_ruleset():
-		ai_style_profile["preferred_range"] = maxf(42.0, float(ai_style_profile.get("preferred_range", 56.0)) - 10.0)
-		ai_style_profile["chase_range"] = maxf(
-			float(ai_style_profile.get("preferred_range", 56.0)) + 20.0,
-			float(ai_style_profile.get("chase_range", 108.0)) - 12.0
-		)
-		ai_style_profile["retreat_range"] = maxf(12.0, float(ai_style_profile.get("retreat_range", 20.0)) - 4.0)
-		ai_style_profile["retreat_chance"] = clampf(float(ai_style_profile.get("retreat_chance", 0.24)) * 0.65, 0.08, 0.28)
-		ai_style_profile["block_chance"] = clampf(float(ai_style_profile.get("block_chance", 0.35)) * 0.82, 0.16, 0.34)
-		ai_style_profile["block_hold_time"] = clampf(float(ai_style_profile.get("block_hold_time", 0.18)) - 0.03, 0.10, 0.22)
-		ai_style_profile["signature_bias"] = clampf(float(ai_style_profile.get("signature_bias", 1.0)) * 0.90, 0.70, 1.35)
-		ai_style_profile["special_bias"] = clampf(float(ai_style_profile.get("special_bias", 1.0)) * 0.92, 0.76, 1.24)
-		ai_style_profile["heavy_bias"] = clampf(float(ai_style_profile.get("heavy_bias", 1.0)) * 1.10, 0.80, 1.36)
-		ai_style_profile["throw_bias"] = clampf(float(ai_style_profile.get("throw_bias", 1.0)) * 1.18, 0.72, 1.34)
-		ai_style_profile["dash_in_chance"] = clampf(float(ai_style_profile.get("dash_in_chance", 0.08)) + 0.04, 0.06, 0.24)
-		ai_style_profile["combo_pressure"] = clampf(float(ai_style_profile.get("combo_pressure", 0.52)) + 0.06, 0.42, 0.82)
 
 func _get_ai_profile_number(key: String, fallback: float) -> float:
 	return float(ai_style_profile.get(key, fallback))
@@ -2025,43 +1954,40 @@ func _get_ai_throw_tech_chance() -> float:
 	return clampf(derived, 0.10, 0.30)
 
 func _get_dodge_cooldown_seconds() -> float:
-	return DUEL_DODGE_COOLDOWN_SECONDS if _uses_duel_ruleset() else DODGE_COOLDOWN_SECONDS
+	return DODGE_COOLDOWN_SECONDS
 
 func _get_spot_dodge_duration() -> float:
-	return DUEL_SPOT_DODGE_DURATION if _uses_duel_ruleset() else SPOT_DODGE_DURATION
+	return SPOT_DODGE_DURATION
 
 func _get_spot_dodge_invuln_seconds() -> float:
-	return DUEL_SPOT_DODGE_INVULN_SECONDS if _uses_duel_ruleset() else SPOT_DODGE_INVULN_SECONDS
+	return SPOT_DODGE_INVULN_SECONDS
 
 func _get_roll_dodge_duration() -> float:
-	return DUEL_ROLL_DODGE_DURATION if _uses_duel_ruleset() else ROLL_DODGE_DURATION
+	return ROLL_DODGE_DURATION
 
 func _get_roll_dodge_invuln_seconds() -> float:
-	return DUEL_ROLL_DODGE_INVULN_SECONDS if _uses_duel_ruleset() else ROLL_DODGE_INVULN_SECONDS
+	return ROLL_DODGE_INVULN_SECONDS
 
 func _get_roll_dodge_speed() -> float:
-	return DUEL_ROLL_DODGE_SPEED if _uses_duel_ruleset() else ROLL_DODGE_SPEED
+	return ROLL_DODGE_SPEED
 
 func _get_air_dodge_duration() -> float:
-	return DUEL_AIR_DODGE_DURATION if _uses_duel_ruleset() else AIR_DODGE_DURATION
+	return AIR_DODGE_DURATION
 
 func _get_air_dodge_invuln_seconds() -> float:
-	return DUEL_AIR_DODGE_INVULN_SECONDS if _uses_duel_ruleset() else AIR_DODGE_INVULN_SECONDS
+	return AIR_DODGE_INVULN_SECONDS
 
 func _get_air_dodge_speed() -> float:
-	return DUEL_AIR_DODGE_SPEED if _uses_duel_ruleset() else AIR_DODGE_SPEED
+	return AIR_DODGE_SPEED
 
 func _get_air_dodge_fall_speed() -> float:
-	return DUEL_AIR_DODGE_FALL_SPEED if _uses_duel_ruleset() else AIR_DODGE_FALL_SPEED
+	return AIR_DODGE_FALL_SPEED
 
 func _get_air_dodge_end_lag_seconds() -> float:
-	return DUEL_AIR_DODGE_END_LAG_SECONDS if _uses_duel_ruleset() else AIR_DODGE_END_LAG_SECONDS
+	return AIR_DODGE_END_LAG_SECONDS
 
-func _resolve_attack_block_recovery_seconds(kind: String, attack_data: Dictionary) -> float:
-	var recovery := float(attack_data.get("block_recovery", attack_data.get("recovery", 0.20)))
-	if kind == "throw" and _uses_duel_ruleset():
-		return maxf(recovery, DUEL_THROW_TECH_RECOVERY_SECONDS)
-	return recovery
+func _resolve_attack_block_recovery_seconds(_kind: String, attack_data: Dictionary) -> float:
+	return float(attack_data.get("block_recovery", attack_data.get("recovery", 0.20)))
 
 func _update_attack(delta: float) -> void:
 	if attack_state == "":
@@ -2087,8 +2013,6 @@ func _update_attack(delta: float) -> void:
 		attack_time = 0.0
 		_set_hitbox_active(false)
 		if attack_kind == "throw" and not attack_confirmed_hit and not attack_confirmed_block:
-			if _uses_duel_ruleset():
-				attack_recovery_override = maxf(attack_recovery_duration, DUEL_THROW_WHIFF_RECOVERY_SECONDS)
 			_record_training_exchange("throw_whiff", attack_kind, data, _build_training_neutral_hit_result(), false, 0, 0, 0)
 			throw_whiffed.emit(self)
 	elif attack_phase == "recovery" and attack_time >= recovery_duration:
@@ -3781,7 +3705,7 @@ func _resolve_throw_tech_buffer_seconds(input_source: String) -> float:
 		"throw":
 			if _is_throw_tech_disabled_in_training():
 				return 0.0
-			return THROW_TECH_DUEL_BUFFER_SECONDS
+			return THROW_TECH_BUFFER_SECONDS
 		"light", "heavy":
 			if _allows_throw_tech_button_assist():
 				return THROW_TECH_ASSIST_BUFFER_SECONDS
@@ -3793,7 +3717,7 @@ func _prime_throw_tech_buffer(input_source: String) -> void:
 		return
 	throw_tech_buffer_time = buffer_seconds
 	throw_tech_input_source = input_source
-	throw_tech_window_type = "assist" if input_source in ["light", "heavy"] else "duel"
+	throw_tech_window_type = "assist" if input_source in ["light", "heavy"] else "throw"
 
 func _update_throw_tech_buffer(delta: float) -> void:
 	throw_tech_buffer_time = maxf(0.0, throw_tech_buffer_time - delta)

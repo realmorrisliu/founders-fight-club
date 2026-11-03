@@ -4,12 +4,14 @@
 Verify the implementation of MVP features: Dash, Hitstun, Restart, Pause, Camera, and Global Hitstop.
 
 ## 2. Prerequisites
-- Godot 4.2+ installed.
+- Godot 4.5.1, the version pinned in `GODOT_VERSION`.
+- `bash scripts/test.sh full` downloads that official build into `.godot-bin/` when it is missing.
 - Gamepad connected (optional, verifying keyboard inputs first).
 
 ## 2.1 Automated Regression (Required)
-- Command: `just test`
-- Entrypoint: `tests/TestRunner.gd` (headless)
+- Command: `bash scripts/test.sh full`
+- Smoke subset: `bash scripts/test.sh` (or `just test`)
+- Entrypoint: `tests/TestRunner.gd` (headless, Godot 4.5.1)
 - Scope:
 	- Scene boot smoke checks (`Menu`, `Main`, `Training`)
 	- Character attack-table structural validation
@@ -24,8 +26,8 @@ Verify the implementation of MVP features: Dash, Hitstun, Restart, Pause, Camera
 	- Every pull request
 	- Every push to `main`
 - Gate:
-	- Runs `scripts/test.sh smoke` in a clean environment
-	- Build is considered failed if any smoke assertion or script/runtime parse check fails
+	- Runs `bash scripts/test.sh full` on the pinned Godot 4.5.1 binary
+	- Build is considered failed if any assertion or script/runtime parse check fails
 
 ## 3. Test Cases
 
@@ -41,17 +43,19 @@ Verify the implementation of MVP features: Dash, Hitstun, Restart, Pause, Camera
     - Target (AI) stops moving for a short duration (0.18s) -> **Hitstun**.
 - **Verification**: Hitting feels "crunchy" and not floaty.
 
-### TC-03: Camera & Bounds
-- **Input**: Move P1 to the far left/right.
-- **Expected**: 
-    - Camera follows the midpoint of P1 and P2.
-    - Player stops at invisible walls (cannot walk off platform).
-- **Verification**: Try to walk off the edge; camera smoothness.
+### TC-03: Camera & Blast Zones
+- **Input**: Move P1 toward a stage edge, then off the stage.
+- **Expected**:
+    - Camera follows the midpoint of P1 and P2 and can widen vertically.
+    - There are no side walls. Leaving a blast zone spends a stock and respawns the fighter.
+    - Side platforms stay enabled.
+- **Verification**: Walk off the edge and confirm a stock is spent instead of a wall stop.
 
 ### TC-04: Match Flow & Restart
-- **Input**: Defeat P2 or wait for timer.
-- **Expected**: 
-    - "Player 1 Wins" (or result) appears.
+- **Input**: Ring out the opponent until their stocks are gone, or wait for the timer.
+- **Expected**:
+    - The HUD shows stocks and damage percent, not an HP bar.
+    - "Player 1 Wins" (or result) appears when a side has no stocks left, or when the timer expires.
     - "Press R to Restart" message appears.
     - Press `R` -> Match reloads instantly.
 - **Verification**: Complete a full loop.

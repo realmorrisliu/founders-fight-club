@@ -1,5 +1,7 @@
 # Smash Alignment Plan (2026-03-04)
 
+> **Superseded as a migration plan.** The game is Smash-style only. Percent damage, knockback scaling, stocks, ring-outs, and platforms are the ruleset. There is no HP-bar or duel ruleset to migrate toward or away from. The audit below describes the March 2026 prototype and is kept as history. Current run and test instructions are in the README and `AGENTS.md`.
+
 ## Goal
 Move Founders Fight Club from a traditional HP-based 2D fighter prototype toward a platform-fighter experience inspired by Super Smash Bros:
 - Easy onboarding (30-second understanding)

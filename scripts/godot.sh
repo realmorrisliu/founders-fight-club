@@ -12,38 +12,16 @@ Usage:
   scripts/godot.sh run-scene-attached <scene_path>
 
 Env:
-  GODOT_BIN=/path/to/godot  # optional override
+  GODOT_BIN=/path/to/godot  # optional override; must match GODOT_VERSION
   GODOT_ATTACH=1            # optional: legacy override to keep Godot attached
 EOF
 }
 
-resolve_godot_bin() {
-	if [ -n "${GODOT_BIN:-}" ]; then
-		printf '%s\n' "$GODOT_BIN"
-		return 0
-	fi
-
-	if command -v godot4 >/dev/null 2>&1; then
-		command -v godot4
-		return 0
-	fi
-
-	if command -v godot >/dev/null 2>&1; then
-		command -v godot
-		return 0
-	fi
-
-	if [ -x "/Applications/Godot.app/Contents/MacOS/Godot" ]; then
-		printf '%s\n' "/Applications/Godot.app/Contents/MacOS/Godot"
-		return 0
-	fi
-
-	echo "error: Godot executable not found. Set GODOT_BIN=/path/to/godot" >&2
-	return 1
-}
+# shellcheck source=scripts/godot_bin.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/godot_bin.sh"
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-godot_bin="$(resolve_godot_bin)"
+godot_bin="$(resolve_godot_bin "$repo_root")"
 cmd="${1:-}"
 
 should_detach_gui() {

@@ -43,9 +43,6 @@ signal round_tuning_option_selected(option_id: String)
 signal onboarding_skip_requested
 signal onboarding_replay_requested
 
-const MATCH_UI_MODE_HP_TIMER := "hp_timer"
-const MATCH_UI_MODE_STOCK := "stock"
-
 @onready var timer_label := $TimerLabel
 @onready var timer_chip := $TimerChip
 @onready var p1_hp_label := $P1HpLabel
@@ -120,7 +117,6 @@ var cached_p2_hp := 100
 var cached_max_hp := 100
 var cached_p1_stocks := 0
 var cached_p2_stocks := 0
-var match_ui_mode := MATCH_UI_MODE_HP_TIMER
 var cached_p1_combat_state := {}
 var cached_p2_combat_state := {}
 var cached_p1_character_profile := {}
@@ -139,7 +135,7 @@ var training_options := {
 	"enabled": true,
 	"dummy_mode": "stand",
 	"show_detail": false,
-	"ruleset_profile": "duel",
+	"ruleset_profile": "platform",
 	"drill_id": "duel_core",
 	"throw_tech_assist_mode": "throw_only"
 }
@@ -510,13 +506,11 @@ func set_training_options(options: Dictionary) -> void:
 		dummy_mode = "stand"
 	training_options["dummy_mode"] = dummy_mode
 	training_options["show_detail"] = bool(options.get("show_detail", training_options.get("show_detail", false)))
-	var ruleset_profile := str(options.get("ruleset_profile", training_options.get("ruleset_profile", "duel"))).strip_edges().to_lower()
 	var drill_id := _normalize_training_drill_id(
-		str(options.get("drill_id", training_options.get("drill_id", ""))),
-		ruleset_profile
+		str(options.get("drill_id", training_options.get("drill_id", "")))
 	)
 	training_options["drill_id"] = drill_id
-	training_options["ruleset_profile"] = _resolve_ruleset_for_training_drill(drill_id)
+	training_options["ruleset_profile"] = "platform"
 	var throw_tech_assist_mode := str(
 		options.get("throw_tech_assist_mode", training_options.get("throw_tech_assist_mode", "throw_only"))
 	).strip_edges().to_lower()
@@ -558,36 +552,22 @@ func set_timer_visible(is_visible: bool) -> void:
 func set_health(p1_hp: int, p2_hp: int) -> void:
 	cached_p1_hp = p1_hp
 	cached_p2_hp = p2_hp
-	var p1_hp_text := _format_stat(tr("HUD_P1_HP"), "P1 HP: %d", p1_hp)
-	var p2_hp_text := _format_stat(tr("HUD_P2_HP"), "P2 HP: %d", p2_hp)
-	if match_ui_mode == MATCH_UI_MODE_STOCK:
-		var p1_stock_text := _format_stat(tr("HUD_P1_STOCK"), "Stock: %d", cached_p1_stocks)
-		var p2_stock_text := _format_stat(tr("HUD_P2_STOCK"), "Stock: %d", cached_p2_stocks)
-		var p1_damage_percent := clampi(cached_max_hp - p1_hp, 0, 999)
-		var p2_damage_percent := clampi(cached_max_hp - p2_hp, 0, 999)
-		var p1_damage_text := _format_stat(tr("HUD_P1_DAMAGE"), "P1 DMG: %d%%", p1_damage_percent)
-		var p2_damage_text := _format_stat(tr("HUD_P2_DAMAGE"), "P2 DMG: %d%%", p2_damage_percent)
-		p1_hp_label.text = "%s | %s" % [p1_stock_text, p1_damage_text]
-		p2_hp_label.text = "%s | %s" % [p2_stock_text, p2_damage_text]
-	else:
-		p1_hp_label.text = p1_hp_text
-		p2_hp_label.text = p2_hp_text
+	var p1_stock_text := _format_stat(tr("HUD_P1_STOCK"), "Stock: %d", cached_p1_stocks)
+	var p2_stock_text := _format_stat(tr("HUD_P2_STOCK"), "Stock: %d", cached_p2_stocks)
+	var p1_damage_percent := clampi(cached_max_hp - p1_hp, 0, 999)
+	var p2_damage_percent := clampi(cached_max_hp - p2_hp, 0, 999)
+	var p1_damage_text := _format_stat(tr("HUD_P1_DAMAGE"), "P1 DMG: %d%%", p1_damage_percent)
+	var p2_damage_text := _format_stat(tr("HUD_P2_DAMAGE"), "P2 DMG: %d%%", p2_damage_percent)
+	p1_hp_label.text = "%s | %s" % [p1_stock_text, p1_damage_text]
+	p2_hp_label.text = "%s | %s" % [p2_stock_text, p2_damage_text]
 	if p1_hp_bar:
-		p1_hp_bar.max_value = cached_max_hp
-		p1_hp_bar.value = clampf(float(p1_hp), 0.0, float(cached_max_hp))
-		p1_hp_bar.visible = match_ui_mode != MATCH_UI_MODE_STOCK
+		p1_hp_bar.visible = false
 	if p2_hp_bar:
-		p2_hp_bar.max_value = cached_max_hp
-		p2_hp_bar.value = clampf(float(p2_hp), 0.0, float(cached_max_hp))
-		p2_hp_bar.visible = match_ui_mode != MATCH_UI_MODE_STOCK
+		p2_hp_bar.visible = false
 
 func set_stocks(p1_stocks: int, p2_stocks: int) -> void:
 	cached_p1_stocks = maxi(0, p1_stocks)
 	cached_p2_stocks = maxi(0, p2_stocks)
-	set_health(cached_p1_hp, cached_p2_hp)
-
-func set_match_ui_mode(mode: String) -> void:
-	match_ui_mode = mode if mode in [MATCH_UI_MODE_HP_TIMER, MATCH_UI_MODE_STOCK] else MATCH_UI_MODE_HP_TIMER
 	set_health(cached_p1_hp, cached_p2_hp)
 
 func set_result(result_text: String) -> void:
@@ -1039,7 +1019,7 @@ func _should_surface_training_drill_metrics() -> bool:
 		str(cached_training_drill_state.get("drill_id", "")),
 		str(cached_training_drill_state.get("ruleset_profile", "duel"))
 	)
-	return drill_id != "duel_core" and str(cached_training_drill_state.get("ruleset_profile", "duel")) == "platform"
+	return drill_id != "duel_core"
 
 func _get_training_drill_metrics() -> Dictionary:
 	var metrics_value: Variant = cached_training_drill_state.get("metrics", {})
@@ -1355,19 +1335,14 @@ func _resolve_throw_tech_source_label(source: String) -> String:
 		_:
 			return tr("HUD_TRAINING_MOVE_THROW")
 
-func _resolve_training_ruleset_label(profile: String) -> String:
-	if str(profile).strip_edges().to_lower() == "platform":
-		return _tr_or_fallback("HUD_TRAINING_RULESET_PLATFORM", "Air & Edge")
-	return _tr_or_fallback("HUD_TRAINING_RULESET_DUEL", "Duel Lab")
-
-func _normalize_training_drill_id(drill_id: String, ruleset_profile: String) -> String:
+func _normalize_training_drill_id(drill_id: String, _ruleset_profile: String = "") -> String:
 	var normalized := str(drill_id).strip_edges().to_lower()
 	if normalized in ["duel_core", "recovery_route", "ledge_escape", "di_survival"]:
 		return normalized
-	return "recovery_route" if str(ruleset_profile).strip_edges().to_lower() == "platform" else "duel_core"
+	return "duel_core"
 
-func _resolve_ruleset_for_training_drill(drill_id: String) -> String:
-	return "platform" if _normalize_training_drill_id(drill_id, "duel") in ["recovery_route", "ledge_escape", "di_survival"] else "duel"
+func _resolve_ruleset_for_training_drill(_drill_id: String) -> String:
+	return "platform"
 
 func _cycle_training_drill_id(drill_id: String) -> String:
 	match _normalize_training_drill_id(drill_id, "duel"):
@@ -1389,7 +1364,7 @@ func _resolve_training_drill_label(drill_id: String) -> String:
 		"di_survival":
 			return _tr_or_fallback("HUD_TRAINING_DRILL_DI_SURVIVAL", "DI Survival")
 		_:
-			return _tr_or_fallback("HUD_TRAINING_DRILL_DUEL_CORE", "Duel Lab")
+			return _tr_or_fallback("HUD_TRAINING_DRILL_DUEL_CORE", "Free Practice")
 
 func _resolve_training_drill_focus_text(drill_id: String) -> String:
 	match _normalize_training_drill_id(drill_id, str(training_options.get("ruleset_profile", "duel"))):
@@ -1473,7 +1448,6 @@ func _resolve_training_drill_state_summary() -> String:
 func _resolve_training_drill_state_detail() -> String:
 	if cached_training_drill_state.is_empty():
 		return ""
-	var ruleset_label := _resolve_training_ruleset_label(str(cached_training_drill_state.get("ruleset_profile", "duel")))
 	var status := str(cached_training_drill_state.get("rep_status", "idle")).strip_edges().to_lower()
 	var status_label := _tr_or_fallback("HUD_TRAINING_DRILL_STATUS_ACTIVE", "Active")
 	if status == "idle":
@@ -1485,7 +1459,6 @@ func _resolve_training_drill_state_detail() -> String:
 	var reason := _resolve_training_drill_reason_label(_resolve_training_drill_reason_key(cached_training_drill_state))
 	var detail_parts := PackedStringArray([
 		_resolve_training_drill_label(str(cached_training_drill_state.get("drill_id", ""))),
-		ruleset_label,
 		status_label,
 		rep_template % next_rep
 	])
