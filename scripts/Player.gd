@@ -676,30 +676,9 @@ func _ready() -> void:
 	air_dodge_end_lag_time = 0.0
 	_update_platform_collision_mask()
 
-func _allows_ground_defensive_dodge() -> bool:
-	return true
-
-func _allows_air_dodge() -> bool:
-	return true
-
-func _allows_ledge_actions() -> bool:
-	return true
-
-func _allows_platform_drop_through() -> bool:
-	return true
-
-func _allows_air_jumps() -> bool:
-	return true
-
-func _uses_directional_influence() -> bool:
-	return true
-
-func _get_initial_air_jump_count() -> int:
-	return MAX_AIR_JUMPS
-
 func _reset_air_mobility_resources() -> void:
-	air_dodge_available = _allows_air_dodge()
-	air_jumps_remaining = _get_initial_air_jump_count()
+	air_dodge_available = true
+	air_jumps_remaining = MAX_AIR_JUMPS
 
 func _exit_tree() -> void:
 	_release_occupied_ledge()
@@ -887,12 +866,10 @@ func _process_player_input(delta: float) -> void:
 			_buffer_attack(buffered_kind)
 
 func _update_platform_collision_mask() -> void:
-	var enable_platform_layer := _allows_platform_drop_through() and platform_drop_through_time <= 0.0
+	var enable_platform_layer := platform_drop_through_time <= 0.0
 	set_collision_mask_value(PLATFORM_COLLISION_LAYER_BIT, enable_platform_layer)
 
 func _try_start_platform_drop_through() -> bool:
-	if not _allows_platform_drop_through():
-		return false
 	if not _is_action_just_pressed("jump"):
 		return false
 	if not _is_action_pressed("move_down"):
@@ -913,8 +890,6 @@ func _is_on_drop_through_platform() -> bool:
 	return global_position.y < stage_floor_y - PLATFORM_DROP_FLOOR_Y_MARGIN
 
 func _try_enter_ledge_hang() -> void:
-	if not _allows_ledge_actions():
-		return
 	if is_ledge_hanging:
 		return
 	if ledge_regrab_lock_time > 0.0:
@@ -1033,7 +1008,7 @@ func _launch_from_ledge() -> void:
 	velocity.x = -float(side) * LEDGE_JUMP_HORIZONTAL_SPEED * _get_move_speed_multiplier()
 	jump_cut_available = false
 	wake_invuln_time = maxf(wake_invuln_time, 0.10)
-	air_jumps_remaining = _get_initial_air_jump_count()
+	air_jumps_remaining = MAX_AIR_JUMPS
 
 func _roll_getup_from_ledge() -> void:
 	var side := ledge_side
@@ -1050,7 +1025,7 @@ func _attack_getup_from_ledge() -> void:
 	global_position = Vector2(edge_x - float(side) * LEDGE_ATTACK_GETUP_INSET_X, stage_floor_y - 2.0)
 	velocity = Vector2.ZERO
 	coyote_time = COYOTE_TIME_SECONDS
-	air_jumps_remaining = _get_initial_air_jump_count()
+	air_jumps_remaining = MAX_AIR_JUMPS
 	_start_attack("light")
 
 func _drop_from_ledge(apply_horizontal_push: bool) -> void:
@@ -1118,8 +1093,6 @@ func _try_start_defensive_dodge(horizontal_axis: float, vertical_axis: float) ->
 	if not _can_start_dodge():
 		return false
 	if is_on_floor():
-		if not _allows_ground_defensive_dodge():
-			return false
 		var guarding := _is_block_input_pressed() or is_blocking
 		if not guarding:
 			return false
@@ -1155,11 +1128,7 @@ func _can_start_dodge() -> bool:
 	if _is_rooted():
 		return false
 	if is_on_floor():
-		if not _allows_ground_defensive_dodge():
-			return false
 		return dodge_cooldown_time <= 0.0
-	if not _allows_air_dodge():
-		return false
 	return air_dodge_available
 
 func _start_spot_dodge() -> void:
@@ -1195,8 +1164,6 @@ func _start_roll_dodge(direction: int) -> void:
 	_clear_throw_tech_buffer()
 
 func _start_air_dodge(horizontal_axis: float, vertical_axis: float) -> bool:
-	if not _allows_air_dodge():
-		return false
 	if not air_dodge_available:
 		return false
 	air_dodge_available = false
@@ -1384,8 +1351,6 @@ func _can_execute_jump() -> bool:
 		return true
 	if coyote_time > 0.0:
 		return true
-	if not _allows_air_jumps():
-		return false
 	return air_jumps_remaining > 0
 
 func _sync_control_preset() -> void:
@@ -4550,8 +4515,6 @@ func _apply_knockback_growth(base_knockback: Vector2, hp_before_hit: int) -> Vec
 
 func _apply_directional_influence(base_knockback: Vector2, attack_meta: Dictionary) -> Vector2:
 	last_directional_influence_input = Vector2.ZERO
-	if not _uses_directional_influence():
-		return base_knockback
 	if base_knockback.length() < DI_MIN_KNOCKBACK_SPEED:
 		return base_knockback
 	var di_input := _resolve_directional_influence_input(base_knockback, attack_meta)

@@ -1185,9 +1185,6 @@ func _toggle_pause() -> void:
 	if hud and hud.has_method("set_pause_visible"):
 		hud.set_pause_visible(get_tree().paused)
 
-func _resolve_ruleset_for_training_drill(_drill_id: String) -> String:
-	return RULESET_PLATFORM
-
 func _resolve_default_training_drill_id(_profile: String = "") -> String:
 	return TRAINING_DRILL_DUEL_CORE
 
@@ -1199,7 +1196,7 @@ func _normalize_training_drill_id(drill_id: String, _profile: String = "") -> St
 
 func _build_training_drill_state(drill_id: String, patch: Dictionary = {}) -> Dictionary:
 	var resolved_drill_id := _normalize_training_drill_id(drill_id, str(patch.get("ruleset_profile", RULESET_PLATFORM)))
-	var resolved_ruleset := _resolve_ruleset_for_training_drill(resolved_drill_id)
+	var resolved_ruleset := RULESET_PLATFORM
 	var metrics_value: Variant = patch.get("metrics", {})
 	var metrics := _normalize_training_drill_metrics(resolved_drill_id, metrics_value)
 	var affected_players_value: Variant = patch.get("affected_players", [])
@@ -1399,7 +1396,7 @@ func _refresh_training_drill_state(reset_result: bool = false) -> void:
 		str(training_options.get("drill_id", "")),
 		str(training_options.get("ruleset_profile", RULESET_PLATFORM))
 	)
-	var ruleset := _resolve_ruleset_for_training_drill(drill_id)
+	var ruleset := RULESET_PLATFORM
 	training_options["drill_id"] = drill_id
 	training_options["ruleset_profile"] = ruleset
 	var current := training_drill_state if typeof(training_drill_state) == TYPE_DICTIONARY else {}
@@ -1434,7 +1431,7 @@ func _record_training_drill_event(event_type: String, drill_id: String, patch: D
 	var event := {
 		"event_type": str(event_type).strip_edges().to_lower(),
 		"drill_id": resolved_drill_id,
-		"ruleset_profile": _resolve_ruleset_for_training_drill(resolved_drill_id),
+		"ruleset_profile": RULESET_PLATFORM,
 		"match_elapsed_seconds": match_elapsed_seconds,
 		"rep_index": _resolve_next_training_drill_rep_index(resolved_drill_id)
 	}

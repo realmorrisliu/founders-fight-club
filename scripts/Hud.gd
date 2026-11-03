@@ -1303,9 +1303,6 @@ func _normalize_training_drill_id(drill_id: String, _ruleset_profile: String = "
 		return normalized
 	return "duel_core"
 
-func _resolve_ruleset_for_training_drill(_drill_id: String) -> String:
-	return "platform"
-
 func _cycle_training_drill_id(drill_id: String) -> String:
 	match _normalize_training_drill_id(drill_id, "duel"):
 		"duel_core":
@@ -1529,7 +1526,7 @@ func _on_training_mode_pressed() -> void:
 	var current := str(training_options.get("drill_id", "duel_core")).strip_edges().to_lower()
 	var next_drill_id := _cycle_training_drill_id(current)
 	training_options["drill_id"] = next_drill_id
-	training_options["ruleset_profile"] = _resolve_ruleset_for_training_drill(next_drill_id)
+	training_options["ruleset_profile"] = "platform"
 	_refresh_training_panel()
 	training_options_changed.emit(training_options.duplicate(true))
 
