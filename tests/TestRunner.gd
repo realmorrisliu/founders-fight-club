@@ -4315,6 +4315,12 @@ func _test_hud_prototypes_fit_the_viewport() -> void:
 		_assert_true(dialogue != null and dialogue.visible and str(dialogue.get("text")) == "Terms were accepted.", "%s keeps the dialogue bar" % id)
 		var dialogue_rect := _hud_offset_rect(hud_node.get_node_or_null("DialogueLabel"))
 		_assert_true(not dialogue_rect.intersects(card_rect, true), "%s dialogue bar clears the fighter card" % id)
+	var pause_node := hud_node.get_node_or_null("PausePanel")
+	var dialogue_node := hud_node.get_node_or_null("DialogueLabel")
+	_assert_true(
+		pause_node != null and dialogue_node != null and dialogue_node.get_index() > pause_node.get_index(),
+		"dialogue stays in front of the pause panel"
+	)
 	hud_node.call("set_prototype", "cards")
 	hud_node.call("set_prototype", "nope")
 	var still := hud_node.get_node_or_null("PrototypeView/Tag") as Label

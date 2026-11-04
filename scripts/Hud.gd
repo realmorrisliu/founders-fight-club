@@ -312,11 +312,11 @@ func _raise_match_overlays() -> void:
 		"ResultLabel",
 		"CombatCalloutLabel",
 		"HitTypeCalloutLabel",
-		"DialoguePanel",
-		"DialogueLabel",
-		"TrainingPanel",
 		"OnboardingPanel",
-		"PausePanel"
+		"TrainingPanel",
+		"PausePanel",
+		"DialoguePanel",
+		"DialogueLabel"
 	]:
 		var node := get_node_or_null(node_name)
 		if node != null:
