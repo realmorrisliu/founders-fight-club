@@ -1,6 +1,7 @@
 extends RefCounted
 
 const LookB := preload("res://scripts/picture/LookB.gd")
+const HudCorners := preload("res://scripts/hud/HudCorners.gd")
 
 const _LOOK_B_SCRIPT := "res://scripts/picture/LookB.gd"
 const _PICTURE_SCRIPT := "res://scripts/picture/StagePicture.gd"
@@ -18,6 +19,7 @@ static func scan(project_root: String) -> PackedStringArray:
 	if decisions == "":
 		failures.append("missing Look B decisions paragraph")
 	_lock_prose(failures, camera, decisions)
+	_lock_hud(failures, doc)
 	_lock_formula(failures, camera)
 	_lock_project(failures, _read_text(_join(root, "project.godot")))
 	_lock_sources(failures, root)
@@ -110,6 +112,33 @@ static func _lock_prose(failures: PackedStringArray, camera: String, decisions: 
 	_require(failures, camera, "The pick requires Forward+.")
 	if LookB.RENDERER_METHOD != "forward_plus":
 		failures.append("renderer method is %s" % LookB.RENDERER_METHOD)
+
+
+static func _lock_hud(failures: PackedStringArray, doc: String) -> void:
+	var hud := _section_after(doc, "### HUD", "\n### ")
+	if hud == "":
+		failures.append("missing HUD section")
+		return
+	_require(failures, hud, "P1 sits in the top-left block.")
+	_require(failures, hud, "P2 sits in the top-right block.")
+	_require(failures, hud, "The timer is centred.")
+	_lock_found(failures, "hud margin", HudCorners.MARGIN, hud, "Margin is " + _NUMBER + " px")
+	_lock_found(failures, "hud card top", HudCorners.CARD_TOP, hud, "starts " + _NUMBER + " px from the top")
+	_lock_found(failures, "hud card height", HudCorners.CARD_HEIGHT, hud, "is " + _NUMBER + " px tall")
+	_lock_found(failures, "hud card width", HudCorners.CARD_MAX_WIDTH, hud, "at most " + _NUMBER + " px wide")
+	_lock_found(failures, "hud dialogue gap", HudCorners.DIALOGUE_GAP, hud, "gap before the dialogue bar is " + _NUMBER + " px")
+	_lock_found(failures, "hud dialogue width", HudCorners.DIALOGUE_MAX_WIDTH, hud, "The dialogue bar is at most " + _NUMBER + " px wide")
+	_lock_triple(failures, "hud white", hud, "Percent at 0 is red " + _NUMBER + ", green " + _NUMBER + ", blue " + _NUMBER, [HudCorners.PERCENT_WHITE.r, HudCorners.PERCENT_WHITE.g, HudCorners.PERCENT_WHITE.b])
+	_lock_triple(failures, "hud gold", hud, "Gold is red " + _NUMBER + ", green " + _NUMBER + ", blue " + _NUMBER, [HudCorners.PERCENT_GOLD.r, HudCorners.PERCENT_GOLD.g, HudCorners.PERCENT_GOLD.b])
+	_lock_triple(failures, "hud orange", hud, "Orange is red " + _NUMBER + ", green " + _NUMBER + ", blue " + _NUMBER, [HudCorners.PERCENT_ORANGE.r, HudCorners.PERCENT_ORANGE.g, HudCorners.PERCENT_ORANGE.b])
+	_lock_triple(failures, "hud red", hud, "Full damage is red " + _NUMBER + ", green " + _NUMBER + ", blue " + _NUMBER, [HudCorners.PERCENT_RED.r, HudCorners.PERCENT_RED.g, HudCorners.PERCENT_RED.b])
+	_lock_found(failures, "hud gold stop", HudCorners.RAMP_GOLD, hud, "The gold stop is " + _NUMBER)
+	_lock_found(failures, "hud orange stop", HudCorners.RAMP_ORANGE, hud, "The orange stop is " + _NUMBER)
+	_lock_found(failures, "hud pop scale", HudCorners.POP_SCALE, hud, "adds scale " + _NUMBER)
+	_lock_found(failures, "hud shake", HudCorners.SHAKE_PX, hud, "shakes the percent by " + _NUMBER + " px")
+	_lock_found(failures, "hud pop duration", HudCorners.POP_DURATION_SECONDS, hud, "The pop lasts " + _NUMBER + " seconds")
+	_lock_found(failures, "hud outline", HudCorners.OUTLINE_SIZE, hud, "The percent outline is " + _NUMBER + " px")
+	_require(failures, hud, "Hype, cooldowns, shield, and item charges stay off the block while they are at rest.")
 
 
 static func _lock_formula(failures: PackedStringArray, camera: String) -> void:

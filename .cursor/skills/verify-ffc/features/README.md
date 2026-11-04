@@ -40,7 +40,8 @@ Each feature file has an H1, one opening paragraph, then these H2 sections in or
 - [Pause and rematch](./pause.md) covers pause, resume, and restart.
 - [Knockback](./knockback.md) covers a heavy hit and how travel grows with percent.
 - [Ring-out](./ring-out.md) covers a blast-zone stock loss and respawn.
-- [Result banner](./result-banner.md) covers the end-of-match banner under the stat rows.
+- [Result banner](./result-banner.md) covers the end-of-match banner under the corner blocks.
+- [HUD](./hud.md) covers the corner blocks, the percent, and the stock icons.
 
 ## Known issues
 

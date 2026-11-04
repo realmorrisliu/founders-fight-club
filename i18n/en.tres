@@ -4,12 +4,7 @@
 locale = "en"
 messages = {
 "HUD_TIMER": "Time: %d",
-	"HUD_P1_STOCK": "Stock: %d",
-	"HUD_P2_STOCK": "Stock: %d",
-"HUD_P1_DAMAGE": "P1 DMG: %d%%",
-"HUD_P2_DAMAGE": "P2 DMG: %d%%",
 "HUD_HYPE": "Hype",
-"HUD_SIGNATURE_PRIMARY_FALLBACK": "Signature A",
 "HUD_COOLDOWN_ROW": "CD A%s B%s DS%s U%s",
 "HUD_SHIELD": "SH",
 "HUD_ITEM": "Item",

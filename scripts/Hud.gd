@@ -3,6 +3,8 @@ extends CanvasLayer
 const LocalizationRegistryStore := preload("res://scripts/config/LocalizationRegistry.gd")
 const GameSettingsStore := preload("res://scripts/GameSettings.gd")
 const UiSkinStore := preload("res://scripts/ui/UiSkin.gd")
+const HudCornersScript := preload("res://scripts/hud/HudCorners.gd")
+const HudCornerViewScript := preload("res://scripts/hud/HudCornerView.gd")
 const TIMER_CHIP_TEXTURE_PATH := "res://assets/sprites/ui/hud_timer_chip.png"
 const RESULT_CHIP_TEXTURE_PATH := "res://assets/sprites/ui/hud_result_chip.png"
 const PAUSE_PANEL_TEXTURE_PATH := "res://assets/sprites/ui/hud_pause_panel.png"
@@ -38,16 +40,6 @@ signal onboarding_replay_requested
 
 @onready var timer_label := $TimerLabel
 @onready var timer_chip := $TimerChip
-@onready var p1_hp_label := $P1HpLabel
-@onready var p2_hp_label := $P2HpLabel
-@onready var p1_hype_label := $P1HypeLabel
-@onready var p2_hype_label := $P2HypeLabel
-@onready var p1_hype_bar := $P1HypeBar
-@onready var p2_hype_bar := $P2HypeBar
-@onready var p1_state_label := $P1StateLabel
-@onready var p2_state_label := $P2StateLabel
-@onready var p1_profile_label := $P1ProfileLabel
-@onready var p2_profile_label := $P2ProfileLabel
 @onready var result_label := $ResultLabel
 @onready var result_chip := $ResultChip
 @onready var combat_callout_label := $CombatCalloutLabel
@@ -118,6 +110,8 @@ var training_controls_visible := true
 var training_log_entries: Array[Dictionary] = []
 const TRAINING_LOG_MAX_ENTRIES := 8
 var ui_texture_cache := {}
+var prototype_view: Control
+var stock_cap := 3
 var onboarding_state := {
 	"visible": false,
 	"title_text": "",
@@ -134,6 +128,7 @@ func _ready() -> void:
 	if not locale.begins_with("en") and not locale.begins_with("zh"):
 		TranslationServer.set_locale("en")
 	_ensure_runtime_overlay_nodes()
+	_ensure_prototype_view()
 	_layout_runtime_ui()
 	if not get_viewport().size_changed.is_connected(_layout_runtime_ui):
 		get_viewport().size_changed.connect(_layout_runtime_ui)
@@ -196,20 +191,9 @@ func _layout_runtime_ui() -> void:
 	_set_control_rect(result_label, 160.0 + center, 176.0, 480.0 + center, 206.0)
 	_set_control_rect(combat_callout_label, 208.0 + center, 118.0, 432.0 + center, 144.0)
 	_set_control_rect(hit_type_callout_label, 220.0 + center, 142.0, 420.0 + center, 164.0)
-	_set_control_rect(p1_hp_label, 20.0, 38.0, 258.0, 54.0)
-	_set_control_rect(p1_hype_label, 20.0, 56.0, 258.0, 70.0)
-	_set_control_rect(p1_hype_bar, 20.0, 72.0, 228.0, 82.0)
-	_set_control_rect(p1_state_label, 20.0, 86.0, 264.0, 102.0)
-	_set_control_rect(p1_profile_label, 20.0, 104.0, 264.0, 118.0)
-	_set_control_rect(p2_hp_label, 382.0 + shift, 38.0, 620.0 + shift, 54.0)
-	_set_control_rect(p2_hype_label, 382.0 + shift, 56.0, 620.0 + shift, 70.0)
-	_set_control_rect(p2_hype_bar, 412.0 + shift, 72.0, 620.0 + shift, 82.0)
-	_set_control_rect(p2_state_label, 376.0 + shift, 86.0, 620.0 + shift, 102.0)
-	_set_control_rect(p2_profile_label, 376.0 + shift, 104.0, 620.0 + shift, 118.0)
-	var dialogue_width := minf(760.0, _viewport_width() - 80.0)
-	var dialogue_left := maxf(20.0, (_viewport_width() - dialogue_width) * 0.5)
-	_set_control_rect(dialogue_panel, dialogue_left, 48.0, dialogue_left + dialogue_width, 82.0)
-	_set_control_rect(dialogue_label, dialogue_left + 12.0, 54.0, dialogue_left + dialogue_width - 12.0, 78.0)
+	var dialogue := HudCornersScript.layout(_viewport_size()).get("dialogue", Rect2()) as Rect2
+	_set_control_rect(dialogue_panel, dialogue.position.x, dialogue.position.y, dialogue.end.x, dialogue.end.y)
+	_set_control_rect(dialogue_label, dialogue.position.x + 12.0, dialogue.position.y + 4.0, dialogue.end.x - 12.0, dialogue.end.y - 4.0)
 	_set_control_rect(onboarding_panel, 350.0 + shift, 144.0, 620.0 + shift, 258.0)
 	if pause_panel:
 		_set_control_rect(pause_panel, 160.0 + center, 70.0, 480.0 + center, 330.0)
@@ -233,17 +217,11 @@ func _layout_runtime_ui() -> void:
 	_set_control_rect(training_detail_label, 10.0, 166.0, 326.0, 210.0)
 	_set_control_rect(training_log_title_label, 10.0, 214.0, 120.0, 232.0)
 	_set_control_rect(training_log_label, 10.0, 236.0, 326.0, 384.0)
+	_place_corner_timer()
+	_refresh_prototype()
 
 func _apply_runtime_typography() -> void:
-	timer_label.add_theme_font_size_override("font_size", 13)
-	p1_hp_label.add_theme_font_size_override("font_size", 11)
-	p2_hp_label.add_theme_font_size_override("font_size", 11)
-	p1_hype_label.add_theme_font_size_override("font_size", 11)
-	p2_hype_label.add_theme_font_size_override("font_size", 11)
-	p1_state_label.add_theme_font_size_override("font_size", 10)
-	p2_state_label.add_theme_font_size_override("font_size", 10)
-	p1_profile_label.add_theme_font_size_override("font_size", 10)
-	p2_profile_label.add_theme_font_size_override("font_size", 10)
+	timer_label.add_theme_font_size_override("font_size", HudCornersScript.TIMER_FONT)
 	result_label.add_theme_font_size_override("font_size", 14)
 	combat_callout_label.add_theme_font_size_override("font_size", 15)
 	hit_type_callout_label.add_theme_font_size_override("font_size", 12)
@@ -271,6 +249,87 @@ func _set_control_rect(control: Control, left: float, top: float, right: float, 
 	control.offset_top = top
 	control.offset_right = right
 	control.offset_bottom = bottom
+
+func set_stock_cap(cap: int) -> void:
+	stock_cap = clampi(cap, 1, 7)
+	_refresh_prototype()
+
+func _ensure_prototype_view() -> void:
+	if prototype_view != null and is_instance_valid(prototype_view):
+		_raise_match_overlays()
+		return
+	prototype_view = HudCornerViewScript.new()
+	prototype_view.name = "CornerHud"
+	add_child(prototype_view)
+	_raise_match_overlays()
+
+func _raise_match_overlays() -> void:
+	for node_name in [
+		"TimerChip",
+		"TimerLabel",
+		"ResultChip",
+		"ResultLabel",
+		"CombatCalloutLabel",
+		"HitTypeCalloutLabel",
+		"OnboardingPanel",
+		"TrainingPanel",
+		"PausePanel",
+		"DialoguePanel",
+		"DialogueLabel"
+	]:
+		var node := get_node_or_null(node_name)
+		if node != null:
+			move_child(node, get_child_count() - 1)
+
+func _viewport_size() -> Vector2:
+	var viewport := get_viewport()
+	if viewport == null:
+		return Vector2(1280.0, 720.0)
+	var size := viewport.get_visible_rect().size
+	if size.x <= 1.0 or size.y <= 1.0:
+		return Vector2(1280.0, 720.0)
+	return size
+
+func _place_corner_timer() -> void:
+	if prototype_view == null or not prototype_view.has_method("timer_rect"):
+		return
+	var viewport := _viewport_size()
+	var rect: Rect2 = prototype_view.call("timer_rect", viewport)
+	if rect.size.x <= 0.0:
+		return
+	_set_control_rect(timer_chip, rect.position.x, rect.position.y, rect.end.x, rect.end.y)
+	_set_control_rect(
+		timer_label,
+		rect.position.x + 8.0,
+		rect.position.y + 2.0,
+		rect.end.x - 8.0,
+		rect.end.y - 2.0
+	)
+	if timer_label:
+		timer_label.add_theme_font_size_override("font_size", int(prototype_view.call("timer_font_size")))
+
+func _refresh_prototype() -> void:
+	if prototype_view == null or not prototype_view.has_method("present"):
+		return
+	prototype_view.call("present", {
+		"viewport": _viewport_size(),
+		"sides": {
+			"p1": _prototype_side(cached_p1_hp, cached_p1_stocks, cached_p1_character_profile, cached_p1_combat_state, "P1"),
+			"p2": _prototype_side(cached_p2_hp, cached_p2_stocks, cached_p2_character_profile, cached_p2_combat_state, "P2")
+		}
+	})
+
+func _prototype_side(hp: int, stocks: int, profile: Dictionary, combat: Dictionary, fallback: String) -> Dictionary:
+	var fighter_name := str(profile.get("display_name", "")).strip_edges()
+	if fighter_name == "":
+		fighter_name = fallback
+	return {
+		"name": fighter_name,
+		"percent": clampi(cached_max_hp - hp, 0, 999),
+		"stocks": maxi(0, stocks),
+		"stock_cap": stock_cap,
+		"combat": combat
+	}
 
 func _apply_runtime_skin() -> void:
 	for panel in [dialogue_panel, training_panel, onboarding_panel, pause_panel]:
@@ -413,6 +472,7 @@ func set_timer_seconds(seconds_left: float) -> void:
 	cached_timer_seconds = seconds_left
 	var display_seconds := int(ceil(seconds_left))
 	timer_label.text = _format_stat(tr("HUD_TIMER"), "Time: %d", display_seconds)
+	_refresh_prototype()
 
 func set_timer_visible(is_visible: bool) -> void:
 	timer_label.visible = is_visible
@@ -422,14 +482,7 @@ func set_timer_visible(is_visible: bool) -> void:
 func set_health(p1_hp: int, p2_hp: int) -> void:
 	cached_p1_hp = p1_hp
 	cached_p2_hp = p2_hp
-	var p1_stock_text := _format_stat(tr("HUD_P1_STOCK"), "Stock: %d", cached_p1_stocks)
-	var p2_stock_text := _format_stat(tr("HUD_P2_STOCK"), "Stock: %d", cached_p2_stocks)
-	var p1_damage_percent := clampi(cached_max_hp - p1_hp, 0, 999)
-	var p2_damage_percent := clampi(cached_max_hp - p2_hp, 0, 999)
-	var p1_damage_text := _format_stat(tr("HUD_P1_DAMAGE"), "P1 DMG: %d%%", p1_damage_percent)
-	var p2_damage_text := _format_stat(tr("HUD_P2_DAMAGE"), "P2 DMG: %d%%", p2_damage_percent)
-	p1_hp_label.text = "%s | %s" % [p1_stock_text, p1_damage_text]
-	p2_hp_label.text = "%s | %s" % [p2_stock_text, p2_damage_text]
+	_refresh_prototype()
 
 func set_stocks(p1_stocks: int, p2_stocks: int) -> void:
 	cached_p1_stocks = maxi(0, p1_stocks)
@@ -551,14 +604,13 @@ func _play_hit_type_callout(text: String, tint: Color) -> void:
 func _refresh_ui_text() -> void:
 	set_timer_seconds(cached_timer_seconds)
 	set_health(cached_p1_hp, cached_p2_hp)
-	_refresh_combat_state_ui()
-	_refresh_character_profile_labels()
 	if combat_callout_label.visible:
 		combat_callout_label.text = _resolve_callout_text()
 	if hit_type_callout_label and hit_type_callout_label.visible and hit_type_callout_message_key != "":
 		hit_type_callout_label.text = tr(hit_type_callout_message_key)
 	_refresh_training_panel()
 	_refresh_onboarding_panel()
+	_refresh_prototype()
 	pause_title_label.text = tr("PAUSE_TITLE")
 	resume_button.text = tr("PAUSE_RESUME")
 	restart_button.text = tr("PAUSE_RESTART")
@@ -571,162 +623,12 @@ func _refresh_ui_text() -> void:
 func set_combat_state(p1_state: Dictionary, p2_state: Dictionary) -> void:
 	cached_p1_combat_state = p1_state.duplicate(true)
 	cached_p2_combat_state = p2_state.duplicate(true)
-	_refresh_combat_state_ui()
+	_refresh_prototype()
 
 func set_character_profiles(p1_profile: Dictionary, p2_profile: Dictionary) -> void:
 	cached_p1_character_profile = p1_profile.duplicate(true)
 	cached_p2_character_profile = p2_profile.duplicate(true)
-	_refresh_character_profile_labels()
-
-func _refresh_combat_state_ui() -> void:
-	_refresh_side_combat_state(
-		cached_p1_combat_state,
-		p1_hype_bar,
-		p1_hype_label,
-		p1_state_label,
-		false
-	)
-	_refresh_side_combat_state(
-		cached_p2_combat_state,
-		p2_hype_bar,
-		p2_hype_label,
-		p2_state_label,
-		true
-	)
-
-func _refresh_side_combat_state(
-	state: Dictionary,
-	hype_bar: Range,
-	hype_label: Label,
-	state_label: Label,
-	right_align: bool
-) -> void:
-	if hype_bar == null or hype_label == null or state_label == null:
-		return
-	var hype := clampf(float(state.get("hype", 0.0)), 0.0, 100.0)
-	hype_bar.max_value = 100.0
-	hype_bar.value = hype
-	var hype_prefix := tr("HUD_HYPE")
-	if hype_prefix == "HUD_HYPE":
-		hype_prefix = "Hype"
-	hype_label.text = "%s: %d" % [hype_prefix, int(round(hype))]
-	var cooldowns_value: Variant = state.get("cooldowns", {})
-	var cooldowns := {}
-	if typeof(cooldowns_value) == TYPE_DICTIONARY:
-		cooldowns = (cooldowns_value as Dictionary).duplicate(true)
-	var cd_template := tr("HUD_COOLDOWN_ROW")
-	if cd_template.find("%") == -1:
-		cd_template = "CD A%s B%s C%s U%s"
-	var cd_line := cd_template % [
-		_format_cd_value(float(cooldowns.get("signature_a", 0.0))),
-		_format_cd_value(float(cooldowns.get("signature_b", 0.0))),
-		_format_cd_value(float(cooldowns.get("signature_c", 0.0))),
-		_format_cd_value(float(cooldowns.get("ultimate", 0.0)))
-	]
-	var shield_max := maxf(1.0, float(state.get("shield_max", 100.0)))
-	var shield_value := clampf(float(state.get("shield", shield_max)), 0.0, shield_max)
-	var shield_percent := int(round((shield_value / shield_max) * 100.0))
-	var shield_prefix := _tr_or_fallback("HUD_SHIELD", "SH")
-	var shield_line := "%s%d" % [shield_prefix, shield_percent]
-	var item_prefix := _tr_or_fallback("HUD_ITEM", "IT")
-	var item_charges := maxi(0, int(state.get("loadout_item_charges", 0)))
-	var item_cooldown := maxf(0.0, float(state.get("loadout_item_cooldown", 0.0)))
-	var item_progress := maxf(0.0, float(state.get("loadout_item_trigger_progress", 0.0)))
-	var item_trigger := maxf(1.0, float(state.get("loadout_item_trigger_value", 1.0)))
-	var item_line := "%s0" % item_prefix
-	if item_charges > 0:
-		if item_cooldown > 0.05:
-			item_line = "%s%d @%s" % [item_prefix, item_charges, _format_cd_value(item_cooldown)]
-		else:
-			item_line = "%s%d %d/%d" % [
-				item_prefix,
-				item_charges,
-				int(round(minf(item_progress, item_trigger))),
-				int(round(item_trigger))
-			]
-	var tags: Array[String] = []
-	if bool(state.get("shield_broken", false)) or float(state.get("shield_break_seconds", 0.0)) > 0.0:
-		tags.append(_tr_or_fallback("HUD_STATUS_SHIELD_BREAK", "BREAK"))
-	if float(state.get("silence_seconds", 0.0)) > 0.0:
-		tags.append(_tr_or_fallback("HUD_STATUS_SILENCE", "SIL"))
-	if float(state.get("slow_seconds", 0.0)) > 0.0:
-		tags.append(_tr_or_fallback("HUD_STATUS_SLOW", "SLOW"))
-	if float(state.get("root_seconds", 0.0)) > 0.0:
-		tags.append(_tr_or_fallback("HUD_STATUS_ROOT", "ROOT"))
-	if float(state.get("install_seconds", 0.0)) > 0.0:
-		tags.append(_tr_or_fallback("HUD_STATUS_BUFF", "BUFF"))
-	var status_suffix := ""
-	if not tags.is_empty():
-		status_suffix = " | %s" % " ".join(tags)
-	state_label.text = "%s | %s | %s%s" % [
-		_compact_cooldown_line(cooldowns),
-		shield_line,
-		item_line,
-		status_suffix
-	]
-	var tooltip_lines: Array[String] = [
-		cd_line,
-		"%s %d" % [shield_prefix, shield_percent]
-	]
-	if item_charges > 0:
-		tooltip_lines.append("%s %d/%d x%d" % [
-			_tr_or_fallback("HUD_ITEM", "Item"),
-			int(round(minf(item_progress, item_trigger))),
-			int(round(item_trigger)),
-			item_charges
-		])
-	elif item_cooldown > 0.05:
-		tooltip_lines.append("%s %ss" % [_tr_or_fallback("HUD_ITEM", "Item"), _format_cd_value(item_cooldown)])
-	else:
-		tooltip_lines.append("%s %s" % [_tr_or_fallback("HUD_ITEM", "Item"), _tr_or_fallback("HUD_ITEM_EMPTY", "EMPTY")])
-	if not tags.is_empty():
-		tooltip_lines.append("Status: %s" % ", ".join(tags))
-	state_label.tooltip_text = "\n".join(tooltip_lines)
-	state_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT if right_align else HORIZONTAL_ALIGNMENT_LEFT
-
-func _refresh_character_profile_labels() -> void:
-	if p1_profile_label:
-		p1_profile_label.text = _format_character_profile_line(cached_p1_character_profile)
-		p1_profile_label.tooltip_text = _resolve_archetype_hint(cached_p1_character_profile)
-	if p2_profile_label:
-		p2_profile_label.text = _format_character_profile_line(cached_p2_character_profile)
-		p2_profile_label.tooltip_text = _resolve_archetype_hint(cached_p2_character_profile)
-
-func _format_character_profile_line(profile: Dictionary) -> String:
-	if profile.is_empty():
-		return "-"
-	var archetype_label := _resolve_archetype_label(profile)
-	var signature_primary := str(profile.get("signature_primary", "")).strip_edges()
-	if signature_primary == "":
-		signature_primary = _tr_or_fallback("HUD_SIGNATURE_PRIMARY_FALLBACK", "Core Move")
-	return "%s | %s" % [archetype_label, signature_primary]
-
-func _compact_cooldown_line(cooldowns: Dictionary) -> String:
-	return "CD %s/%s/%s/%s" % [
-		_format_cd_value(float(cooldowns.get("signature_a", 0.0))),
-		_format_cd_value(float(cooldowns.get("signature_b", 0.0))),
-		_format_cd_value(float(cooldowns.get("signature_c", 0.0))),
-		_format_cd_value(float(cooldowns.get("ultimate", 0.0)))
-	]
-
-func _resolve_archetype_label(profile: Dictionary) -> String:
-	var key := str(profile.get("archetype_label_key", "")).strip_edges()
-	if key == "":
-		key = "ARCHETYPE_ALL_ROUNDER"
-	return _tr_or_fallback(key, "All-rounder")
-
-func _resolve_archetype_hint(profile: Dictionary) -> String:
-	var key := str(profile.get("archetype_hint_key", "")).strip_edges()
-	if key == "":
-		key = "ARCHETYPE_HINT_ALL_ROUNDER"
-	return _tr_or_fallback(key, "Balanced toolkit across ranges.")
-
-func _format_cd_value(value: float) -> String:
-	if value <= 0.0:
-		return "0"
-	if value < 1.0:
-		return "%.1f" % value
-	return str(int(ceil(value)))
+	_refresh_prototype()
 
 func _refresh_onboarding_panel() -> void:
 	if onboarding_panel == null:

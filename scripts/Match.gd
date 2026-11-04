@@ -2526,6 +2526,8 @@ func _on_player_defeated(loser_key: String) -> void:
 func _update_hud() -> void:
 	if hud and hud.has_method("set_timer_seconds"):
 		hud.set_timer_seconds(time_left)
+	if hud and hud.has_method("set_stock_cap"):
+		hud.set_stock_cap(stock_count)
 	if hud and hud.has_method("set_stocks"):
 		hud.set_stocks(int(stocks.get("p1", 0)), int(stocks.get("p2", 0)))
 	if hud and hud.has_method("set_character_profiles"):

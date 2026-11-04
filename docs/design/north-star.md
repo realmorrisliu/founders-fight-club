@@ -74,6 +74,7 @@ Leave the goals out of this table.
 | Date | Decision | Options shown | Pick | Where it is encoded |
 | --- | --- | --- | --- | --- |
 | 2026-11-03 | HD-2D camera, focus, and light | Looks 0, A, B, and C, in draft [PR #34](https://github.com/realmorrisliu/founders-fight-club/pull/34) | B | `scripts/picture/LookB.gd` |
+| 2026-11-04 | Match HUD | cards, corners, and marquee, in draft [PR #47](https://github.com/realmorrisliu/founders-fight-club/pull/47) | corners | `scripts/hud/HudCorners.gd` |
 
 Use `YYYY-MM-DD` in the date column.
 
@@ -83,7 +84,7 @@ Measured on that draft. Fighters in the mid-fight frame were about 185 px tall, 
 
 ## Bars
 
-A bar stays PROVISIONAL until a prototype or a headless run replaces it, and the pick is logged. Camera, focus, and light is logged. The other bars stay PROVISIONAL.
+A bar stays PROVISIONAL until a prototype or a headless run replaces it, and the pick is logged. Camera, focus, and light is logged. The match HUD is logged. The other bars stay PROVISIONAL.
 
 ### Frame rate
 
@@ -132,3 +133,15 @@ Hit point light. One omni light. Color is red 1.0, green 0.84, blue 0.60, energy
 Camera. The camera is 5.436778 m from the fighter plane. That distance yields a 50 degree vertical field of view at zoom 1.42 on a 720 px tall window, before the frame is tightened. The chosen frame divides the visible height by 1.4. At zoom 1.42 and a pitch of 10 degrees, the vertical field of view is 37.37 degrees. In the mid-fight capture, fighters were about 185 px tall. In look 0 they were 126 px tall.
 
 KO zoom stays PROVISIONAL. Add 0.08 for 0.25 seconds, 0.15 for 0.40 seconds, or 0.25 for 0.55 seconds, and raise the upper clamp by the same amount. [Godot 4.5 Camera2D](https://docs.godotengine.org/en/4.5/classes/class_camera2d.html) says a higher zoom is more zoomed in. [camera_2d.cpp on 4.5-stable](https://github.com/godotengine/godot/blob/4.5-stable/scene/2d/camera_2d.cpp) sets `zoom_scale` to 1 divided by zoom. The current punch subtracts 0.020 to 0.060, which widens the view. The main scene clamps zoom from 1.08 to 1.42, so an add past 1.42 is cut off unless the clamp rises. The add amounts are guesses. Keep at least the heavy shake of 6.6 units for 0.14 seconds. A counter multiplies that shake by 1.42 and the duration by 1.15, which is 9.372 units for 0.161 seconds. Signature and ultimate shakes fall back to 2.8 units for 0.08 seconds.
+
+### HUD
+
+Morris picked corners on 2026-11-04. P1 sits in the top-left block. P2 sits in the top-right block. The timer is centred.
+
+Margin is 18 px. The block starts 16 px from the top and is 124 px tall, at most 220 px wide. The gap before the dialogue bar is 16 px. The dialogue bar is at most 760 px wide.
+
+Percent at 0 is red 0.95, green 0.96, blue 0.98. Gold is red 1.0, green 0.84, blue 0.22. Orange is red 1.0, green 0.46, blue 0.08. Full damage is red 0.96, green 0.16, blue 0.12. The gold stop is 0.35. The orange stop is 0.70.
+
+A hit adds scale 0.22 and shakes the percent by 5 px. The pop lasts 0.294 seconds. The percent outline is 4 px.
+
+Hype, cooldowns, shield, and item charges stay off the block while they are at rest. A live value returns on the small line under the stocks.
