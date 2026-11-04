@@ -286,6 +286,11 @@ func _parse_run_args(args: PackedStringArray) -> Dictionary:
 			"--control-preset":
 				raw["control_preset"] = value
 				index += 2
+			"--hud":
+				if value == "" or value.begins_with("--"):
+					return {"ok": false, "error": "hud must be cards, corners, or marquee"}
+				raw["hud"] = value
+				index += 2
 			"--input":
 				input_path = value
 				index += 2
@@ -337,7 +342,7 @@ func _overlay_replay(path: String, args: PackedStringArray) -> Dictionary:
 		if arg == "--replay" or arg == "--input" or arg == "--out" or arg == "--screenshot-dir":
 			index += 2
 			continue
-		if arg == "--screenshots" or arg.begins_with("--setup-") or arg in ["--seed", "--mode", "--stage", "--frames", "--p1", "--p2", "--p1-control", "--p2-control", "--stocks", "--timer-enabled", "--timer-seconds", "--onboarding", "--control-preset"]:
+		if arg == "--screenshots" or arg.begins_with("--setup-") or arg in ["--seed", "--mode", "--stage", "--frames", "--p1", "--p2", "--p1-control", "--p2-control", "--stocks", "--timer-enabled", "--timer-seconds", "--onboarding", "--control-preset", "--hud"]:
 			var value := str(args[index + 1]) if index + 1 < args.size() else ""
 			match arg:
 				"--seed":
@@ -366,6 +371,10 @@ func _overlay_replay(path: String, args: PackedStringArray) -> Dictionary:
 					raw["onboarding"] = value
 				"--control-preset":
 					raw["control_preset"] = value
+				"--hud":
+					if value == "" or value.begins_with("--"):
+						return {"ok": false, "error": "hud must be cards, corners, or marquee"}
+					raw["hud"] = value
 				"--screenshots":
 					var frames: Array = []
 					for piece in value.split(",", false):
@@ -435,7 +444,7 @@ func _slice(args: PackedStringArray, start: int) -> PackedStringArray:
 func _print_help() -> void:
 	print("Usage:")
 	print("  ffc.sh doctor")
-	print("  ffc.sh run --frames N --out states.jsonl [--seed N] [--mode local|cpu|story|training]")
+	print("  ffc.sh run --frames N --out states.jsonl [--seed N] [--mode local|cpu|story|training] [--hud cards|corners|marquee]")
 	print("  ffc.sh replay --replay match.json --out states.jsonl")
 	print("  ffc.sh ui --press first-launch-modern --press story --out ui.json")
 	print("  ffc.sh hash states.jsonl")

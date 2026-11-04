@@ -3,6 +3,8 @@ extends CanvasLayer
 const LocalizationRegistryStore := preload("res://scripts/config/LocalizationRegistry.gd")
 const GameSettingsStore := preload("res://scripts/GameSettings.gd")
 const UiSkinStore := preload("res://scripts/ui/UiSkin.gd")
+const HudPrototypeScript := preload("res://scripts/hud/HudPrototype.gd")
+const HudPrototypeViewScript := preload("res://scripts/hud/HudPrototypeView.gd")
 const TIMER_CHIP_TEXTURE_PATH := "res://assets/sprites/ui/hud_timer_chip.png"
 const RESULT_CHIP_TEXTURE_PATH := "res://assets/sprites/ui/hud_result_chip.png"
 const PAUSE_PANEL_TEXTURE_PATH := "res://assets/sprites/ui/hud_pause_panel.png"
@@ -118,6 +120,9 @@ var training_controls_visible := true
 var training_log_entries: Array[Dictionary] = []
 const TRAINING_LOG_MAX_ENTRIES := 8
 var ui_texture_cache := {}
+var prototype_id := ""
+var prototype_view: Control
+var stock_cap := 3
 var onboarding_state := {
 	"visible": false,
 	"title_text": "",
@@ -164,6 +169,10 @@ func _ready() -> void:
 		onboarding_skip_button.pressed.connect(_on_onboarding_skip_pressed)
 	if onboarding_replay_button:
 		onboarding_replay_button.pressed.connect(_on_onboarding_replay_pressed)
+	_ensure_prototype_view()
+	var parsed_hud: Dictionary = HudPrototypeScript.parse(OS.get_environment("FFC_HUD"))
+	if bool(parsed_hud.get("ok", false)) and str(parsed_hud.get("id", "")) != "":
+		set_prototype(str(parsed_hud.get("id", "")))
 	_refresh_ui_text()
 
 func _ensure_runtime_overlay_nodes() -> void:
@@ -233,6 +242,7 @@ func _layout_runtime_ui() -> void:
 	_set_control_rect(training_detail_label, 10.0, 166.0, 326.0, 210.0)
 	_set_control_rect(training_log_title_label, 10.0, 214.0, 120.0, 232.0)
 	_set_control_rect(training_log_label, 10.0, 236.0, 326.0, 384.0)
+	_place_prototype_timer()
 
 func _apply_runtime_typography() -> void:
 	timer_label.add_theme_font_size_override("font_size", 13)
@@ -271,6 +281,128 @@ func _set_control_rect(control: Control, left: float, top: float, right: float, 
 	control.offset_top = top
 	control.offset_right = right
 	control.offset_bottom = bottom
+
+func set_prototype(id: String) -> void:
+	var parsed: Dictionary = HudPrototypeScript.parse(id)
+	if not bool(parsed.get("ok", false)):
+		return
+	prototype_id = str(parsed.get("id", ""))
+	_apply_prototype_mode()
+	_layout_runtime_ui()
+	_refresh_prototype()
+
+func set_stock_cap(cap: int) -> void:
+	stock_cap = clampi(cap, 1, 7)
+	_refresh_prototype()
+
+func _ensure_prototype_view() -> void:
+	if prototype_view != null and is_instance_valid(prototype_view):
+		_raise_match_overlays()
+		return
+	prototype_view = HudPrototypeViewScript.new()
+	prototype_view.name = "PrototypeView"
+	add_child(prototype_view)
+	_raise_match_overlays()
+
+func _raise_match_overlays() -> void:
+	for node_name in [
+		"TimerChip",
+		"TimerLabel",
+		"ResultChip",
+		"ResultLabel",
+		"CombatCalloutLabel",
+		"HitTypeCalloutLabel",
+		"DialoguePanel",
+		"DialogueLabel",
+		"TrainingPanel",
+		"OnboardingPanel",
+		"PausePanel"
+	]:
+		var node := get_node_or_null(node_name)
+		if node != null:
+			move_child(node, get_child_count() - 1)
+
+func _apply_prototype_mode() -> void:
+	var show_debug := prototype_id == ""
+	for node in [
+		p1_hp_label,
+		p2_hp_label,
+		p1_hype_label,
+		p2_hype_label,
+		p1_hype_bar,
+		p2_hype_bar,
+		p1_state_label,
+		p2_state_label,
+		p1_profile_label,
+		p2_profile_label
+	]:
+		if node is CanvasItem:
+			(node as CanvasItem).visible = show_debug
+	if prototype_view != null:
+		prototype_view.visible = not show_debug
+	if show_debug and timer_label:
+		timer_label.add_theme_font_size_override("font_size", 13)
+	if show_debug and timer_chip:
+		timer_chip.modulate = Color(1.0, 1.0, 1.0, 1.0)
+
+func _viewport_size() -> Vector2:
+	var viewport := get_viewport()
+	if viewport == null:
+		return Vector2(1280.0, 720.0)
+	var size := viewport.get_visible_rect().size
+	if size.x <= 1.0 or size.y <= 1.0:
+		return Vector2(1280.0, 720.0)
+	return size
+
+func _place_prototype_timer() -> void:
+	if prototype_id == "" or prototype_view == null or not prototype_view.has_method("timer_rect"):
+		return
+	var viewport := _viewport_size()
+	var rect: Rect2 = prototype_view.call("timer_rect", viewport)
+	if rect.size.x <= 0.0:
+		return
+	_set_control_rect(timer_chip, rect.position.x, rect.position.y, rect.end.x, rect.end.y)
+	_set_control_rect(
+		timer_label,
+		rect.position.x + 8.0,
+		rect.position.y + 2.0,
+		rect.end.x - 8.0,
+		rect.end.y - 2.0
+	)
+	if timer_label:
+		timer_label.add_theme_font_size_override("font_size", int(prototype_view.call("timer_font_size", viewport)))
+	if timer_chip:
+		if prototype_id == HudPrototypeScript.MARQUEE:
+			timer_chip.modulate = Color(1.0, 0.84, 0.62, 1.0)
+		else:
+			timer_chip.modulate = Color(1.0, 1.0, 1.0, 1.0)
+
+func _refresh_prototype() -> void:
+	if prototype_view == null or not prototype_view.has_method("present"):
+		return
+	if prototype_id == "":
+		prototype_view.call("present", {"id": ""})
+		return
+	prototype_view.call("present", {
+		"id": prototype_id,
+		"viewport": _viewport_size(),
+		"sides": {
+			"p1": _prototype_side(cached_p1_hp, cached_p1_stocks, cached_p1_character_profile, cached_p1_combat_state, "P1"),
+			"p2": _prototype_side(cached_p2_hp, cached_p2_stocks, cached_p2_character_profile, cached_p2_combat_state, "P2")
+		}
+	})
+
+func _prototype_side(hp: int, stocks: int, profile: Dictionary, combat: Dictionary, fallback: String) -> Dictionary:
+	var fighter_name := str(profile.get("display_name", "")).strip_edges()
+	if fighter_name == "":
+		fighter_name = fallback
+	return {
+		"name": fighter_name,
+		"percent": clampi(cached_max_hp - hp, 0, 999),
+		"stocks": maxi(0, stocks),
+		"stock_cap": stock_cap,
+		"combat": combat
+	}
 
 func _apply_runtime_skin() -> void:
 	for panel in [dialogue_panel, training_panel, onboarding_panel, pause_panel]:
@@ -413,6 +545,7 @@ func set_timer_seconds(seconds_left: float) -> void:
 	cached_timer_seconds = seconds_left
 	var display_seconds := int(ceil(seconds_left))
 	timer_label.text = _format_stat(tr("HUD_TIMER"), "Time: %d", display_seconds)
+	_refresh_prototype()
 
 func set_timer_visible(is_visible: bool) -> void:
 	timer_label.visible = is_visible
@@ -430,6 +563,7 @@ func set_health(p1_hp: int, p2_hp: int) -> void:
 	var p2_damage_text := _format_stat(tr("HUD_P2_DAMAGE"), "P2 DMG: %d%%", p2_damage_percent)
 	p1_hp_label.text = "%s | %s" % [p1_stock_text, p1_damage_text]
 	p2_hp_label.text = "%s | %s" % [p2_stock_text, p2_damage_text]
+	_refresh_prototype()
 
 func set_stocks(p1_stocks: int, p2_stocks: int) -> void:
 	cached_p1_stocks = maxi(0, p1_stocks)
@@ -559,6 +693,7 @@ func _refresh_ui_text() -> void:
 		hit_type_callout_label.text = tr(hit_type_callout_message_key)
 	_refresh_training_panel()
 	_refresh_onboarding_panel()
+	_refresh_prototype()
 	pause_title_label.text = tr("PAUSE_TITLE")
 	resume_button.text = tr("PAUSE_RESUME")
 	restart_button.text = tr("PAUSE_RESTART")
@@ -572,11 +707,13 @@ func set_combat_state(p1_state: Dictionary, p2_state: Dictionary) -> void:
 	cached_p1_combat_state = p1_state.duplicate(true)
 	cached_p2_combat_state = p2_state.duplicate(true)
 	_refresh_combat_state_ui()
+	_refresh_prototype()
 
 func set_character_profiles(p1_profile: Dictionary, p2_profile: Dictionary) -> void:
 	cached_p1_character_profile = p1_profile.duplicate(true)
 	cached_p2_character_profile = p2_profile.duplicate(true)
 	_refresh_character_profile_labels()
+	_refresh_prototype()
 
 func _refresh_combat_state_ui() -> void:
 	_refresh_side_combat_state(

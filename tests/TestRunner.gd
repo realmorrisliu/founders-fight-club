@@ -101,6 +101,7 @@ func _run_smoke_suite() -> void:
 	await _test_knockback_growth_and_di_response()
 	await _test_hitstop_tier_resolution()
 	await _test_result_banner_clears_stat_rows()
+	await _test_hud_prototypes_fit_the_viewport()
 	_test_driver_examples_are_valid_replays_or_inputs()
 	await _test_picture_contract()
 
@@ -4217,6 +4218,120 @@ func _test_full_roster_signature_coverage() -> void:
 		p1.call("_start_attack", "ultimate")
 		_assert_true(str(p1.get("attack_state")) == "ultimate", "%s runtime can start ultimate" % path)
 	host.queue_free()
+	await process_frame
+
+func _test_hud_prototypes_fit_the_viewport() -> void:
+	var prototype := load("res://scripts/hud/HudPrototype.gd")
+	_assert_true(prototype != null, "hud prototype script loads")
+	if prototype == null:
+		return
+	var cold: Color = prototype.percent_color(0)
+	var hot: Color = prototype.percent_color(80)
+	_assert_true(hot.r > cold.r and hot.g < cold.g, "damage percent turns from white toward red")
+	var idle: String = prototype.secondary_line({}, {
+		"hype": "Hype",
+		"cooldown": "CD A%s B%s DS%s U%s",
+		"shield": "SH",
+		"item": "Item"
+	})
+	_assert_true(idle == "", "a resting fighter hides hype, cooldowns, a full shield, and an empty item")
+	var active: String = prototype.secondary_line({
+		"hype": 12.0,
+		"cooldowns": {"signature_a": 1.5, "signature_b": 0.0, "signature_c": 0.0, "ultimate": 0.0},
+		"shield": 100.0,
+		"shield_max": 100.0,
+		"loadout_item_charges": 2
+	}, {
+		"hype": "Hype",
+		"cooldown": "CD A%s B%s DS%s U%s",
+		"shield": "SH",
+		"item": "Item"
+	})
+	_assert_true(active.find("Hype 12") >= 0, "hype stays on the secondary line: %s" % active)
+	_assert_true(active.find("1.5") >= 0, "a live cooldown stays on the secondary line: %s" % active)
+	_assert_true(active.find("Item 2") >= 0, "item charges stay on the secondary line: %s" % active)
+	_assert_true(not bool(prototype.parse("nope").get("ok", true)), "an unknown hud id is rejected")
+	var packed := load("res://scenes/ui/Hud.tscn")
+	_assert_true(packed is PackedScene, "hud scene loads for prototype layout")
+	if packed is not PackedScene:
+		return
+	var hud_node := (packed as PackedScene).instantiate()
+	get_root().add_child(hud_node)
+	await process_frame
+	var viewport: Vector2 = hud_node.get_viewport().get_visible_rect().size
+	_assert_true(viewport.x > 1000.0 and viewport.y > 400.0, "prototype layout runs on the match viewport")
+	hud_node.call("set_character_profiles", {"display_name": "Elon Mvsk"}, {"display_name": "Mark Zuck"})
+	hud_node.call("set_stock_cap", 3)
+	hud_node.call("set_combat_state", {
+		"hype": 12.0,
+		"shield": 100.0,
+		"shield_max": 100.0,
+		"cooldowns": {"signature_a": 1.2},
+		"loadout_item_charges": 1
+	}, {})
+	for id in ["cards", "corners", "marquee"]:
+		hud_node.call("set_prototype", id)
+		hud_node.call("set_health", 100, 100)
+		hud_node.call("set_stocks", 3, 2)
+		hud_node.call("set_health", 100, 30)
+		var percent := hud_node.get_node_or_null("PrototypeView/P2Percent") as Label
+		_assert_true(percent != null and percent.text == "70%", "%s shows 70%%" % id)
+		_assert_true(percent != null and percent.scale.x > 1.15, "%s percent pops on the hit" % id)
+		var tint: Color = percent.get_theme_color("font_color") if percent != null else Color.BLACK
+		_assert_true(tint.r > 0.9 and tint.g < 0.7, "%s percent color is hot at 70" % id)
+		var name_label := hud_node.get_node_or_null("PrototypeView/P1Name") as Label
+		_assert_true(name_label != null and name_label.text == "Elon Mvsk", "%s shows the fighter name" % id)
+		var secondary := hud_node.get_node_or_null("PrototypeView/P1Secondary") as Label
+		_assert_true(secondary != null and secondary.visible and secondary.text.find("12") >= 0, "%s keeps hype on the secondary line" % id)
+		var filled := 0
+		var empty := 0
+		for index in 3:
+			var swatch := hud_node.get_node_or_null("PrototypeView/P2Stock%d" % index) as ColorRect
+			_assert_true(swatch != null and swatch.visible, "%s shows stock %d" % [id, index])
+			if swatch != null and swatch.color.a > 0.8:
+				filled += 1
+			elif swatch != null:
+				empty += 1
+		_assert_true(filled == 2 and empty == 1, "%s shows one lost stock" % id)
+		for node_name in ["P1Card", "P2Card", "P1Percent", "P2Percent", "Tag"]:
+			var rect := _hud_offset_rect(hud_node.get_node_or_null("PrototypeView/%s" % node_name))
+			_assert_true(rect.position.x >= -1.0 and rect.position.y >= -1.0, "%s %s stays inside the left and top" % [id, node_name])
+			_assert_true(rect.end.x <= viewport.x + 1.0 and rect.end.y <= viewport.y + 1.0, "%s %s stays inside the viewport" % [id, node_name])
+		var timer_label := hud_node.get_node_or_null("TimerLabel") as Control
+		var timer_mid := (timer_label.offset_left + timer_label.offset_right) * 0.5
+		_assert_true(absf(timer_mid - viewport.x * 0.5) < 24.0, "%s timer stays centred" % id)
+		hud_node.call("set_result", "Elon Mvsk wins")
+		var result := hud_node.get_node_or_null("ResultLabel") as CanvasItem
+		_assert_true(result != null and result.visible, "%s keeps the result banner" % id)
+		var result_rect := _hud_offset_rect(hud_node.get_node_or_null("ResultLabel"))
+		var card_rect := _hud_offset_rect(hud_node.get_node_or_null("PrototypeView/P1Card"))
+		_assert_true(not result_rect.intersects(card_rect, true), "%s result banner clears the fighter card" % id)
+		hud_node.call("set_pause_visible", true)
+		var pause_panel := hud_node.get_node_or_null("PausePanel") as CanvasItem
+		_assert_true(pause_panel != null and pause_panel.visible, "%s keeps the pause panel" % id)
+		hud_node.call("set_pause_visible", false)
+		hud_node.call("show_dialogue_line", "Terms were accepted.", 2.0)
+		var dialogue := hud_node.get_node_or_null("DialogueLabel") as CanvasItem
+		_assert_true(dialogue != null and dialogue.visible and str(dialogue.get("text")) == "Terms were accepted.", "%s keeps the dialogue bar" % id)
+		var dialogue_rect := _hud_offset_rect(hud_node.get_node_or_null("DialogueLabel"))
+		_assert_true(not dialogue_rect.intersects(card_rect, true), "%s dialogue bar clears the fighter card" % id)
+	hud_node.call("set_prototype", "cards")
+	hud_node.call("set_prototype", "nope")
+	var still := hud_node.get_node_or_null("PrototypeView/Tag") as Label
+	_assert_true(still != null and still.text == "cards", "an unknown id does not change the current prototype")
+	hud_node.call("set_prototype", "")
+	var debug_label := hud_node.get_node_or_null("P1HpLabel") as CanvasItem
+	var view := hud_node.get_node_or_null("PrototypeView") as CanvasItem
+	_assert_true(debug_label != null and debug_label.visible, "clearing the prototype restores the debug readout")
+	_assert_true(view != null and not view.visible, "clearing the prototype hides the prototype view")
+	var rejected := _run_ffc_cli([
+		"run", "--seed", "11", "--mode", "local", "--frames", "2", "--hud", "nope",
+		"--out", ProjectSettings.globalize_path("user://hud-reject.jsonl")
+	])
+	_assert_true(int(rejected.get("code", 0)) == 1, "ffc rejects an unknown hud id")
+	_assert_true(str(rejected.get("text", "")).find("hud must be cards, corners, or marquee") >= 0, "ffc names the hud ids")
+	if is_instance_valid(hud_node):
+		hud_node.queue_free()
 	await process_frame
 
 func _test_result_banner_clears_stat_rows() -> void:

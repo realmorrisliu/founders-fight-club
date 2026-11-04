@@ -1,6 +1,7 @@
 extends Node
 
 const ReplayScriptStore := preload("res://scripts/driver/ReplayScript.gd")
+const HudPrototypeScript := preload("res://scripts/hud/HudPrototype.gd")
 const CharacterCatalogStore := preload("res://scripts/config/CharacterCatalog.gd")
 const SessionKeysStore := preload("res://scripts/config/SessionKeys.gd")
 const SessionStateStore := preload("res://scripts/SessionState.gd")
@@ -25,8 +26,13 @@ const SESSION_KEYS := [
 var _match: Node = null
 var _held := {"p1": {}, "p2": {}}
 var _match_buttons := {"pause": false, "restart": false}
+var _hud_id := ""
 
 func run(raw_spec: Dictionary, log_path: String, screenshot_dir: String = "") -> Dictionary:
+	var parsed_hud: Dictionary = HudPrototypeScript.parse(str(raw_spec.get("hud", "")))
+	if not bool(parsed_hud.get("ok", false)):
+		return {"ok": false, "error": str(parsed_hud.get("error", "bad hud"))}
+	_hud_id = str(parsed_hud.get("id", ""))
 	var normalized := ReplayScriptStore.normalize(raw_spec)
 	if not bool(normalized.get("ok", false)):
 		return {"ok": false, "error": str(normalized.get("error", "invalid replay"))}
@@ -113,6 +119,7 @@ func _boot(spec: Dictionary) -> String:
 	_reseed_match_rngs(match_node, int(spec.get("seed", 1)))
 	_apply_setup(match_node, spec)
 	_apply_controls(match_node, spec)
+	_apply_hud(match_node)
 	return ""
 
 func _prepare_reloaded_match(spec: Dictionary) -> void:
@@ -120,6 +127,14 @@ func _prepare_reloaded_match(spec: Dictionary) -> void:
 		return
 	_reseed_match_rngs(_match, int(spec.get("seed", 1)))
 	_apply_controls(_match, spec)
+	_apply_hud(_match)
+
+func _apply_hud(match_node: Node) -> void:
+	if _hud_id == "" or match_node == null:
+		return
+	var hud := match_node.get_node_or_null("Hud")
+	if hud != null and hud.has_method("set_prototype"):
+		hud.call("set_prototype", _hud_id)
 
 func _apply_overrides_before_ready(match_node: Node, spec: Dictionary) -> void:
 	match_node.set("onboarding_enabled", bool(spec.get("onboarding", false)))
