@@ -4228,6 +4228,16 @@ func _test_result_banner_clears_stat_rows() -> void:
 	get_root().add_child(hud_node)
 	await process_frame
 	hud_node.call("set_result", "Player 1 wins")
+	var hud_width := hud_node.get_viewport().get_visible_rect().size.x
+	if hud_width > 1000.0:
+		var p2_label := hud_node.get_node_or_null("P2HpLabel") as Control
+		_assert_true(p2_label != null and p2_label.offset_right > hud_width - 40.0, "p2 damage sits on the right edge")
+		var timer_label := hud_node.get_node_or_null("TimerLabel") as Control
+		var timer_mid := (timer_label.offset_left + timer_label.offset_right) * 0.5
+		_assert_true(absf(timer_mid - hud_width * 0.5) < 40.0, "timer is centred on the viewport")
+		var result_label := hud_node.get_node_or_null("ResultLabel") as Control
+		var result_mid := (result_label.offset_left + result_label.offset_right) * 0.5
+		_assert_true(absf(result_mid - hud_width * 0.5) < 40.0, "result banner is centred on the viewport")
 	var blocked := [
 		"TimerLabel",
 		"P1HpLabel",

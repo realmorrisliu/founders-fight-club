@@ -159,7 +159,9 @@ static func slab_thickness_m(thickness_px: float) -> float:
 
 static func slab_position(anchor_x: float, floor_y: float, surface_px: Vector2, thickness_m: float) -> Vector3:
 	var top := plane_point(anchor_x, floor_y, surface_px)
-	return Vector3(top.x, top.y - thickness_m * 0.5, 0.0)
+	# The box sits behind the fighter plane. A box centered on that plane
+	# covers the legs, because the camera is on +Z.
+	return Vector3(top.x, top.y - thickness_m * 0.5, -PLATFORM_DEPTH_M * 0.5)
 
 
 static func fighter_position(anchor_x: float, floor_y: float, px: Vector2, slot: int) -> Vector3:

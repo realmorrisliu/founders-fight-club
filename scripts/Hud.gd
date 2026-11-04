@@ -8,6 +8,7 @@ const RESULT_CHIP_TEXTURE_PATH := "res://assets/sprites/ui/hud_result_chip.png"
 const PAUSE_PANEL_TEXTURE_PATH := "res://assets/sprites/ui/hud_pause_panel.png"
 const TRAINING_PANEL_TEXTURE_PATH := "res://assets/sprites/ui/hud_training_panel.png"
 const ONBOARDING_PANEL_TEXTURE_PATH := "res://assets/sprites/ui/hud_onboarding_panel.png"
+const HUD_LAYOUT_WIDTH := 640.0
 const DIALOGUE_PANEL_FILL := Color(0.07, 0.10, 0.18, 0.92)
 const DIALOGUE_PANEL_BORDER := Color(0.36, 0.62, 0.94, 0.94)
 const HUD_BUTTON_PRIMARY_PALETTE := {
@@ -134,6 +135,8 @@ func _ready() -> void:
 		TranslationServer.set_locale("en")
 	_ensure_runtime_overlay_nodes()
 	_layout_runtime_ui()
+	if not get_viewport().size_changed.is_connected(_layout_runtime_ui):
+		get_viewport().size_changed.connect(_layout_runtime_ui)
 	_apply_runtime_skin()
 	_apply_runtime_textures()
 	_apply_runtime_typography()
@@ -173,27 +176,43 @@ func _ensure_runtime_overlay_nodes() -> void:
 		move_child(dialogue_panel, get_child_count() - 1)
 	if dialogue_label:
 		dialogue_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		move_child(dialogue_label, get_child_count() - 1)
+
+func _viewport_width() -> float:
+	var viewport := get_viewport()
+	if viewport == null:
+		return HUD_LAYOUT_WIDTH
+	var width := viewport.get_visible_rect().size.x
+	if width <= 1.0:
+		return HUD_LAYOUT_WIDTH
+	return width
 
 func _layout_runtime_ui() -> void:
-	_set_control_rect(timer_chip, 260.0, 14.0, 380.0, 42.0)
-	_set_control_rect(timer_label, 278.0, 18.0, 364.0, 40.0)
-	_set_control_rect(result_chip, 150.0, 168.0, 490.0, 214.0)
-	_set_control_rect(result_label, 160.0, 176.0, 480.0, 206.0)
-	_set_control_rect(combat_callout_label, 208.0, 118.0, 432.0, 144.0)
-	_set_control_rect(hit_type_callout_label, 220.0, 142.0, 420.0, 164.0)
+	var shift := maxf(0.0, _viewport_width() - HUD_LAYOUT_WIDTH)
+	var center := shift * 0.5
+	_set_control_rect(timer_chip, 260.0 + center, 14.0, 380.0 + center, 42.0)
+	_set_control_rect(timer_label, 278.0 + center, 18.0, 364.0 + center, 40.0)
+	_set_control_rect(result_chip, 150.0 + center, 168.0, 490.0 + center, 214.0)
+	_set_control_rect(result_label, 160.0 + center, 176.0, 480.0 + center, 206.0)
+	_set_control_rect(combat_callout_label, 208.0 + center, 118.0, 432.0 + center, 144.0)
+	_set_control_rect(hit_type_callout_label, 220.0 + center, 142.0, 420.0 + center, 164.0)
 	_set_control_rect(p1_hp_label, 20.0, 38.0, 258.0, 54.0)
 	_set_control_rect(p1_hype_label, 20.0, 56.0, 258.0, 70.0)
 	_set_control_rect(p1_hype_bar, 20.0, 72.0, 228.0, 82.0)
 	_set_control_rect(p1_state_label, 20.0, 86.0, 264.0, 102.0)
 	_set_control_rect(p1_profile_label, 20.0, 104.0, 264.0, 118.0)
-	_set_control_rect(p2_hp_label, 382.0, 38.0, 620.0, 54.0)
-	_set_control_rect(p2_hype_label, 382.0, 56.0, 620.0, 70.0)
-	_set_control_rect(p2_hype_bar, 412.0, 72.0, 620.0, 82.0)
-	_set_control_rect(p2_state_label, 376.0, 86.0, 620.0, 102.0)
-	_set_control_rect(p2_profile_label, 376.0, 104.0, 620.0, 118.0)
-	_set_control_rect(dialogue_panel, 154.0, 48.0, 486.0, 82.0)
-	_set_control_rect(dialogue_label, 166.0, 54.0, 474.0, 78.0)
-	_set_control_rect(onboarding_panel, 350.0, 144.0, 620.0, 258.0)
+	_set_control_rect(p2_hp_label, 382.0 + shift, 38.0, 620.0 + shift, 54.0)
+	_set_control_rect(p2_hype_label, 382.0 + shift, 56.0, 620.0 + shift, 70.0)
+	_set_control_rect(p2_hype_bar, 412.0 + shift, 72.0, 620.0 + shift, 82.0)
+	_set_control_rect(p2_state_label, 376.0 + shift, 86.0, 620.0 + shift, 102.0)
+	_set_control_rect(p2_profile_label, 376.0 + shift, 104.0, 620.0 + shift, 118.0)
+	var dialogue_width := minf(760.0, _viewport_width() - 80.0)
+	var dialogue_left := maxf(20.0, (_viewport_width() - dialogue_width) * 0.5)
+	_set_control_rect(dialogue_panel, dialogue_left, 48.0, dialogue_left + dialogue_width, 82.0)
+	_set_control_rect(dialogue_label, dialogue_left + 12.0, 54.0, dialogue_left + dialogue_width - 12.0, 78.0)
+	_set_control_rect(onboarding_panel, 350.0 + shift, 144.0, 620.0 + shift, 258.0)
+	if pause_panel:
+		_set_control_rect(pause_panel, 160.0 + center, 70.0, 480.0 + center, 330.0)
 	_set_control_rect(onboarding_title_label, 12.0, 8.0, 258.0, 28.0)
 	_set_control_rect(onboarding_step_label, 12.0, 30.0, 258.0, 74.0)
 	_set_control_rect(onboarding_status_label, 12.0, 66.0, 258.0, 90.0)
@@ -230,7 +249,7 @@ func _apply_runtime_typography() -> void:
 	hit_type_callout_label.add_theme_font_size_override("font_size", 12)
 	dialogue_label.add_theme_font_size_override("font_size", 11)
 	dialogue_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	dialogue_label.clip_text = true
+	dialogue_label.clip_text = false
 	dialogue_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	onboarding_title_label.add_theme_font_size_override("font_size", 12)
 	onboarding_step_label.add_theme_font_size_override("font_size", 11)

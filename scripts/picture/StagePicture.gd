@@ -605,7 +605,7 @@ func _make_spark_material() -> StandardMaterial3D:
 
 
 func _dress_card(sprite: Sprite3D, nearest: bool) -> void:
-	sprite.double_sided = true
+	sprite.double_sided = false
 	sprite.shaded = false
 	sprite.centered = true
 	sprite.pixel_size = LookB.pixel_size()
