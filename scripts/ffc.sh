@@ -27,7 +27,6 @@ Options for run/replay:
   --screenshots 10,40
   --screenshot-dir DIR
   --setup-p1-percent N  and the p2 / x / y variants
-  --hud cards|corners|marquee
   --render headless|xvfb
 
 The simulation steps at a fixed 60Hz and does not follow the wall clock.

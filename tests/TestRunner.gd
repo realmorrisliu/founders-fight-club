@@ -101,7 +101,7 @@ func _run_smoke_suite() -> void:
 	await _test_knockback_growth_and_di_response()
 	await _test_hitstop_tier_resolution()
 	await _test_result_banner_clears_stat_rows()
-	await _test_hud_prototypes_fit_the_viewport()
+	await _test_hud_corners_fit_the_viewport()
 	_test_driver_examples_are_valid_replays_or_inputs()
 	await _test_picture_contract()
 
@@ -321,8 +321,8 @@ func _test_main_scene_runtime_match_flow() -> void:
 		_assert_true(str(match_node.get("match_result_key")) == "p1_win", "last stock loss resolves the winner as p1")
 	var hud := match_node.get_node_or_null("Hud")
 	if hud != null:
-		var p1_label := hud.get_node_or_null("P1HpLabel") as Label
-		_assert_true(p1_label != null and p1_label.text.find("%") != -1, "smash HUD shows damage percent")
+		var percent_label := hud.get_node_or_null("CornerHud/P1Percent") as Label
+		_assert_true(percent_label != null and percent_label.text.find("%") != -1, "smash HUD shows damage percent")
 	if result_label is Label:
 		_assert_true((result_label as Label).text.strip_edges() != "", "runtime match flow shows result text on HUD")
 	if is_instance_valid(match_node):
@@ -560,13 +560,13 @@ func _test_character_profile_surface_in_menu_and_hud() -> void:
 	var hud_node := match_node.get_node_or_null("Hud")
 	_assert_true(hud_node != null, "profile surface test resolves HUD instance")
 	if hud_node != null:
-		var hud_p1_profile := hud_node.get_node_or_null("P1ProfileLabel")
-		var hud_p2_profile := hud_node.get_node_or_null("P2ProfileLabel")
-		_assert_true(hud_p1_profile is Label and hud_p2_profile is Label, "hud profile labels resolve for both players")
-		if hud_p1_profile is Label:
-			_assert_true((hud_p1_profile as Label).text.strip_edges() != "-", "hud displays p1 profile metadata row")
-		if hud_p2_profile is Label:
-			_assert_true((hud_p2_profile as Label).text.strip_edges() != "-", "hud displays p2 profile metadata row")
+		var hud_p1_name := hud_node.get_node_or_null("CornerHud/P1Name") as Label
+		var hud_p2_name := hud_node.get_node_or_null("CornerHud/P2Name") as Label
+		_assert_true(hud_p1_name is Label and hud_p2_name is Label, "hud name labels resolve for both players")
+		if hud_p1_name is Label:
+			_assert_true((hud_p1_name as Label).text.strip_edges() != "", "hud displays the p1 fighter name")
+		if hud_p2_name is Label:
+			_assert_true((hud_p2_name as Label).text.strip_edges() != "", "hud displays the p2 fighter name")
 		var profiles_value: Variant = match_node.get("selected_character_profiles")
 		if typeof(profiles_value) == TYPE_DICTIONARY:
 			var profiles := profiles_value as Dictionary
@@ -2748,8 +2748,8 @@ func _test_training_sandbox_resets_on_ko_and_ring_out() -> void:
 		_assert_true(int((training_node.get("stocks") as Dictionary).get("p1", 0)) == int(training_node.get("stock_count")), "training ring-out resets the rep without consuming a stock")
 		_assert_true(not bool(training_node.get("match_over")), "platform drill ring-out reset keeps training sandbox active")
 		if hud != null:
-			var training_hp_label := hud.get_node_or_null("P1HpLabel") as Label
-			_assert_true(training_hp_label != null and training_hp_label.text.find("%") != -1, "training HUD shows damage percent")
+			var training_percent := hud.get_node_or_null("CornerHud/P1Percent") as Label
+			_assert_true(training_percent != null and training_percent.text.find("%") != -1, "training HUD shows damage percent")
 		_assert_true(
 			p1.global_position.x > platform_stage_right_x + 40.0 and p1.global_position.y < platform_stage_floor_y - 40.0,
 			"platform drill ring-out reset returns fighter to the recovery-route start position"
@@ -4220,122 +4220,90 @@ func _test_full_roster_signature_coverage() -> void:
 	host.queue_free()
 	await process_frame
 
-func _test_hud_prototypes_fit_the_viewport() -> void:
-	var prototype := load("res://scripts/hud/HudPrototype.gd")
-	_assert_true(prototype != null, "hud prototype script loads")
-	if prototype == null:
+func _test_hud_corners_fit_the_viewport() -> void:
+	var corners := load("res://scripts/hud/HudCorners.gd")
+	_assert_true(corners != null, "hud corners script loads")
+	if corners == null:
 		return
-	var cold: Color = prototype.percent_color(0)
-	var hot: Color = prototype.percent_color(80)
-	_assert_true(hot.r > cold.r and hot.g < cold.g, "damage percent turns from white toward red")
-	var idle: String = prototype.secondary_line({}, {
-		"hype": "Hype",
-		"cooldown": "CD A%s B%s DS%s U%s",
-		"shield": "SH",
-		"item": "Item"
-	})
+	var cold: Color = corners.percent_color(0)
+	var hot: Color = corners.percent_color(100)
+	_assert_true(is_equal_approx(cold.r, corners.PERCENT_WHITE.r), "zero damage uses the white endpoint")
+	_assert_true(is_equal_approx(hot.r, corners.PERCENT_RED.r) and hot.g < cold.g, "full damage uses the red endpoint")
+	var idle: String = corners.secondary_line({}, {"hype": "Hype", "cooldown": "CD A%s B%s DS%s U%s", "shield": "SH", "item": "Item"})
 	_assert_true(idle == "", "a resting fighter hides hype, cooldowns, a full shield, and an empty item")
-	var active: String = prototype.secondary_line({
+	var active: String = corners.secondary_line({
 		"hype": 12.0,
-		"cooldowns": {"signature_a": 1.5, "signature_b": 0.0, "signature_c": 0.0, "ultimate": 0.0},
-		"shield": 100.0,
+		"cooldowns": {"signature_a": 1.5},
+		"shield": 80.0,
 		"shield_max": 100.0,
 		"loadout_item_charges": 2
-	}, {
-		"hype": "Hype",
-		"cooldown": "CD A%s B%s DS%s U%s",
-		"shield": "SH",
-		"item": "Item"
-	})
-	_assert_true(active.find("Hype 12") >= 0, "hype stays on the secondary line: %s" % active)
-	_assert_true(active.find("1.5") >= 0, "a live cooldown stays on the secondary line: %s" % active)
-	_assert_true(active.find("Item 2") >= 0, "item charges stay on the secondary line: %s" % active)
-	_assert_true(not bool(prototype.parse("nope").get("ok", true)), "an unknown hud id is rejected")
+	}, {"hype": "Hype", "cooldown": "CD A%s B%s DS%s U%s", "shield": "SH", "item": "Item"})
+	_assert_true(active.find("Hype 12") >= 0 and active.find("1.5") >= 0 and active.find("Item 2") >= 0 and active.find("SH 80") >= 0, "live secondary info stays: %s" % active)
+	for size in [Vector2(1024, 576), Vector2(1280, 720), Vector2(1920, 1080)]:
+		var placed: Dictionary = corners.layout(size)
+		var p1: Dictionary = placed.get("p1", {})
+		var p2: Dictionary = placed.get("p2", {})
+		var dialogue: Rect2 = placed.get("dialogue", Rect2())
+		var timer: Rect2 = placed.get("timer", Rect2())
+		var shift := maxf(0.0, size.x - 640.0)
+		var center := shift * 0.5
+		var pause := Rect2(160.0 + center, 70.0, 320.0, 260.0)
+		var banner := Rect2(150.0 + center, 168.0, 340.0, 46.0)
+		for side_name in ["p1", "p2"]:
+			var cluster: Dictionary = placed.get(side_name, {})
+			var card: Rect2 = cluster.get("card", Rect2())
+			var percent: Rect2 = cluster.get("percent", Rect2())
+			_assert_true(card.position.x >= -1.0 and card.end.x <= size.x + 1.0, "%s card stays inside %s" % [side_name, size])
+			_assert_true(card.end.y <= 144.0, "%s card ends above the training panel at %s" % [side_name, size])
+			_assert_true(percent.size.x >= 70.0 and int(cluster.get("percent_size", 0)) >= 28, "%s percent stays readable at %s" % [side_name, size])
+			_assert_true(not card.intersects(dialogue, true), "%s card clears the dialogue bar at %s" % [side_name, size])
+			_assert_true(not card.intersects(pause, true), "%s card clears the pause panel at %s" % [side_name, size])
+			_assert_true(not card.intersects(banner, true), "%s card clears the result banner at %s" % [side_name, size])
+		_assert_true(absf(timer.get_center().x - size.x * 0.5) < 1.0, "timer stays centred at %s" % size)
+		_assert_true(p1.get("card", Rect2()).position.x < size.x * 0.5 and p2.get("card", Rect2()).end.x > size.x * 0.5, "P1 stays left and P2 stays right at %s" % size)
+	_assert_true(corners.OUTLINE_SIZE >= 4, "percent keeps a dark outline over bright bokeh")
 	var packed := load("res://scenes/ui/Hud.tscn")
-	_assert_true(packed is PackedScene, "hud scene loads for prototype layout")
+	_assert_true(packed is PackedScene, "hud scene loads for corner layout")
 	if packed is not PackedScene:
 		return
 	var hud_node := (packed as PackedScene).instantiate()
 	get_root().add_child(hud_node)
 	await process_frame
-	var viewport: Vector2 = hud_node.get_viewport().get_visible_rect().size
-	_assert_true(viewport.x > 1000.0 and viewport.y > 400.0, "prototype layout runs on the match viewport")
+	_assert_true(hud_node.get_node_or_null("P1HpLabel") == null, "the debug damage strip is gone")
+	_assert_true(hud_node.get_node_or_null("CornerHud/Tag") == null, "the layout name is not drawn")
 	hud_node.call("set_character_profiles", {"display_name": "Elon Mvsk"}, {"display_name": "Mark Zuck"})
 	hud_node.call("set_stock_cap", 3)
-	hud_node.call("set_combat_state", {
-		"hype": 12.0,
-		"shield": 100.0,
-		"shield_max": 100.0,
-		"cooldowns": {"signature_a": 1.2},
-		"loadout_item_charges": 1
-	}, {})
-	for id in ["cards", "corners", "marquee"]:
-		hud_node.call("set_prototype", id)
-		hud_node.call("set_health", 100, 100)
-		hud_node.call("set_stocks", 3, 2)
-		hud_node.call("set_health", 100, 30)
-		var percent := hud_node.get_node_or_null("PrototypeView/P2Percent") as Label
-		_assert_true(percent != null and percent.text == "70%", "%s shows 70%%" % id)
-		_assert_true(percent != null and percent.scale.x > 1.15, "%s percent pops on the hit" % id)
-		var tint: Color = percent.get_theme_color("font_color") if percent != null else Color.BLACK
-		_assert_true(tint.r > 0.9 and tint.g < 0.7, "%s percent color is hot at 70" % id)
-		var name_label := hud_node.get_node_or_null("PrototypeView/P1Name") as Label
-		_assert_true(name_label != null and name_label.text == "Elon Mvsk", "%s shows the fighter name" % id)
-		var secondary := hud_node.get_node_or_null("PrototypeView/P1Secondary") as Label
-		_assert_true(secondary != null and secondary.visible and secondary.text.find("12") >= 0, "%s keeps hype on the secondary line" % id)
-		var filled := 0
-		var empty := 0
-		for index in 3:
-			var swatch := hud_node.get_node_or_null("PrototypeView/P2Stock%d" % index) as ColorRect
-			_assert_true(swatch != null and swatch.visible, "%s shows stock %d" % [id, index])
-			if swatch != null and swatch.color.a > 0.8:
-				filled += 1
-			elif swatch != null:
-				empty += 1
-		_assert_true(filled == 2 and empty == 1, "%s shows one lost stock" % id)
-		for node_name in ["P1Card", "P2Card", "P1Percent", "P2Percent", "Tag"]:
-			var rect := _hud_offset_rect(hud_node.get_node_or_null("PrototypeView/%s" % node_name))
-			_assert_true(rect.position.x >= -1.0 and rect.position.y >= -1.0, "%s %s stays inside the left and top" % [id, node_name])
-			_assert_true(rect.end.x <= viewport.x + 1.0 and rect.end.y <= viewport.y + 1.0, "%s %s stays inside the viewport" % [id, node_name])
-		var timer_label := hud_node.get_node_or_null("TimerLabel") as Control
-		var timer_mid := (timer_label.offset_left + timer_label.offset_right) * 0.5
-		_assert_true(absf(timer_mid - viewport.x * 0.5) < 24.0, "%s timer stays centred" % id)
-		hud_node.call("set_result", "Elon Mvsk wins")
-		var result := hud_node.get_node_or_null("ResultLabel") as CanvasItem
-		_assert_true(result != null and result.visible, "%s keeps the result banner" % id)
-		var result_rect := _hud_offset_rect(hud_node.get_node_or_null("ResultLabel"))
-		var card_rect := _hud_offset_rect(hud_node.get_node_or_null("PrototypeView/P1Card"))
-		_assert_true(not result_rect.intersects(card_rect, true), "%s result banner clears the fighter card" % id)
-		hud_node.call("set_pause_visible", true)
-		var pause_panel := hud_node.get_node_or_null("PausePanel") as CanvasItem
-		_assert_true(pause_panel != null and pause_panel.visible, "%s keeps the pause panel" % id)
-		hud_node.call("set_pause_visible", false)
-		hud_node.call("show_dialogue_line", "Terms were accepted.", 2.0)
-		var dialogue := hud_node.get_node_or_null("DialogueLabel") as CanvasItem
-		_assert_true(dialogue != null and dialogue.visible and str(dialogue.get("text")) == "Terms were accepted.", "%s keeps the dialogue bar" % id)
-		var dialogue_rect := _hud_offset_rect(hud_node.get_node_or_null("DialogueLabel"))
-		_assert_true(not dialogue_rect.intersects(card_rect, true), "%s dialogue bar clears the fighter card" % id)
+	hud_node.call("set_health", 100, 100)
+	hud_node.call("set_stocks", 3, 2)
+	hud_node.call("set_health", 100, 30)
+	var percent_label := hud_node.get_node_or_null("CornerHud/P2Percent") as Label
+	_assert_true(percent_label != null and percent_label.text == "70%", "corners shows 70%")
+	_assert_true(percent_label != null and percent_label.scale.x > 1.0 + corners.POP_SCALE * 0.9, "percent pops on the hit")
+	var name_label := hud_node.get_node_or_null("CornerHud/P1Name") as Label
+	_assert_true(name_label != null and name_label.text == "Elon Mvsk", "corners shows the fighter name")
+	var filled := 0
+	var empty := 0
+	for index in 3:
+		var swatch := hud_node.get_node_or_null("CornerHud/P2Stock%d" % index) as ColorRect
+		_assert_true(swatch != null and swatch.visible, "corners shows stock %d" % index)
+		if swatch != null and swatch.color.a > 0.8:
+			filled += 1
+		elif swatch != null:
+			empty += 1
+	_assert_true(filled == 2 and empty == 1, "corners shows one lost stock")
+	hud_node.call("set_result", "Elon Mvsk wins")
+	var result := hud_node.get_node_or_null("ResultLabel") as CanvasItem
+	_assert_true(result != null and result.visible, "corners keeps the result banner")
+	hud_node.call("set_pause_visible", true)
+	var pause_panel := hud_node.get_node_or_null("PausePanel") as CanvasItem
+	_assert_true(pause_panel != null and pause_panel.visible, "corners keeps the pause panel")
+	hud_node.call("set_pause_visible", false)
+	hud_node.call("show_dialogue_line", "Terms were accepted.", 2.0)
+	var dialogue_label := hud_node.get_node_or_null("DialogueLabel") as CanvasItem
+	_assert_true(dialogue_label != null and dialogue_label.visible, "corners keeps the dialogue bar")
 	var pause_node := hud_node.get_node_or_null("PausePanel")
 	var dialogue_node := hud_node.get_node_or_null("DialogueLabel")
-	_assert_true(
-		pause_node != null and dialogue_node != null and dialogue_node.get_index() > pause_node.get_index(),
-		"dialogue stays in front of the pause panel"
-	)
-	hud_node.call("set_prototype", "cards")
-	hud_node.call("set_prototype", "nope")
-	var still := hud_node.get_node_or_null("PrototypeView/Tag") as Label
-	_assert_true(still != null and still.text == "cards", "an unknown id does not change the current prototype")
-	hud_node.call("set_prototype", "")
-	var debug_label := hud_node.get_node_or_null("P1HpLabel") as CanvasItem
-	var view := hud_node.get_node_or_null("PrototypeView") as CanvasItem
-	_assert_true(debug_label != null and debug_label.visible, "clearing the prototype restores the debug readout")
-	_assert_true(view != null and not view.visible, "clearing the prototype hides the prototype view")
-	var rejected := _run_ffc_cli([
-		"run", "--seed", "11", "--mode", "local", "--frames", "2", "--hud", "nope",
-		"--out", ProjectSettings.globalize_path("user://hud-reject.jsonl")
-	])
-	_assert_true(int(rejected.get("code", 0)) == 1, "ffc rejects an unknown hud id")
-	_assert_true(str(rejected.get("text", "")).find("hud must be cards, corners, or marquee") >= 0, "ffc names the hud ids")
+	_assert_true(pause_node != null and dialogue_node != null and dialogue_node.get_index() > pause_node.get_index(), "dialogue stays in front of the pause panel")
 	if is_instance_valid(hud_node):
 		hud_node.queue_free()
 	await process_frame
@@ -4350,34 +4318,27 @@ func _test_result_banner_clears_stat_rows() -> void:
 	await process_frame
 	hud_node.call("set_result", "Player 1 wins")
 	var hud_width := hud_node.get_viewport().get_visible_rect().size.x
-	if hud_width > 1000.0:
-		var p2_label := hud_node.get_node_or_null("P2HpLabel") as Control
-		_assert_true(p2_label != null and p2_label.offset_right > hud_width - 40.0, "p2 damage sits on the right edge")
-		var timer_label := hud_node.get_node_or_null("TimerLabel") as Control
-		var timer_mid := (timer_label.offset_left + timer_label.offset_right) * 0.5
-		_assert_true(absf(timer_mid - hud_width * 0.5) < 40.0, "timer is centred on the viewport")
-		var result_label := hud_node.get_node_or_null("ResultLabel") as Control
-		var result_mid := (result_label.offset_left + result_label.offset_right) * 0.5
-		_assert_true(absf(result_mid - hud_width * 0.5) < 40.0, "result banner is centred on the viewport")
-	var blocked := [
-		"TimerLabel",
-		"P1HpLabel",
-		"P2HpLabel",
-		"P1HypeLabel",
-		"P2HypeLabel",
-		"P1StateLabel",
-		"P2StateLabel",
-		"P1ProfileLabel",
-		"P2ProfileLabel",
-		"CombatCalloutLabel",
-		"HitTypeCalloutLabel"
-	]
+	var timer_label := hud_node.get_node_or_null("TimerLabel") as Control
+	var timer_mid := (timer_label.offset_left + timer_label.offset_right) * 0.5
+	_assert_true(absf(timer_mid - hud_width * 0.5) < 40.0, "timer is centred on the viewport")
+	var result_label := hud_node.get_node_or_null("ResultLabel") as Control
+	var result_mid := (result_label.offset_left + result_label.offset_right) * 0.5
+	_assert_true(absf(result_mid - hud_width * 0.5) < 40.0, "result banner is centred on the viewport")
+	var blocked := ["P1Card", "P2Card", "P1Percent", "P2Percent", "DialogueLabel"]
 	for node_name in ["ResultChip", "ResultLabel"]:
 		var banner := _hud_offset_rect(hud_node.get_node_or_null(node_name))
-		_assert_true(banner.position.y >= 168.0, "%s sits below the stat rows" % node_name)
+		_assert_true(banner.position.y >= 168.0, "%s sits below the corner blocks" % node_name)
 		for blocked_name in blocked:
-			var other := _hud_offset_rect(hud_node.get_node_or_null(blocked_name))
+			var other_node := hud_node.get_node_or_null(blocked_name)
+			if other_node == null:
+				other_node = hud_node.get_node_or_null("CornerHud/%s" % blocked_name)
+			var other := _hud_offset_rect(other_node)
 			_assert_true(not banner.intersects(other, true), "%s does not cover %s" % [node_name, blocked_name])
+	hud_node.call("set_pause_visible", true)
+	var pause_rect := _hud_offset_rect(hud_node.get_node_or_null("PausePanel"))
+	for blocked_name in ["P1Card", "P2Card"]:
+		var card := _hud_offset_rect(hud_node.get_node_or_null("CornerHud/%s" % blocked_name))
+		_assert_true(not pause_rect.intersects(card, true), "pause panel does not cover %s" % blocked_name)
 	if is_instance_valid(hud_node):
 		hud_node.queue_free()
 	await process_frame

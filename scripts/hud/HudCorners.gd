@@ -1,30 +1,42 @@
-class_name HudPrototype
+class_name HudCorners
 extends RefCounted
 
-const CARDS := "cards"
-const CORNERS := "corners"
-const MARQUEE := "marquee"
-const IDS: Array[String] = [CARDS, CORNERS, MARQUEE]
-
-static func parse(raw: String) -> Dictionary:
-	var id := raw.strip_edges().to_lower()
-	if id == "":
-		return {"ok": true, "id": ""}
-	if IDS.has(id):
-		return {"ok": true, "id": id}
-	return {"ok": false, "error": "hud must be cards, corners, or marquee"}
+const MARGIN := 18.0
+const DIALOGUE_GAP := 16.0
+const CARD_TOP := 16.0
+const CARD_MAX_WIDTH := 220.0
+const CARD_HEIGHT := 124.0
+const TIMER_WIDTH := 132.0
+const TIMER_HEIGHT := 32.0
+const TIMER_TOP := 14.0
+const TIMER_FONT := 16
+const PORTRAIT := 44.0
+const NAME_FONT := 14
+const PERCENT_FONT := 34
+const SECONDARY_FONT := 11
+const OUTLINE_SIZE := 4
+const POP_SCALE := 0.22
+const SHAKE_PX := 5.0
+const POP_DECAY_PER_SECOND := 3.4
+const POP_DURATION_SECONDS := 1.0 / POP_DECAY_PER_SECOND
+const PERCENT_WHITE := Color(0.95, 0.96, 0.98)
+const PERCENT_GOLD := Color(1.0, 0.84, 0.22)
+const PERCENT_ORANGE := Color(1.0, 0.46, 0.08)
+const PERCENT_RED := Color(0.96, 0.16, 0.12)
+const RAMP_GOLD := 0.35
+const RAMP_ORANGE := 0.70
+const DIALOGUE_MAX_WIDTH := 760.0
+const DIALOGUE_TOP := 48.0
+const DIALOGUE_HEIGHT := 34.0
 
 static func percent_color(percent: int) -> Color:
 	var amount := clampf(float(maxi(0, percent)) / 100.0, 0.0, 1.0)
-	var white := Color(0.95, 0.96, 0.98)
-	var gold := Color(1.0, 0.84, 0.22)
-	var orange := Color(1.0, 0.46, 0.08)
-	var red := Color(0.96, 0.16, 0.12)
-	if amount < 0.35:
-		return white.lerp(gold, amount / 0.35)
-	if amount < 0.7:
-		return gold.lerp(orange, (amount - 0.35) / 0.35)
-	return orange.lerp(red, (amount - 0.7) / 0.3)
+	if amount < RAMP_GOLD:
+		return PERCENT_WHITE.lerp(PERCENT_GOLD, amount / RAMP_GOLD)
+	if amount < RAMP_ORANGE:
+		return PERCENT_GOLD.lerp(PERCENT_ORANGE, (amount - RAMP_GOLD) / (RAMP_ORANGE - RAMP_GOLD))
+	var span := maxf(0.001, 1.0 - RAMP_ORANGE)
+	return PERCENT_ORANGE.lerp(PERCENT_RED, (amount - RAMP_ORANGE) / span)
 
 static func portrait_color(fighter_name: String) -> Color:
 	var tone := absi(fighter_name.hash()) % 3
@@ -82,107 +94,61 @@ static func secondary_line(state: Dictionary, labels: Dictionary) -> String:
 		parts.append(" ".join(statuses))
 	return "  ".join(parts)
 
-static func layout(id: String, viewport: Vector2) -> Dictionary:
+static func layout(viewport: Vector2) -> Dictionary:
 	var size := viewport
 	if size.x < 2.0:
 		size.x = 1280.0
 	if size.y < 2.0:
 		size.y = 720.0
-	match id:
-		CARDS:
-			return _cards(size)
-		CORNERS:
-			return _corners(size)
-		_:
-			return _marquee(size)
-
-static func _cards(size: Vector2) -> Dictionary:
-	var margin := 28.0
-	var card_w := minf(360.0, (size.x - margin * 3.0) * 0.5)
-	var card_h := 136.0
-	var card_y := size.y - margin - card_h
-	var timer := _timer_rect(size, 168.0, 40.0, 16.0)
+	var card_w := minf(CARD_MAX_WIDTH, _side_width(size.x))
+	var card := Rect2(MARGIN, CARD_TOP, card_w, CARD_HEIGHT)
 	return {
-		"band": Rect2(),
-		"show_band": false,
-		"timer": timer,
-		"timer_size": 22,
-		"tag": Rect2(16.0, 8.0, 140.0, 18.0),
-		"p1": _cluster(Rect2(margin, card_y, card_w, card_h), true, 78.0, 16, 40, 12),
-		"p2": _cluster(Rect2(size.x - margin - card_w, card_y, card_w, card_h), false, 78.0, 16, 40, 12)
+		"timer": Rect2((size.x - TIMER_WIDTH) * 0.5, TIMER_TOP, TIMER_WIDTH, TIMER_HEIGHT),
+		"timer_size": TIMER_FONT,
+		"dialogue": _dialogue_rect(size.x),
+		"p1": _cluster(card, true),
+		"p2": _cluster(Rect2(size.x - MARGIN - card_w, CARD_TOP, card_w, CARD_HEIGHT), false)
 	}
 
-static func _corners(size: Vector2) -> Dictionary:
-	var margin := 18.0
-	var dialogue_half := minf(380.0, (size.x - 80.0) * 0.5)
-	var inner := maxf(96.0, size.x * 0.5 - dialogue_half - margin - 16.0)
-	var card_w := minf(220.0, inner)
-	var card_h := 146.0
-	var timer := _timer_rect(size, 132.0, 32.0, 14.0)
-	return {
-		"band": Rect2(),
-		"show_band": false,
-		"timer": timer,
-		"timer_size": 16,
-		"tag": Rect2(margin, size.y - 26.0, 120.0, 16.0),
-		"p1": _cluster(Rect2(margin, 16.0, card_w, card_h), true, 44.0, 14, 34, 11),
-		"p2": _cluster(Rect2(size.x - margin - card_w, 16.0, card_w, card_h), false, 44.0, 14, 34, 11)
-	}
+static func _side_width(viewport_w: float) -> float:
+	var dialogue := _dialogue_rect(viewport_w)
+	var from_dialogue := dialogue.position.x - DIALOGUE_GAP - MARGIN
+	var pause_left := 160.0 + maxf(0.0, viewport_w - 640.0) * 0.5
+	var from_pause := pause_left - DIALOGUE_GAP - MARGIN
+	return maxf(96.0, minf(from_dialogue, from_pause))
 
-static func _marquee(size: Vector2) -> Dictionary:
-	var band_h := 156.0
-	var band := Rect2(0.0, size.y - band_h, size.x, band_h)
-	var margin := 32.0
-	var card_w := minf(460.0, (size.x - margin * 3.0) * 0.5)
-	var card_h := band_h - 28.0
-	var card_y := band.position.y + 16.0
-	var timer := _timer_rect(size, 180.0, 42.0, maxf(16.0, band.position.y - 52.0))
-	return {
-		"band": band,
-		"show_band": true,
-		"timer": timer,
-		"timer_size": 24,
-		"tag": Rect2(16.0, 8.0, 160.0, 18.0),
-		"p1": _cluster(Rect2(margin, card_y, card_w, card_h), true, 78.0, 16, 42, 12),
-		"p2": _cluster(Rect2(size.x - margin - card_w, card_y, card_w, card_h), false, 78.0, 16, 42, 12)
-	}
+static func _dialogue_rect(viewport_w: float) -> Rect2:
+	var reserved := (MARGIN + CARD_MAX_WIDTH + DIALOGUE_GAP) * 2.0
+	var width := clampf(viewport_w - reserved, 280.0, DIALOGUE_MAX_WIDTH)
+	var left := maxf(MARGIN, (viewport_w - width) * 0.5)
+	return Rect2(left, DIALOGUE_TOP, width, DIALOGUE_HEIGHT)
 
-static func _timer_rect(size: Vector2, width: float, height: float, top: float) -> Rect2:
-	return Rect2((size.x - width) * 0.5, top, width, height)
-
-static func _cluster(
-	card: Rect2,
-	portrait_on_left: bool,
-	portrait: float,
-	name_size: int,
-	percent_size: int,
-	secondary_size: int
-) -> Dictionary:
+static func _cluster(card: Rect2, portrait_on_left: bool) -> Dictionary:
 	var pad := 10.0
 	var portrait_rect := Rect2(
-		card.position.x + pad if portrait_on_left else card.end.x - pad - portrait,
-		card.position.y + (card.size.y - portrait) * 0.5,
-		portrait,
-		portrait
+		card.position.x + pad if portrait_on_left else card.end.x - pad - PORTRAIT,
+		card.position.y + (card.size.y - PORTRAIT) * 0.5,
+		PORTRAIT,
+		PORTRAIT
 	)
 	var text_left := portrait_rect.end.x + 8.0 if portrait_on_left else card.position.x + pad
 	var text_right := card.end.x - pad if portrait_on_left else portrait_rect.position.x - 8.0
 	var text_w := maxf(24.0, text_right - text_left)
-	var name_h := 20.0
+	var name_h := 18.0
 	var stocks_h := 16.0
 	var secondary_h := 16.0
-	var y := card.position.y + 8.0
-	var percent_h := maxf(28.0, card.size.y - 16.0 - name_h - stocks_h - secondary_h)
+	var y := card.position.y + 6.0
+	var percent_h := maxf(28.0, card.size.y - 12.0 - name_h - stocks_h - secondary_h)
 	return {
 		"card": card,
 		"portrait": portrait_rect,
 		"name": Rect2(text_left, y, text_w, name_h),
 		"percent": Rect2(text_left, y + name_h - 2.0, text_w, percent_h),
 		"stocks": Rect2(text_left, y + name_h + percent_h - 4.0, text_w, stocks_h),
-		"secondary": Rect2(text_left, card.end.y - 8.0 - secondary_h, text_w, secondary_h),
-		"name_size": name_size,
-		"percent_size": percent_size,
-		"secondary_size": secondary_size,
+		"secondary": Rect2(text_left, card.end.y - 6.0 - secondary_h, text_w, secondary_h),
+		"name_size": NAME_FONT,
+		"percent_size": PERCENT_FONT,
+		"secondary_size": SECONDARY_FONT,
 		"align_right": not portrait_on_left
 	}
 

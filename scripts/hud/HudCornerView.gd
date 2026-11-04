@@ -1,17 +1,14 @@
 extends Control
 
-const HudPrototypeScript := preload("res://scripts/hud/HudPrototype.gd")
+const HudCornersScript := preload("res://scripts/hud/HudCorners.gd")
 const STOCK_CAP := 7
 
-var _id := ""
 var _p1_pop := 0.0
 var _p2_pop := 0.0
 var _p1_percent := -1
 var _p2_percent := -1
 var _p1_layout := {}
 var _p2_layout := {}
-var _band: Panel
-var _tag: Label
 var _p1_card: Panel
 var _p2_card: Panel
 var _p1_portrait: Panel
@@ -34,77 +31,61 @@ func _ready() -> void:
 	offset_top = 0.0
 	offset_right = 0.0
 	offset_bottom = 0.0
-	_band = _make_panel("Band")
-	_tag = _make_label("Tag", 12, HORIZONTAL_ALIGNMENT_LEFT)
 	_p1_card = _make_panel("P1Card")
 	_p2_card = _make_panel("P2Card")
 	_p1_portrait = _make_panel("P1Portrait")
 	_p2_portrait = _make_panel("P2Portrait")
-	_p1_mark = _make_label_on(_p1_portrait, "Mark", 28, HORIZONTAL_ALIGNMENT_CENTER)
-	_p2_mark = _make_label_on(_p2_portrait, "Mark", 28, HORIZONTAL_ALIGNMENT_CENTER)
+	_p1_mark = _make_label_on(_p1_portrait, "Mark", 22, HORIZONTAL_ALIGNMENT_CENTER)
+	_p2_mark = _make_label_on(_p2_portrait, "Mark", 22, HORIZONTAL_ALIGNMENT_CENTER)
 	for mark in [_p1_mark, _p2_mark]:
 		mark.set_anchors_preset(Control.PRESET_FULL_RECT)
 		mark.offset_left = 0.0
 		mark.offset_top = 0.0
 		mark.offset_right = 0.0
 		mark.offset_bottom = 0.0
-	_p1_name = _make_label("P1Name", 16, HORIZONTAL_ALIGNMENT_LEFT)
-	_p2_name = _make_label("P2Name", 16, HORIZONTAL_ALIGNMENT_RIGHT)
-	_p1_percent_label = _make_label("P1Percent", 44, HORIZONTAL_ALIGNMENT_LEFT)
-	_p2_percent_label = _make_label("P2Percent", 44, HORIZONTAL_ALIGNMENT_RIGHT)
-	_p1_secondary = _make_label("P1Secondary", 12, HORIZONTAL_ALIGNMENT_LEFT)
-	_p2_secondary = _make_label("P2Secondary", 12, HORIZONTAL_ALIGNMENT_RIGHT)
+	_p1_name = _make_label("P1Name", HudCornersScript.NAME_FONT, HORIZONTAL_ALIGNMENT_LEFT)
+	_p2_name = _make_label("P2Name", HudCornersScript.NAME_FONT, HORIZONTAL_ALIGNMENT_RIGHT)
+	_p1_percent_label = _make_label("P1Percent", HudCornersScript.PERCENT_FONT, HORIZONTAL_ALIGNMENT_LEFT)
+	_p2_percent_label = _make_label("P2Percent", HudCornersScript.PERCENT_FONT, HORIZONTAL_ALIGNMENT_RIGHT)
+	_p1_secondary = _make_label("P1Secondary", HudCornersScript.SECONDARY_FONT, HORIZONTAL_ALIGNMENT_LEFT)
+	_p2_secondary = _make_label("P2Secondary", HudCornersScript.SECONDARY_FONT, HORIZONTAL_ALIGNMENT_RIGHT)
 	_p1_stocks = _make_stock_row("P1Stock")
 	_p2_stocks = _make_stock_row("P2Stock")
 	for label in [_p1_name, _p2_name, _p1_percent_label, _p2_percent_label, _p1_mark, _p2_mark]:
-		label.add_theme_constant_override("outline_size", 4)
+		label.add_theme_constant_override("outline_size", HudCornersScript.OUTLINE_SIZE)
 		label.add_theme_color_override("font_outline_color", Color(0.02, 0.02, 0.03, 0.92))
-	_style(HudPrototypeScript.CARDS)
-	visible = false
+	_style_cards()
 	set_process(false)
 
 func present(payload: Dictionary) -> void:
-	var id := str(payload.get("id", ""))
-	if id == "":
-		visible = false
-		set_process(false)
-		return
 	if not is_node_ready():
 		return
 	visible = true
-	if id != _id:
-		_id = id
-		_style(id)
 	var viewport: Vector2 = payload.get("viewport", Vector2(1280.0, 720.0))
-	var placed: Dictionary = HudPrototypeScript.layout(id, viewport)
-	_place(_band, placed.get("band", Rect2()) as Rect2)
-	_band.visible = bool(placed.get("show_band", false))
-	_place(_tag, placed.get("tag", Rect2()) as Rect2)
-	_tag.text = id
+	var placed: Dictionary = HudCornersScript.layout(viewport)
 	var sides: Dictionary = payload.get("sides", {})
 	_present_side("p1", placed.get("p1", {}), sides.get("p1", {}))
 	_present_side("p2", placed.get("p2", {}), sides.get("p2", {}))
 	_apply_pop()
 
 func timer_rect(viewport: Vector2) -> Rect2:
-	if _id == "":
-		return Rect2()
-	var placed: Dictionary = HudPrototypeScript.layout(_id, viewport)
+	var placed: Dictionary = HudCornersScript.layout(viewport)
 	return placed.get("timer", Rect2()) as Rect2
 
-func timer_font_size(viewport: Vector2) -> int:
-	if _id == "":
-		return 13
-	var placed: Dictionary = HudPrototypeScript.layout(_id, viewport)
-	return int(placed.get("timer_size", 13))
+func timer_font_size() -> int:
+	return HudCornersScript.TIMER_FONT
+
+func dialogue_rect(viewport: Vector2) -> Rect2:
+	var placed: Dictionary = HudCornersScript.layout(viewport)
+	return placed.get("dialogue", Rect2()) as Rect2
 
 func _process(delta: float) -> void:
 	var moving := false
 	if _p1_pop > 0.0:
-		_p1_pop = maxf(0.0, _p1_pop - delta * 3.4)
+		_p1_pop = maxf(0.0, _p1_pop - delta / HudCornersScript.POP_DURATION_SECONDS)
 		moving = true
 	if _p2_pop > 0.0:
-		_p2_pop = maxf(0.0, _p2_pop - delta * 3.4)
+		_p2_pop = maxf(0.0, _p2_pop - delta / HudCornersScript.POP_DURATION_SECONDS)
 		moving = true
 	_apply_pop()
 	if not moving:
@@ -129,22 +110,22 @@ func _present_side(side: String, cluster: Dictionary, data: Dictionary) -> void:
 		fighter_name = "P1" if side == "p1" else "P2"
 	name_label.text = fighter_name
 	name_label.horizontal_alignment = alignment
-	name_label.add_theme_font_size_override("font_size", int(cluster.get("name_size", 16)))
+	name_label.add_theme_font_size_override("font_size", int(cluster.get("name_size", HudCornersScript.NAME_FONT)))
 	mark.text = fighter_name.substr(0, 1)
-	_style_portrait(portrait, HudPrototypeScript.portrait_color(fighter_name))
+	_style_portrait(portrait, HudCornersScript.portrait_color(fighter_name))
 	var percent := maxi(0, int(data.get("percent", 0)))
 	percent_label.text = "%d%%" % percent
 	percent_label.horizontal_alignment = alignment
 	percent_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	var percent_rect: Rect2 = cluster.get("percent", Rect2()) as Rect2
-	var percent_size := mini(int(cluster.get("percent_size", 40)), maxi(18, int(percent_rect.size.y * 0.9)))
+	var percent_size := mini(int(cluster.get("percent_size", HudCornersScript.PERCENT_FONT)), maxi(18, int(percent_rect.size.y * 0.9)))
 	percent_label.add_theme_font_size_override("font_size", percent_size)
-	percent_label.add_theme_color_override("font_color", HudPrototypeScript.percent_color(percent))
-	var line := HudPrototypeScript.secondary_line(data.get("combat", {}), _secondary_labels())
+	percent_label.add_theme_color_override("font_color", HudCornersScript.percent_color(percent))
+	var line := HudCornersScript.secondary_line(data.get("combat", {}), _secondary_labels())
 	secondary.text = line
 	secondary.visible = line != ""
 	secondary.horizontal_alignment = alignment
-	secondary.add_theme_font_size_override("font_size", int(cluster.get("secondary_size", 12)))
+	secondary.add_theme_font_size_override("font_size", int(cluster.get("secondary_size", HudCornersScript.SECONDARY_FONT)))
 	_place_stocks(stocks, cluster.get("stocks", Rect2()) as Rect2, int(data.get("stocks", 0)), int(data.get("stock_cap", 3)), align_right)
 	_note_percent(side, percent, cluster)
 
@@ -171,14 +152,14 @@ func _place_percent(label: Label, cluster: Dictionary, pop: float) -> void:
 		return
 	var rect: Rect2 = cluster.get("percent", Rect2()) as Rect2
 	var align_right := bool(cluster.get("align_right", false))
-	var wobble := sin(pop * PI * 3.5) * 5.0 * pop
+	var wobble := sin(pop * PI * 3.5) * HudCornersScript.SHAKE_PX * pop
 	var shift := -wobble if align_right else wobble
 	label.offset_left = rect.position.x + shift
 	label.offset_top = rect.position.y
 	label.offset_right = rect.position.x + rect.size.x + shift
 	label.offset_bottom = rect.position.y + rect.size.y
 	label.pivot_offset = Vector2(rect.size.x if align_right else 0.0, rect.size.y * 0.5)
-	label.scale = Vector2.ONE * (1.0 + 0.22 * pop)
+	label.scale = Vector2.ONE * (1.0 + HudCornersScript.POP_SCALE * pop)
 
 func _place_stocks(icons: Array[ColorRect], rect: Rect2, stocks: int, stock_cap: int, align_right: bool) -> void:
 	var cap := clampi(maxi(stock_cap, stocks), 1, STOCK_CAP)
@@ -236,13 +217,14 @@ func _make_stock_row(prefix: String) -> Array[ColorRect]:
 		icons.append(swatch)
 	return icons
 
-func _style(id: String) -> void:
-	_style_panel(_band, _marquee_band())
-	_style_panel(_p1_card, _card_style(id))
-	_style_panel(_p2_card, _card_style(id))
-	var tag_color := Color(1.0, 0.84, 0.55, 0.9) if id == HudPrototypeScript.MARQUEE else Color(0.86, 0.90, 0.96, 0.8)
-	_tag.add_theme_color_override("font_color", tag_color)
-	_tag.add_theme_font_size_override("font_size", 12)
+func _style_cards() -> void:
+	var style := StyleBoxFlat.new()
+	style.set_corner_radius_all(6)
+	style.bg_color = Color(0.02, 0.03, 0.05, 0.55)
+	style.border_color = Color(0.92, 0.94, 0.98, 0.45)
+	style.set_border_width_all(1)
+	_p1_card.add_theme_stylebox_override("panel", style)
+	_p2_card.add_theme_stylebox_override("panel", style.duplicate())
 
 func _style_portrait(panel: Panel, fill: Color) -> void:
 	var style := StyleBoxFlat.new()
@@ -251,37 +233,6 @@ func _style_portrait(panel: Panel, fill: Color) -> void:
 	style.set_border_width_all(2)
 	style.set_corner_radius_all(4)
 	panel.add_theme_stylebox_override("panel", style)
-
-func _style_panel(panel: Panel, style: StyleBoxFlat) -> void:
-	if panel == null:
-		return
-	panel.add_theme_stylebox_override("panel", style)
-
-func _card_style(id: String) -> StyleBoxFlat:
-	var style := StyleBoxFlat.new()
-	style.set_corner_radius_all(6)
-	if id == HudPrototypeScript.CORNERS:
-		style.bg_color = Color(0.02, 0.03, 0.05, 0.28)
-		style.border_color = Color(0.92, 0.94, 0.98, 0.28)
-		style.set_border_width_all(1)
-		return style
-	if id == HudPrototypeScript.MARQUEE:
-		style.bg_color = Color(0.16, 0.10, 0.06, 0.55)
-		style.border_color = Color(1.0, 0.78, 0.42, 0.95)
-		style.set_border_width_all(2)
-		style.border_width_bottom = 4
-		return style
-	style.bg_color = Color(0.035, 0.05, 0.09, 0.90)
-	style.border_color = Color(0.80, 0.86, 0.96, 0.95)
-	style.set_border_width_all(2)
-	return style
-
-func _marquee_band() -> StyleBoxFlat:
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.10, 0.06, 0.04, 0.92)
-	style.border_color = Color(1.0, 0.82, 0.48, 1.0)
-	style.border_width_top = 3
-	return style
 
 func _secondary_labels() -> Dictionary:
 	return {
