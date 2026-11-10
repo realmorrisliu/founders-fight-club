@@ -73,6 +73,10 @@ static func normalize(raw: Dictionary) -> Dictionary:
 		return {"ok": false, "error": "p1_control must be script, cpu, or idle"}
 	if p2_control == "":
 		return {"ok": false, "error": "p2_control must be script, cpu, or idle"}
+	var p1_cpu_difficulty := _difficulty(raw.get("p1_cpu_difficulty", ""))
+	var p2_cpu_difficulty := _difficulty(raw.get("p2_cpu_difficulty", ""))
+	if p1_cpu_difficulty == "invalid" or p2_cpu_difficulty == "invalid":
+		return {"ok": false, "error": "cpu difficulty must be easy, normal, or hard"}
 	var inputs_value: Variant = raw.get("inputs", [])
 	var parsed_inputs := _parse_inputs(inputs_value, frames)
 	if not bool(parsed_inputs.get("ok", false)):
@@ -91,6 +95,8 @@ static func normalize(raw: Dictionary) -> Dictionary:
 		"p2": str(raw.get("p2", "")).strip_edges(),
 		"p1_control": p1_control,
 		"p2_control": p2_control,
+		"p1_cpu_difficulty": p1_cpu_difficulty,
+		"p2_cpu_difficulty": p2_cpu_difficulty,
 		"onboarding": _as_bool(raw.get("onboarding", false), false),
 		"control_preset": _preset(raw.get("control_preset", "modern")),
 		"inputs": parsed_inputs.get("inputs", []),
@@ -149,6 +155,14 @@ static func _control(value: Variant, mode: String, is_p1: bool) -> String:
 	if CONTROLS.has(text):
 		return text
 	return ""
+
+static func _difficulty(value: Variant) -> String:
+	var text := str(value).strip_edges().to_lower()
+	if text == "":
+		return ""
+	if text in ["easy", "normal", "hard"]:
+		return text
+	return "invalid"
 
 static func _preset(value: Variant) -> String:
 	var text := str(value).strip_edges().to_lower()
