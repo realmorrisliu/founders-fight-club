@@ -57,3 +57,4 @@ Damage percent is `100 - current_hp`. A real match spends a stock on ring-out or
 - Headless checks stay `bash scripts/test.sh` (smoke) and `bash scripts/test.sh full` (the CI suite).
 - `./scripts/godot.sh run` opens the menu on the desktop. This VM has no Vulkan device, so Godot logs a Vulkan error and falls back to OpenGL (llvmpipe). There is no sound card, so audio falls back to the dummy driver and the match still runs. The first launch shows a Choose Control Style overlay before the main menu.
 - Opening the project can rewrite `.import` files and add `.uid` files. Leave that editor churn uncommitted unless you added the asset.
+- pstack per-role models are in `.cursor/rules/pstack-models.mdc` (always applied).
