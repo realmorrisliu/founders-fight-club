@@ -22,6 +22,7 @@ static func scan(project_root: String) -> PackedStringArray:
 	_lock_hud(failures, doc)
 	_lock_formula(failures, camera)
 	_lock_cover(failures)
+	_lock_backdrop_disc(failures, root)
 	_lock_project(failures, _read_text(_join(root, "project.godot")))
 	_lock_sources(failures, root)
 	_lock_picture_source(failures, root)
@@ -203,6 +204,54 @@ static func _lock_cover(failures: PackedStringArray) -> void:
 		var top_left_uv := LookB.backdrop_sample_uv(cover, top_left.x, top_left.y)
 		if top_left_uv.distance_to(Vector2.ZERO) > 0.001:
 			failures.append("%s moved the backdrop top left" % label)
+	_lock_floor_cover(failures, aim)
+
+
+static func _lock_floor_cover(failures: PackedStringArray, aim: Vector3) -> void:
+	var center_x := 0.0
+	var width_px := 760.0
+	var deck := LookB.floor_deck_rect(center_x, width_px)
+	for view in [
+		{"height": 720.0, "aspect": 16.0 / 9.0, "zoom": LookB.REFERENCE_ZOOM, "label": "floor 720"},
+		{"height": 1080.0, "aspect": 16.0 / 9.0, "zoom": LookB.REFERENCE_ZOOM, "label": "floor 1080"},
+		{"height": 1440.0, "aspect": 16.0 / 9.0, "zoom": LookB.REFERENCE_ZOOM, "label": "floor 1440"},
+		{"height": 720.0, "aspect": 2560.0 / 1080.0, "zoom": LookB.REFERENCE_ZOOM, "label": "floor ultrawide"},
+	]:
+		var fov := LookB.fov_y_deg(float(view["height"]), float(view["zoom"]))
+		var aspect := float(view["aspect"])
+		var label := str(view["label"])
+		var cover := LookB.floor_cover_rect(fov, aspect, aim, center_x, width_px)
+		if not cover.encloses(deck):
+			failures.append("%s dropped the stage deck" % label)
+		var hit := LookB.floor_ray_hit(fov, aspect, aim, 0.0, -1.0)
+		if not cover.has_point(Vector2(hit.x, hit.z)):
+			failures.append("%s floor misses the bottom of the frame" % label)
+		var uv: Dictionary = LookB.floor_uv_params(cover, deck)
+		var scale: Vector2 = uv["scale"]
+		var offset: Vector2 = uv["offset"]
+		var center := deck.position + deck.size * 0.5
+		var mesh_u := 0.5 + (center.x - (cover.position.x + cover.size.x * 0.5)) / cover.size.x
+		var mesh_v := 0.5 + (center.y - (cover.position.y + cover.size.y * 0.5)) / cover.size.y
+		var sampled := Vector2(mesh_u * scale.x + offset.x, mesh_v * scale.y + offset.y)
+		if sampled.distance_to(Vector2(0.5, 0.5)) > 0.001:
+			failures.append("%s moved the floor center" % label)
+
+
+static func _lock_backdrop_disc(failures: PackedStringArray, root: String) -> void:
+	var image := Image.new()
+	var loaded := image.load(_join(root, "assets/sprites/arena/arena_bg.png"))
+	if loaded != OK:
+		failures.append("backdrop image failed to load")
+		return
+	var warm := 0
+	var sky_rows := mini(180, image.get_height())
+	for y in sky_rows:
+		for x in image.get_width():
+			var color := image.get_pixel(x, y)
+			if color.r > 0.7 and color.g > 0.6 and color.b > 0.55 and color.r > color.b:
+				warm += 1
+	if warm > 0:
+		failures.append("backdrop sky still has a bright disc (%d)" % warm)
 
 
 static func _lock_project(failures: PackedStringArray, project_text: String) -> void:

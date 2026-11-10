@@ -57,6 +57,9 @@ const PLATFORM_MIN_THICKNESS_M := 0.08
 const BACKDROP_SIZE_M := Vector2(20.0, 11.0)
 const BACKDROP_POSITION_M := Vector3(0.0, 3.1, -7.5)
 const BACKDROP_ALBEDO := Color(1.0, 1.0, 1.0)
+const BACKDROP_COVER_BLEED := 0.04
+const FLOOR_COVER_PAD_M := 0.02
+const FLOOR_COVER_SLOP_M := 0.2
 
 const FOOT_DROP_M := 0.10
 const FIGHTER_Z_STEP_M := 0.02
@@ -190,17 +193,31 @@ static func backdrop_card_rect() -> Rect2:
 	)
 
 
-static func frustum_rect_at_backdrop(fov_y_deg: float, aspect: float, aim: Vector3) -> Rect2:
+static func _camera_basis(aim: Vector3) -> Dictionary:
 	var pitch := deg_to_rad(PITCH_DEG)
-	var eye := aim + Vector3(0.0, PLANE_DISTANCE_M * sin(pitch), PLANE_DISTANCE_M * cos(pitch))
-	var forward := Vector3(0.0, -sin(pitch), -cos(pitch))
-	var camera_up := Vector3(0.0, cos(pitch), -sin(pitch))
-	var camera_right := Vector3(1.0, 0.0, 0.0)
+	return {
+		"eye": aim + Vector3(0.0, PLANE_DISTANCE_M * sin(pitch), PLANE_DISTANCE_M * cos(pitch)),
+		"forward": Vector3(0.0, -sin(pitch), -cos(pitch)),
+		"up": Vector3(0.0, cos(pitch), -sin(pitch)),
+		"right": Vector3(1.0, 0.0, 0.0),
+	}
+
+
+static func _view_direction(fov_y_deg: float, aspect: float, sx: float, sy: float) -> Vector3:
+	var basis := _camera_basis(Vector3.ZERO)
 	var tan_v := tan(deg_to_rad(fov_y_deg) * 0.5)
 	var safe_aspect := aspect
 	if safe_aspect <= 0.0:
 		safe_aspect = 1.0
 	var tan_h := tan_v * safe_aspect
+	var forward: Vector3 = basis["forward"]
+	var camera_up: Vector3 = basis["up"]
+	var camera_right: Vector3 = basis["right"]
+	return forward + camera_right * (sx * tan_h) + camera_up * (sy * tan_v)
+
+
+static func frustum_rect_at_backdrop(fov_y_deg: float, aspect: float, aim: Vector3) -> Rect2:
+	var eye: Vector3 = _camera_basis(aim)["eye"]
 	var plane_z := BACKDROP_POSITION_M.z
 	var min_x := INF
 	var max_x := -INF
@@ -208,7 +225,7 @@ static func frustum_rect_at_backdrop(fov_y_deg: float, aspect: float, aim: Vecto
 	var max_y := -INF
 	for sx in [-1.0, 1.0]:
 		for sy in [-1.0, 1.0]:
-			var direction := forward + camera_right * (float(sx) * tan_h) + camera_up * (float(sy) * tan_v)
+			var direction := _view_direction(fov_y_deg, aspect, float(sx), float(sy))
 			var t := (plane_z - eye.z) / direction.z
 			var hit := eye + direction * t
 			min_x = minf(min_x, hit.x)
@@ -218,11 +235,76 @@ static func frustum_rect_at_backdrop(fov_y_deg: float, aspect: float, aim: Vecto
 	return Rect2(min_x, min_y, max_x - min_x, max_y - min_y)
 
 
+static func floor_deck_rect(center_x: float, width_px: float) -> Rect2:
+	var size := floor_size_m(width_px)
+	var center_z := floor_center_z()
+	return Rect2(center_x - size.x * 0.5, center_z - size.y * 0.5, size.x, size.y)
+
+
+static func floor_ray_hit(fov_y_deg: float, aspect: float, aim: Vector3, sx: float, sy: float) -> Vector3:
+	var eye: Vector3 = _camera_basis(aim)["eye"]
+	var direction := _view_direction(fov_y_deg, aspect, sx, sy)
+	if absf(direction.y) < 0.0001:
+		return Vector3(INF, INF, INF)
+	var t := (FLOOR_TOP_Y_M - eye.y) / direction.y
+	if t <= 0.0:
+		return Vector3(INF, INF, INF)
+	return eye + direction * t
+
+
+static func floor_cover_rect(fov_y_deg: float, aspect: float, aim: Vector3, center_x: float, width_px: float) -> Rect2:
+	var deck := floor_deck_rect(center_x, width_px)
+	var merged := deck
+	var eye_z: float = _camera_basis(aim)["eye"].z
+	var tolerated := deck.grow(FLOOR_COVER_SLOP_M)
+	for sx in [-1.0, 0.0, 1.0]:
+		for sy in [-1.0]:
+			var hit := floor_ray_hit(fov_y_deg, aspect, aim, float(sx), float(sy))
+			if hit.x == INF or hit.z > eye_z or hit.z < BACKDROP_POSITION_M.z:
+				continue
+			if tolerated.has_point(Vector2(hit.x, hit.z)):
+				continue
+			merged = merged.merge(Rect2(hit.x, hit.z, 0.0, 0.0).grow(FLOOR_COVER_PAD_M))
+	return merged
+
+
+static func floor_top_from_cover(cover: Rect2) -> Vector3:
+	return Vector3(cover.position.x + cover.size.x * 0.5, FLOOR_TOP_Y_M, cover.position.y + cover.size.y * 0.5)
+
+
+static func skirt_from_cover(cover: Rect2) -> Vector3:
+	return Vector3(cover.position.x + cover.size.x * 0.5, SKIRT_CENTER_Y_M, cover.position.y + cover.size.y * 0.5)
+
+
+static func skirt_size_from_cover(cover: Rect2) -> Vector3:
+	return Vector3(cover.size.x, SKIRT_HEIGHT_M, cover.size.y)
+
+
+static func floor_uv_params(cover: Rect2, deck: Rect2) -> Dictionary:
+	var scale := Vector2(cover.size.x / deck.size.x, cover.size.y / deck.size.y)
+	var cover_center := cover.position + cover.size * 0.5
+	var deck_center := deck.position + deck.size * 0.5
+	return {
+		"scale": scale,
+		"offset": Vector2(
+			0.5 * (1.0 - scale.x) + (cover_center.x - deck_center.x) / deck.size.x,
+			0.5 * (1.0 - scale.y) + (cover_center.y - deck_center.y) / deck.size.y
+		),
+	}
+
+
 static func backdrop_cover_rect(fov_y_deg: float, aspect: float, aim: Vector3) -> Rect2:
 	var frustum := frustum_rect_at_backdrop(fov_y_deg, aspect, aim)
-	if frustum.size.x < 0.0:
-		return frustum
-	return backdrop_card_rect()
+	var margin := maxf(frustum.size.x, frustum.size.y) * BACKDROP_COVER_BLEED
+	return backdrop_card_rect().merge(frustum.grow(margin))
+
+
+static func backdrop_center_m(cover: Rect2) -> Vector3:
+	return Vector3(
+		cover.position.x + cover.size.x * 0.5,
+		cover.position.y + cover.size.y * 0.5,
+		BACKDROP_POSITION_M.z
+	)
 
 
 static func backdrop_uv_params(cover: Rect2) -> Dictionary:
