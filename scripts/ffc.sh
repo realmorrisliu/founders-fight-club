@@ -18,6 +18,8 @@ Options for run/replay:
   --p1 CHARACTER_ID --p2 CHARACTER_ID
   --p1-control script|cpu|idle
   --p2-control script|cpu|idle
+  --p1-cpu-difficulty easy|normal|hard
+  --p2-cpu-difficulty easy|normal|hard
   --stocks N
   --timer-enabled true|false
   --timer-seconds N

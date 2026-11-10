@@ -113,6 +113,7 @@ func _run_full_suite() -> void:
 	await _test_wave1_vertical_slice_skills()
 	await _test_full_roster_signature_coverage()
 	await _test_match_driver_replay_is_deterministic()
+	await _test_cpu_fight_bars()
 	await _test_look_b_seed_hashes()
 
 func _resolve_suite_from_args(args: PackedStringArray) -> String:
@@ -4418,6 +4419,169 @@ func _test_picture_contract() -> void:
 	var boot_failures: PackedStringArray = await picture_contract.boot(self)
 	_assert_true(boot_failures.is_empty(), "picture contract boot: %s" % _packed_failure_text(boot_failures))
 
+func _test_cpu_fight_bars() -> void:
+	var mind = load("res://scripts/player/CpuMind.gd")
+	_assert_true(mind != null, "cpu mind script loads")
+	if mind == null:
+		return
+	var easy: Dictionary = mind.tuning_for("easy")
+	var normal: Dictionary = mind.tuning_for("normal")
+	var hard: Dictionary = mind.tuning_for("hard")
+	_assert_true(float(easy["reaction_delay"]) > float(normal["reaction_delay"]), "easy reacts slower than normal")
+	_assert_true(float(normal["reaction_delay"]) > float(hard["reaction_delay"]), "normal reacts slower than hard")
+	_assert_true(float(easy["mistake_rate"]) > float(normal["mistake_rate"]), "easy makes more mistakes than normal")
+	_assert_true(float(normal["mistake_rate"]) > float(hard["mistake_rate"]), "normal makes more mistakes than hard")
+	_assert_true(float(easy["aggression"]) < float(normal["aggression"]), "easy is less aggressive than normal")
+	_assert_true(float(normal["aggression"]) < float(hard["aggression"]), "normal is less aggressive than hard")
+	var fresh = mind.new()
+	_assert_true(str(fresh.difficulty_id) == "normal", "cpu difficulty defaults to normal")
+
+	var deep_one := _run_cpu_bar_match([
+		"--seed", "4", "--mode", "cpu", "--frames", "180",
+		"--p1", "elon_mvsk", "--p2", "mark_zuck",
+		"--p1-control", "script", "--p2-control", "cpu",
+		"--setup-p1-x", "400", "--setup-p1-y", "300",
+		"--setup-p2-x", "900", "--setup-p2-y", "460"
+	], "cpu-deep-4")
+	var deep_two := _run_cpu_bar_match([
+		"--seed", "4", "--mode", "cpu", "--frames", "180",
+		"--p1", "elon_mvsk", "--p2", "mark_zuck",
+		"--p1-control", "script", "--p2-control", "cpu",
+		"--setup-p1-x", "400", "--setup-p1-y", "300",
+		"--setup-p2-x", "900", "--setup-p2-y", "460"
+	], "cpu-deep-4-repeat")
+	_assert_cpu_back_on_stage(deep_one, "p2", "deep recovery returns the cpu to the stage")
+	_assert_true(str(deep_one.get("hash", "")) != "" and str(deep_one.get("hash", "")) == str(deep_two.get("hash", "")), "deep recovery replay is deterministic")
+	var near := _run_cpu_bar_match([
+		"--seed", "2", "--mode", "cpu", "--frames", "180",
+		"--p1", "elon_mvsk", "--p2", "mark_zuck",
+		"--p1-control", "script", "--p2-control", "cpu",
+		"--setup-p1-x", "400", "--setup-p1-y", "300",
+		"--setup-p2-x", "880", "--setup-p2-y", "200"
+	], "cpu-near-2")
+	_assert_cpu_back_on_stage(near, "p2", "near recovery returns the cpu to the stage")
+	var deeper := _run_cpu_bar_match([
+		"--seed", "8", "--mode", "cpu", "--frames", "180",
+		"--p1", "elon_mvsk", "--p2", "mark_zuck",
+		"--p1-control", "script", "--p2-control", "cpu",
+		"--setup-p1-x", "400", "--setup-p1-y", "300",
+		"--setup-p2-x", "900", "--setup-p2-y", "480"
+	], "cpu-deeper-8")
+	_assert_cpu_back_on_stage(deeper, "p2", "recovery below the usual air dodge still returns")
+	var idle := _run_cpu_bar_match([
+		"--seed", "1", "--mode", "cpu", "--frames", "600",
+		"--p1", "elon_mvsk", "--p2", "mark_zuck",
+		"--p1-control", "cpu", "--p2-control", "script",
+		"--setup-p1-x", "330", "--setup-p1-y", "300",
+		"--setup-p2-x", "570", "--setup-p2-y", "300"
+	], "cpu-idle-1")
+	_assert_cpu_stays_alive(idle, "p1", "cpu does not self-destruct against a still opponent")
+	var shield := _run_cpu_bar_match([
+		"--seed", "4", "--mode", "cpu", "--frames", "140",
+		"--p1", "elon_mvsk", "--p2", "mark_zuck",
+		"--p1-control", "script", "--p2-control", "cpu",
+		"--setup-p1-x", "400", "--setup-p1-y", "300",
+		"--setup-p2-x", "460", "--setup-p2-y", "300",
+		"--input", ProjectSettings.globalize_path("res://scripts/driver/examples/cpu-punish.json")
+	], "cpu-shield-4")
+	_assert_cpu_defends(shield, "p2", "cpu shields or dodges a scripted attack")
+	var easy_platform := _run_cpu_bar_match([
+		"--seed", "7", "--mode", "local", "--frames", "400",
+		"--p1", "elon_mvsk", "--p2", "mark_zuck",
+		"--p1-control", "cpu", "--p2-control", "cpu",
+		"--p1-cpu-difficulty", "easy", "--p2-cpu-difficulty", "easy",
+		"--timer-seconds", "60"
+	], "cpu-easy-platform")
+	_assert_cpu_uses_platform(easy_platform, "easy cpu stands on a platform")
+	var normal_match := _run_cpu_bar_match([
+		"--seed", "2", "--mode", "local", "--frames", "40",
+		"--p1", "elon_mvsk", "--p2", "mark_zuck",
+		"--p1-control", "cpu", "--p2-control", "cpu"
+	], "cpu-diff-normal")
+	var mixed_match := _run_cpu_bar_match([
+		"--seed", "2", "--mode", "local", "--frames", "40",
+		"--p1", "elon_mvsk", "--p2", "mark_zuck",
+		"--p1-control", "cpu", "--p2-control", "cpu",
+		"--p1-cpu-difficulty", "hard", "--p2-cpu-difficulty", "easy"
+	], "cpu-diff-mixed")
+	_assert_true(str(normal_match.get("hash", "")) != "" and str(normal_match.get("hash", "")) != str(mixed_match.get("hash", "")), "difficulty changes the replay")
+
+
+func _run_cpu_bar_match(args: Array, label: String) -> Dictionary:
+	var command := PackedStringArray(["run"])
+	for item in args:
+		command.append(str(item))
+	var out_path := "/tmp/ffc-%s.jsonl" % label
+	command.append("--out")
+	command.append(out_path)
+	var result := _run_ffc_cli(command)
+	result["rows"] = _read_state_rows(out_path)
+	result["out"] = out_path
+	_assert_true(int(result.get("code", 1)) == 0, "%s exits 0: %s" % [label, _tail_text(str(result.get("text", "")))])
+	return result
+
+
+func _assert_cpu_back_on_stage(result: Dictionary, side: String, message: String) -> void:
+	var rows: Array = result.get("rows", [])
+	_assert_true(not rows.is_empty(), "%s wrote frames" % message)
+	if rows.is_empty():
+		return
+	var player := _state_row_player(rows[rows.size() - 1], side)
+	_assert_true(int(player.get("stocks", 0)) == 3, "%s keeps 3 stocks" % message)
+	_assert_true(bool(player.get("on_floor", false)), "%s lands on stage" % message)
+	var x := float(player.get("x", -999.0))
+	_assert_true(x >= 70.0 and x <= 830.0, "%s ends on the slab at x %s" % [message, str(x)])
+
+
+func _assert_cpu_defends(result: Dictionary, side: String, message: String) -> void:
+	var defended := false
+	for row_value in result.get("rows", []):
+		if typeof(row_value) != TYPE_DICTIONARY:
+			continue
+		var player := _state_row_player(row_value, side)
+		var state := str(player.get("state", ""))
+		if bool(player.get("blocking", false)) or state == "block" or state == "dodge":
+			defended = true
+			break
+	_assert_true(defended, message)
+
+
+func _assert_cpu_uses_platform(result: Dictionary, message: String) -> void:
+	var stood := false
+	for row_value in result.get("rows", []):
+		if typeof(row_value) != TYPE_DICTIONARY:
+			continue
+		var row := row_value as Dictionary
+		var players: Array = row.get("players", [])
+		for player_value in players:
+			if typeof(player_value) != TYPE_DICTIONARY:
+				continue
+			var player := player_value as Dictionary
+			if bool(player.get("on_floor", false)) and float(player.get("y", 999.0)) < 286.0:
+				stood = true
+				break
+		if stood:
+			break
+	_assert_true(stood, message)
+
+
+func _assert_cpu_stays_alive(result: Dictionary, side: String, message: String) -> void:
+	var rows: Array = result.get("rows", [])
+	_assert_true(not rows.is_empty(), "%s wrote frames" % message)
+	var left_stage := false
+	for row_value in rows:
+		if typeof(row_value) != TYPE_DICTIONARY:
+			continue
+		var player := _state_row_player(row_value, side)
+		if int(player.get("stocks", 0)) < 3:
+			_assert_true(false, "%s lost a stock" % message)
+			return
+		var x := float(player.get("x", 0.0))
+		if x < 40.0 or x > 860.0:
+			left_stage = true
+	_assert_true(not left_stage, "%s stayed on the stage" % message)
+
+
 func _test_look_b_seed_hashes() -> void:
 	var cases: Array[Dictionary] = [
 		{
@@ -4433,7 +4597,7 @@ func _test_look_b_seed_hashes() -> void:
 		},
 		{
 			"label": "cpu",
-			"hash": "278257fa9fc089508802bc29f8e1dbe8eb23500230f47dd44a33d31f71dea7e3",
+			"hash": "1c3ee658642e58b9b08bc200d229892b0e862befbd4bd5cf946d0b3058a412c5",
 			"args": [
 				"run", "--seed", "11", "--mode", "cpu", "--frames", "180",
 				"--p1", "elon_mvsk", "--p2", "mark_zuck",
@@ -4450,7 +4614,7 @@ func _test_look_b_seed_hashes() -> void:
 		},
 		{
 			"label": "story",
-			"hash": "6a52aeb7b7cfa4f8b279b9fe04c8456336b276a4c13c4f39c6ea2d723dbc6fdc",
+			"hash": "1bc2fe0a8dfaed04048fe468d2162b1a88d90d348b02b9d16dcbc3315bc774e6",
 			"args": [
 				"run", "--seed", "11", "--mode", "story", "--frames", "90",
 				"--input", "res://scripts/driver/examples/walk-right.json"

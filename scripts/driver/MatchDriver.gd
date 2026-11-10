@@ -157,14 +157,28 @@ func _apply_setup(match_node: Node, spec: Dictionary) -> void:
 			fighter.set("velocity", Vector2.ZERO)
 
 func _apply_controls(match_node: Node, spec: Dictionary) -> void:
-	_set_control(_fighter(match_node, "p1"), str(spec.get("p1_control", "script")))
-	_set_control(_fighter(match_node, "p2"), str(spec.get("p2_control", "script")))
+	var match_seed := int(spec.get("seed", 1))
+	_set_control(_fighter(match_node, "p1"), str(spec.get("p1_control", "script")), match_seed)
+	_set_control(_fighter(match_node, "p2"), str(spec.get("p2_control", "script")), match_seed)
+	_apply_cpu_difficulty(_fighter(match_node, "p1"), str(spec.get("p1_cpu_difficulty", "")))
+	_apply_cpu_difficulty(_fighter(match_node, "p2"), str(spec.get("p2_cpu_difficulty", "")))
 
-func _set_control(fighter: Node, control: String) -> void:
+
+func _apply_cpu_difficulty(fighter: Node, difficulty_id: String) -> void:
+	if fighter == null or difficulty_id == "":
+		return
+	if fighter.has_method("set_cpu_difficulty"):
+		fighter.call("set_cpu_difficulty", difficulty_id)
+
+func _set_control(fighter: Node, control: String, match_seed: int) -> void:
 	if fighter == null:
 		return
 	fighter.set("is_ai", control == "cpu")
-	if control == "cpu" and fighter.has_method("set_training_dummy_options"):
+	if control != "cpu":
+		return
+	if fighter.has_method("bind_cpu_seed"):
+		fighter.call("bind_cpu_seed", match_seed)
+	if fighter.has_method("set_training_dummy_options"):
 		fighter.call("set_training_dummy_options", false, "stand")
 
 func _apply_session(spec: Dictionary) -> void:

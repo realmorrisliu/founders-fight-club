@@ -6,6 +6,7 @@ const PlayerAttackRuntimeBuilderStore := preload("res://scripts/player/PlayerAtt
 const StageConfigStore := preload("res://scripts/config/StageConfig.gd")
 const GameSettingsStore := preload("res://scripts/GameSettings.gd")
 const EvolutionEngineStore := preload("res://scripts/loadout/EvolutionEngine.gd")
+const CpuMindScript := preload("res://scripts/player/CpuMind.gd")
 
 signal health_changed
 signal defeated
@@ -521,6 +522,8 @@ const ATTACK_DATA := PlayerDataStore.ATTACK_DATA
 @export var player_id := 1
 @export var is_ai := false
 @export var opponent_path: NodePath
+var cpu_difficulty_id := "normal"
+var cpu_mind = null
 
 var current_hp := MAX_HP
 var gravity := ProjectSettings.get_setting("physics/2d/default_gravity") as float
@@ -720,6 +723,18 @@ func _physics_process(delta: float) -> void:
 
 	if is_knocked_down:
 		_consume_pending_launch()
+		if is_ai and _ai_needs_offstage_steer():
+			_cpu_mind().steer_offstage(self, delta)
+			_try_enter_ledge_hang()
+			if is_ledge_hanging:
+				_update_facing()
+				_update_visual()
+				was_on_floor_last_frame = false
+				return
+			_update_facing()
+			_update_visual()
+			_move_and_finalize(was_on_floor)
+			return
 		if velocity.y < -30.0:
 			_update_facing()
 			_update_visual()
@@ -772,6 +787,15 @@ func _physics_process(delta: float) -> void:
 		return
 
 	if dodge_time > 0.0:
+		if is_ai and _ai_air_dodge_reaches_ledge():
+			dodge_time = 0.0
+			_end_dodge_state()
+			_try_enter_ledge_hang()
+			if is_ledge_hanging:
+				_update_facing()
+				_update_visual()
+				was_on_floor_last_frame = false
+				return
 		dodge_time = maxf(0.0, dodge_time - delta)
 		is_blocking = false
 		_update_dodge_motion(delta)
@@ -792,6 +816,9 @@ func _physics_process(delta: float) -> void:
 		return
 
 	if is_dashing:
+		if is_ai and _ai_committed_dash_leaves_stage():
+			is_dashing = false
+			velocity.x = 0.0
 		dash_time -= delta
 		if dash_time <= 0.0:
 			is_dashing = false
@@ -969,6 +996,9 @@ func _process_ledge_hang(delta: float) -> void:
 	is_blocking = false
 	if current_hp <= 0:
 		_drop_from_ledge(false)
+		return
+	if is_ai:
+		_cpu_mind().choose_ledge(self)
 		return
 	if _is_action_just_pressed("jump") or _is_action_just_pressed("move_up"):
 		_launch_from_ledge()
@@ -1482,51 +1512,98 @@ func _apply_horizontal_intent(target_speed: float, delta: float, acceleration_sc
 	var rate := acceleration if accelerating else deceleration
 	velocity.x = move_toward(velocity.x, resolved_target, rate * delta)
 
-func _process_ai(delta: float) -> void:
-	if opponent == null:
+func bind_cpu_seed(match_seed: int) -> void:
+	_cpu_mind().bind_seed(match_seed, player_id)
+
+
+func _ai_unit() -> float:
+	if not is_ai:
+		return randf()
+	var mind = _cpu_mind()
+	mind.ensure_seed(self)
+	return mind.rng.randf()
+
+
+func set_cpu_difficulty(id: String) -> void:
+	var resolved := id.strip_edges().to_lower()
+	if not CpuMindScript.DIFFICULTY_TABLE.has(resolved):
+		resolved = "normal"
+	cpu_difficulty_id = resolved
+	if cpu_mind != null:
+		cpu_mind.difficulty_id = resolved
+
+
+func _cpu_mind():
+	if cpu_mind == null:
+		cpu_mind = CpuMindScript.new()
+		cpu_mind.difficulty_id = cpu_difficulty_id
+	return cpu_mind
+
+
+func _ai_needs_offstage_steer() -> bool:
+	return _cpu_mind().needs_offstage_steer(self)
+
+
+func _ai_release_tumble() -> void:
+	is_knocked_down = false
+	knockdown_time = 0.0
+	hitstun_time = 0.0
+	getup_time = 0.0
+
+
+func _ai_try_jump() -> bool:
+	if is_knocked_down or hitstun_time > 0.0:
+		_ai_release_tumble()
+	if not _can_execute_jump():
+		return false
+	jump_buffer_time = JUMP_BUFFER_SECONDS
+	return _try_consume_buffered_jump()
+
+
+func _ai_air_dodge_reaches_ledge() -> bool:
+	if dodge_state != "air" or velocity.y < 0.0:
+		return false
+	return _resolve_ledge_grab_side() != 0
+
+
+func _ai_try_air_dodge(horizontal_axis: float, vertical_axis: float) -> bool:
+	if is_knocked_down or hitstun_time > 0.0:
+		_ai_release_tumble()
+	if not _can_start_dodge():
+		return false
+	return _start_air_dodge(horizontal_axis, vertical_axis)
+
+
+func _ai_drop_through() -> void:
+	if not _is_on_drop_through_platform():
 		return
-	ai_attack_cooldown = maxf(0.0, ai_attack_cooldown - delta)
-	var distance = opponent.global_position.x - global_position.x
-	var distance_abs := absf(distance)
-	var ai_move_speed := MOVE_SPEED * _get_move_speed_multiplier()
-	var preferred_range := _get_ai_profile_number("preferred_range", 56.0)
-	var chase_range := _get_ai_profile_number("chase_range", 108.0)
-	var retreat_range := _get_ai_profile_number("retreat_range", 20.0)
-	var retreat_chance := _get_ai_profile_number("retreat_chance", 0.24)
-	if attack_state == "":
-		if _should_ai_block(distance):
-			is_blocking = true
-			ai_guard_mode = _resolve_ai_guard_mode()
-			_apply_horizontal_intent(0.0, delta, BLOCK_ACCELERATION_SCALE, BLOCK_DECELERATION_SCALE)
-			return
+	platform_drop_through_time = PLATFORM_DROP_THROUGH_SECONDS
+	_update_platform_collision_mask()
+	velocity.y = maxf(velocity.y, LEDGE_DROP_VERTICAL_SPEED)
+	is_blocking = false
 
-		is_blocking = false
-		ai_guard_mode = "high"
-		var target_speed := 0.0
-		if distance_abs > chase_range:
-			target_speed = signf(distance) * ai_move_speed * 0.86
-		elif distance_abs > preferred_range:
-			target_speed = signf(distance) * ai_move_speed * 0.62
-		elif distance_abs < retreat_range and randf() < retreat_chance:
-			target_speed = -signf(distance) * ai_move_speed * 0.42
-		_apply_horizontal_intent(target_speed, delta)
 
-		var dash_in_chance := _get_ai_profile_number("dash_in_chance", 0.08)
-		if distance_abs > chase_range + 20.0 and dash_cooldown_timer <= 0.0 and is_on_floor() and not _is_rooted() and randf() < dash_in_chance:
-			_start_dash()
-			return
+func _ai_committed_dash_leaves_stage() -> bool:
+	var end_x := global_position.x + velocity.x * maxf(dash_time, 0.0)
+	if velocity.x < 0.0 and end_x < stage_left_x + 20.0:
+		return true
+	if velocity.x > 0.0 and end_x > stage_right_x - 20.0:
+		return true
+	return false
 
-		if distance_abs <= preferred_range + 18.0 and ai_attack_cooldown <= 0.0:
-			var ai_attack_kind := _select_ai_attack_kind(distance_abs)
-			if ai_attack_kind != "":
-				_request_attack(ai_attack_kind)
-				var cooldown_min := _get_ai_profile_number("cooldown_min", 0.40)
-				var cooldown_max := maxf(cooldown_min + 0.04, _get_ai_profile_number("cooldown_max", 0.72))
-				ai_attack_cooldown = randf_range(cooldown_min, cooldown_max)
-	else:
-		is_blocking = false
-		ai_guard_mode = "high"
-		_apply_horizontal_intent(0.0, delta, 0.8, 1.2)
+
+func _ai_lunge_leaves_stage(lunge_velocity_x: float) -> bool:
+	var left_gap := global_position.x - stage_left_x
+	var right_gap := stage_right_x - global_position.x
+	if lunge_velocity_x < 0.0 and left_gap < 140.0:
+		return true
+	if lunge_velocity_x > 0.0 and right_gap < 140.0:
+		return true
+	return false
+
+
+func _process_ai(delta: float) -> void:
+	_cpu_mind().tick(self, delta)
 
 func _select_ai_attack_kind(distance: float) -> String:
 	var candidates := _build_ai_attack_candidates(distance)
@@ -1579,7 +1656,7 @@ func _pick_weighted_ai_attack(candidates: Array[Dictionary]) -> String:
 		total_weight += maxf(0.0, float((candidate as Dictionary).get("weight", 0.0)))
 	if total_weight <= 0.0:
 		return str((candidates[0] as Dictionary).get("kind", ""))
-	var roll := randf() * total_weight
+	var roll := _ai_unit() * total_weight
 	for candidate in candidates:
 		if typeof(candidate) != TYPE_DICTIONARY:
 			continue
@@ -1705,7 +1782,7 @@ func _should_ai_block(distance: float) -> bool:
 		return false
 	if not _is_opponent_attack_in_block_window(opponent):
 		return false
-	if randf() < _get_ai_profile_number("block_chance", 0.35):
+	if _ai_unit() < _get_ai_profile_number("block_chance", 0.35):
 		ai_block_time = _get_ai_profile_number("block_hold_time", 0.18)
 	return ai_block_time > 0.0
 
@@ -1734,7 +1811,7 @@ func _is_opponent_attack_in_block_window(target: Node) -> bool:
 func _resolve_ai_guard_mode() -> String:
 	if not is_on_floor():
 		return "air"
-	if randf() < AI_GUARD_LOW_READ_CHANCE:
+	if _ai_unit() < AI_GUARD_LOW_READ_CHANCE:
 		return "low"
 	return "high"
 
@@ -1973,7 +2050,10 @@ func _update_attack(delta: float) -> void:
 		_clear_attack_state()
 
 	if attack_phase in ["startup", "active"] and data.has("lunge_speed"):
-		velocity.x = float(data.get("lunge_speed", 320.0)) * facing
+		var lunge_velocity := float(data.get("lunge_speed", 320.0)) * facing
+		if is_ai and _ai_lunge_leaves_stage(lunge_velocity):
+			lunge_velocity = 0.0
+		velocity.x = lunge_velocity
 
 func _update_skill_runtime(delta: float) -> void:
 	_update_skill_cooldowns(delta)
@@ -4212,11 +4292,11 @@ func _plan_ai_combo_follow_up(was_blocked: bool) -> void:
 	var pressure := _get_ai_profile_number("combo_pressure", 0.52)
 	if attack_state == "light":
 		var chance := pressure * (0.62 if was_blocked else 1.0)
-		if randf() < chance:
+		if _ai_unit() < chance:
 			var extension := _select_ai_combo_extension(was_blocked)
 			if extension != "":
 				_buffer_attack(extension)
-	elif attack_state == "heavy" and not was_blocked and randf() < pressure * 0.78:
+	elif attack_state == "heavy" and not was_blocked and _ai_unit() < pressure * 0.78:
 		var extension := _select_ai_combo_extension(false)
 		if extension != "":
 			_buffer_attack(extension)
@@ -4386,7 +4466,7 @@ func _can_throw_tech(attack_meta: Dictionary) -> bool:
 	if _is_throw_tech_disabled_in_training():
 		return false
 	if is_ai:
-		return randf() < _get_ai_throw_tech_chance()
+		return _ai_unit() < _get_ai_throw_tech_chance()
 	return throw_tech_buffer_time > 0.0 and throw_tech_input_source != ""
 
 func _apply_throw_tech_defense(knockback: Vector2) -> void:
@@ -4535,12 +4615,17 @@ func _resolve_directional_influence_input(base_knockback: Vector2, attack_meta: 
 			if override_vec.length() >= DI_INPUT_DEADZONE:
 				return override_vec.normalized()
 	if is_ai:
-		if randf() > AI_DI_CHANCE:
+		if _ai_unit() > AI_DI_CHANCE:
 			return Vector2.ZERO
-		var horizontal := -signf(base_knockback.x)
+		var center_x := (stage_left_x + stage_right_x) * 0.5
+		var horizontal := signf(center_x - global_position.x)
+		if is_zero_approx(horizontal):
+			horizontal = -signf(base_knockback.x)
 		if is_zero_approx(horizontal):
 			horizontal = -float(facing)
-		var vertical := -0.55 if base_knockback.y < 0.0 else -0.25
+		var vertical := -0.70 if global_position.y > stage_floor_y - 10.0 else -0.15
+		if global_position.y < stage_floor_y - 120.0:
+			vertical = 0.35
 		return Vector2(horizontal, vertical).normalized()
 	var input_vec := Vector2(
 		_get_axis_input("move_left", "move_right"),
@@ -4581,8 +4666,8 @@ func _try_tech_recovery() -> bool:
 func _poll_tech_input() -> String:
 	if is_ai:
 		if knockdown_time > KNOCKDOWN_GROUND_SECONDS - 0.08:
-			if randf() < 0.22:
-				ai_tech_decision_roll = randf() < 0.45
+			if _ai_unit() < 0.22:
+				ai_tech_decision_roll = _ai_unit() < 0.45
 				return "roll" if ai_tech_decision_roll else "quick"
 		return ""
 	if _is_action_just_pressed("dash"):
