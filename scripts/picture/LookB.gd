@@ -57,6 +57,7 @@ const PLATFORM_MIN_THICKNESS_M := 0.08
 const BACKDROP_SIZE_M := Vector2(20.0, 11.0)
 const BACKDROP_POSITION_M := Vector3(0.0, 3.1, -7.5)
 const BACKDROP_ALBEDO := Color(1.0, 1.0, 1.0)
+const BACKDROP_COVER_BLEED := 0.04
 
 const FOOT_DROP_M := 0.10
 const FIGHTER_Z_STEP_M := 0.02
@@ -80,13 +81,41 @@ static func plane_distance_m() -> float:
 	return visible_m / (2.0 * tan(deg_to_rad(UNTIGHTENED_FOV_Y_DEG * 0.5)))
 
 
-static func fov_y_deg(viewport_height_px: float, zoom: float) -> float:
-	var height := viewport_height_px
-	if height <= 0.0:
-		height = REFERENCE_VIEWPORT_H
-	var tight_m := (height / zoom) / PIXELS_PER_METER / FRAME_TIGHTEN
+static func fov_y_deg(_viewport_height_px: float, zoom: float) -> float:
+	var tight_m := (REFERENCE_VIEWPORT_H / zoom) / PIXELS_PER_METER / FRAME_TIGHTEN
 	var perp_m := PLANE_DISTANCE_M * cos(deg_to_rad(PITCH_DEG))
 	return rad_to_deg(2.0 * atan(tight_m / (2.0 * perp_m)))
+
+
+static func framed_center(camera_pos: Vector2, zoom: float, viewport: Vector2, limits: Rect2) -> Vector2:
+	var safe_zoom := zoom
+	if safe_zoom == 0.0:
+		safe_zoom = REFERENCE_ZOOM
+	var aspect := 1.0
+	if viewport.y > 0.0:
+		aspect = viewport.x / viewport.y
+	var screen := Vector2(REFERENCE_VIEWPORT_H * aspect, REFERENCE_VIEWPORT_H)
+	var zoom_scale := 1.0 / safe_zoom
+	var screen_offset := screen * 0.5 * zoom_scale
+	var screen_pos := camera_pos - screen_offset
+	var screen_size := screen * zoom_scale
+	var limit_left := limits.position.x
+	var limit_top := limits.position.y
+	var limit_right := limits.position.x + limits.size.x
+	var limit_bottom := limits.position.y + limits.size.y
+	if screen_size.x > limit_right - limit_left:
+		screen_pos.x = (limit_left + limit_right - screen_size.x) * 0.5
+	elif screen_pos.x < limit_left:
+		screen_pos.x = limit_left
+	elif screen_pos.x + screen_size.x > limit_right:
+		screen_pos.x = limit_right - screen_size.x
+	if screen_size.y > limit_bottom - limit_top:
+		screen_pos.y = (limit_top + limit_bottom - screen_size.y) * 0.5
+	elif screen_pos.y < limit_top:
+		screen_pos.y = limit_top
+	elif screen_pos.y + screen_size.y > limit_bottom:
+		screen_pos.y = limit_bottom - screen_size.y
+	return screen_pos + screen_offset
 
 
 static func pose(center_px: Vector2, zoom: float, viewport_height_px: float, anchor_x: float, floor_y: float) -> CameraPose:
@@ -179,6 +208,130 @@ static func spark_position(anchor_x: float, floor_y: float, px: Vector2) -> Vect
 
 static func hit_position(anchor_x: float, floor_y: float, px: Vector2) -> Vector3:
 	return plane_point(anchor_x, floor_y, px) + HIT_LIFT_M
+
+
+static func backdrop_card_rect() -> Rect2:
+	return Rect2(
+		BACKDROP_POSITION_M.x - BACKDROP_SIZE_M.x * 0.5,
+		BACKDROP_POSITION_M.y - BACKDROP_SIZE_M.y * 0.5,
+		BACKDROP_SIZE_M.x,
+		BACKDROP_SIZE_M.y
+	)
+
+
+static func _camera_basis(aim: Vector3) -> Dictionary:
+	var pitch := deg_to_rad(PITCH_DEG)
+	return {
+		"eye": aim + Vector3(0.0, PLANE_DISTANCE_M * sin(pitch), PLANE_DISTANCE_M * cos(pitch)),
+		"forward": Vector3(0.0, -sin(pitch), -cos(pitch)),
+		"up": Vector3(0.0, cos(pitch), -sin(pitch)),
+		"right": Vector3(1.0, 0.0, 0.0),
+	}
+
+
+static func _view_direction(fov_y_deg: float, aspect: float, sx: float, sy: float) -> Vector3:
+	var basis := _camera_basis(Vector3.ZERO)
+	var tan_v := tan(deg_to_rad(fov_y_deg) * 0.5)
+	var safe_aspect := aspect
+	if safe_aspect <= 0.0:
+		safe_aspect = 1.0
+	var tan_h := tan_v * safe_aspect
+	var forward: Vector3 = basis["forward"]
+	var camera_up: Vector3 = basis["up"]
+	var camera_right: Vector3 = basis["right"]
+	return forward + camera_right * (sx * tan_h) + camera_up * (sy * tan_v)
+
+
+static func frustum_rect_at_backdrop(fov_y_deg: float, aspect: float, aim: Vector3) -> Rect2:
+	var eye: Vector3 = _camera_basis(aim)["eye"]
+	var plane_z := BACKDROP_POSITION_M.z
+	var min_x := INF
+	var max_x := -INF
+	var min_y := INF
+	var max_y := -INF
+	for sx in [-1.0, 1.0]:
+		for sy in [-1.0, 1.0]:
+			var direction := _view_direction(fov_y_deg, aspect, float(sx), float(sy))
+			var t := (plane_z - eye.z) / direction.z
+			var hit := eye + direction * t
+			min_x = minf(min_x, hit.x)
+			max_x = maxf(max_x, hit.x)
+			min_y = minf(min_y, hit.y)
+			max_y = maxf(max_y, hit.y)
+	return Rect2(min_x, min_y, max_x - min_x, max_y - min_y)
+
+
+static func floor_deck_rect(center_x: float, width_px: float) -> Rect2:
+	var size := floor_size_m(width_px)
+	var center_z := floor_center_z()
+	return Rect2(center_x - size.x * 0.5, center_z - size.y * 0.5, size.x, size.y)
+
+
+static func floor_ray_hit(fov_y_deg: float, aspect: float, aim: Vector3, sx: float, sy: float) -> Vector3:
+	var eye: Vector3 = _camera_basis(aim)["eye"]
+	var direction := _view_direction(fov_y_deg, aspect, sx, sy)
+	if absf(direction.y) < 0.0001:
+		return Vector3(INF, INF, INF)
+	var t := (FLOOR_TOP_Y_M - eye.y) / direction.y
+	if t <= 0.0:
+		return Vector3(INF, INF, INF)
+	return eye + direction * t
+
+
+static func backdrop_cover_rect(fov_y_deg: float, aspect: float, aim: Vector3) -> Rect2:
+	var card := backdrop_card_rect()
+	var frustum := frustum_rect_at_backdrop(fov_y_deg, aspect, aim)
+	var left := card.position.x
+	var right := card.position.x + card.size.x
+	var frustum_left := frustum.position.x
+	var frustum_right := frustum.position.x + frustum.size.x
+	if frustum_left < left:
+		left = frustum_left
+	if frustum_right > right:
+		right = frustum_right
+	var bleed := (right - left) * BACKDROP_COVER_BLEED
+	if left < card.position.x:
+		left -= bleed
+	if right > card.position.x + card.size.x:
+		right += bleed
+	return Rect2(left, card.position.y, right - left, card.size.y)
+
+
+static func backdrop_center_m(cover: Rect2) -> Vector3:
+	return Vector3(
+		cover.position.x + cover.size.x * 0.5,
+		cover.position.y + cover.size.y * 0.5,
+		BACKDROP_POSITION_M.z
+	)
+
+
+static func backdrop_uv_params(cover: Rect2) -> Dictionary:
+	var card := backdrop_card_rect()
+	return {
+		"scale": Vector2(cover.size.x / card.size.x, cover.size.y / card.size.y),
+		"offset": Vector2(
+			(cover.position.x - card.position.x) / card.size.x,
+			((card.position.y + card.size.y) - (cover.position.y + cover.size.y)) / card.size.y
+		),
+	}
+
+
+static func _fold_unit(value: float) -> float:
+	var wrapped := fmod(value, 2.0)
+	if wrapped < 0.0:
+		wrapped += 2.0
+	if wrapped > 1.0:
+		wrapped = 2.0 - wrapped
+	return wrapped
+
+
+static func backdrop_sample_uv(cover: Rect2, world_x: float, world_y: float) -> Vector2:
+	var params := backdrop_uv_params(cover)
+	var scale: Vector2 = params["scale"]
+	var offset: Vector2 = params["offset"]
+	var mesh_u := (world_x - cover.position.x) / cover.size.x
+	var mesh_v := ((cover.position.y + cover.size.y) - world_y) / cover.size.y
+	return Vector2(_fold_unit(mesh_u * scale.x + offset.x), mesh_v * scale.y + offset.y)
 
 
 static func hit_slot(stun_times: PackedFloat32Array) -> int:

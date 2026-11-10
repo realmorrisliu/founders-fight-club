@@ -21,6 +21,7 @@ const GROUND_NAME := "Ground"
 const GROUND_SHAPE_PATH := "Ground/CollisionShape2D"
 const COLLISION_SHAPE_NAME := "CollisionShape2D"
 const BACKGROUND_NAME := "Background"
+const BACKDROP_SHADER := "res://scripts/picture/backdrop_cover.gdshader"
 const FLOOR_VISUAL_NAME := "FloorVisual"
 const EFFECTS_NAME := "Effects"
 const FIGHTER_PREFIX := "Fighter"
@@ -34,7 +35,8 @@ var _hit: OmniLight3D
 var _floor_top: MeshInstance3D
 var _floor_skirt: MeshInstance3D
 var _floor_material: StandardMaterial3D
-var _backdrop_material: StandardMaterial3D
+var _backdrop: MeshInstance3D
+var _backdrop_material: ShaderMaterial
 var _fighters: Array[Sprite3D] = []
 var _sparks: Array[Sprite3D] = []
 var _spark_materials: Array[StandardMaterial3D] = []
@@ -50,6 +52,7 @@ class Framing:
 	var center: Vector2
 	var zoom: float
 	var viewport_height_px: float
+	var viewport_size: Vector2
 
 
 class FighterCard:
@@ -129,22 +132,26 @@ func _publish() -> void:
 
 static func _read(match_root: Node, shown_memory: Dictionary) -> FrameRead:
 	var read := FrameRead.new()
-	read.framing.viewport_height_px = _viewport_height(match_root)
+	read.framing.viewport_size = _viewport_size(match_root)
+	read.framing.viewport_height_px = read.framing.viewport_size.y
 	var camera := _find_camera(match_root)
 	if camera != null:
 		camera.force_update_scroll()
-		read.framing.center = camera.get_screen_center_position()
 		read.framing.zoom = camera.zoom.x
+		var limits := Rect2(camera.limit_left, camera.limit_top, camera.limit_right - camera.limit_left, camera.limit_bottom - camera.limit_top)
+		read.framing.center = LookB.framed_center(camera.global_position, read.framing.zoom, read.framing.viewport_size, limits)
+		if camera.offset != Vector2.ZERO:
+			read.framing.center += camera.offset
 	_read_floor(match_root, read)
 	_read_fighters(match_root, read)
 	_read_sparks(match_root, read, shown_memory)
 	return read
 
 
-static func _viewport_height(match_root: Node) -> float:
+static func _viewport_size(match_root: Node) -> Vector2:
 	if match_root is CanvasItem:
-		return (match_root as CanvasItem).get_viewport_rect().size.y
-	return 0.0
+		return (match_root as CanvasItem).get_viewport_rect().size
+	return Vector2.ZERO
 
 
 static func _find_camera(match_root: Node) -> Camera2D:
@@ -327,16 +334,36 @@ func _present_camera(read: FrameRead) -> void:
 
 func _present_floor(read: FrameRead) -> void:
 	var top_mesh := _floor_top.mesh as PlaneMesh
+	var skirt_mesh := _floor_skirt.mesh as BoxMesh
+	_floor_material.albedo_texture = read.floor_texture
 	top_mesh.size = LookB.floor_size_m(read.floor_width_px)
 	_floor_top.position = LookB.floor_top_position(read.anchor_x, read.floor_y, read.floor_center_x)
-	_floor_material.albedo_texture = read.floor_texture
-	var skirt_mesh := _floor_skirt.mesh as BoxMesh
 	skirt_mesh.size = LookB.skirt_size_m(read.floor_width_px)
 	_floor_skirt.position = LookB.skirt_position(read.anchor_x, read.floor_y, read.floor_center_x)
 
 
 func _present_backdrop(read: FrameRead) -> void:
-	_backdrop_material.albedo_texture = read.backdrop_texture
+	if _backdrop_material != null:
+		_backdrop_material.set_shader_parameter("albedo_tex", read.backdrop_texture)
+	var view := read.framing.viewport_size
+	if _backdrop == null or view.x <= 0.0 or view.y <= 0.0:
+		return
+	var pose_value = LookB.pose(
+		read.framing.center,
+		read.framing.zoom,
+		read.framing.viewport_height_px,
+		read.anchor_x,
+		read.floor_y
+	)
+	if not pose_value.valid:
+		return
+	var cover := LookB.backdrop_cover_rect(pose_value.fov_y_deg, view.x / view.y, pose_value.aim)
+	var quad := _backdrop.mesh as QuadMesh
+	quad.size = cover.size
+	_backdrop.position = LookB.backdrop_center_m(cover)
+	var uv: Dictionary = LookB.backdrop_uv_params(cover)
+	_backdrop_material.set_shader_parameter("uv_scale", uv["scale"])
+	_backdrop_material.set_shader_parameter("uv_offset", uv["offset"])
 
 
 func _present_slabs(read: FrameRead) -> void:
@@ -547,17 +574,14 @@ func _build_floor() -> void:
 func _build_backdrop() -> void:
 	var mesh_node := MeshInstance3D.new()
 	mesh_node.name = BACKDROP_NAME
-	var quad := QuadMesh.new()
-	quad.size = LookB.BACKDROP_SIZE_M
-	mesh_node.mesh = quad
+	mesh_node.mesh = QuadMesh.new()
 	mesh_node.position = LookB.BACKDROP_POSITION_M
 	mesh_node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	_backdrop_material = StandardMaterial3D.new()
-	_backdrop_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_backdrop_material.albedo_color = LookB.BACKDROP_ALBEDO
-	_backdrop_material.cull_mode = BaseMaterial3D.CULL_DISABLED
-	_backdrop_material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
+	_backdrop_material = ShaderMaterial.new()
+	_backdrop_material.shader = load(BACKDROP_SHADER) as Shader
+	_backdrop_material.set_shader_parameter("albedo_color", LookB.BACKDROP_ALBEDO)
 	mesh_node.material_override = _backdrop_material
+	_backdrop = mesh_node
 	add_child(mesh_node)
 
 
