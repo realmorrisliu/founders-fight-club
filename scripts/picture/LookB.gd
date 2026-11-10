@@ -181,6 +181,70 @@ static func hit_position(anchor_x: float, floor_y: float, px: Vector2) -> Vector
 	return plane_point(anchor_x, floor_y, px) + HIT_LIFT_M
 
 
+static func backdrop_card_rect() -> Rect2:
+	return Rect2(
+		BACKDROP_POSITION_M.x - BACKDROP_SIZE_M.x * 0.5,
+		BACKDROP_POSITION_M.y - BACKDROP_SIZE_M.y * 0.5,
+		BACKDROP_SIZE_M.x,
+		BACKDROP_SIZE_M.y
+	)
+
+
+static func frustum_rect_at_backdrop(fov_y_deg: float, aspect: float, aim: Vector3) -> Rect2:
+	var pitch := deg_to_rad(PITCH_DEG)
+	var eye := aim + Vector3(0.0, PLANE_DISTANCE_M * sin(pitch), PLANE_DISTANCE_M * cos(pitch))
+	var forward := Vector3(0.0, -sin(pitch), -cos(pitch))
+	var camera_up := Vector3(0.0, cos(pitch), -sin(pitch))
+	var camera_right := Vector3(1.0, 0.0, 0.0)
+	var tan_v := tan(deg_to_rad(fov_y_deg) * 0.5)
+	var safe_aspect := aspect
+	if safe_aspect <= 0.0:
+		safe_aspect = 1.0
+	var tan_h := tan_v * safe_aspect
+	var plane_z := BACKDROP_POSITION_M.z
+	var min_x := INF
+	var max_x := -INF
+	var min_y := INF
+	var max_y := -INF
+	for sx in [-1.0, 1.0]:
+		for sy in [-1.0, 1.0]:
+			var direction := forward + camera_right * (float(sx) * tan_h) + camera_up * (float(sy) * tan_v)
+			var t := (plane_z - eye.z) / direction.z
+			var hit := eye + direction * t
+			min_x = minf(min_x, hit.x)
+			max_x = maxf(max_x, hit.x)
+			min_y = minf(min_y, hit.y)
+			max_y = maxf(max_y, hit.y)
+	return Rect2(min_x, min_y, max_x - min_x, max_y - min_y)
+
+
+static func backdrop_cover_rect(fov_y_deg: float, aspect: float, aim: Vector3) -> Rect2:
+	var frustum := frustum_rect_at_backdrop(fov_y_deg, aspect, aim)
+	if frustum.size.x < 0.0:
+		return frustum
+	return backdrop_card_rect()
+
+
+static func backdrop_uv_params(cover: Rect2) -> Dictionary:
+	var card := backdrop_card_rect()
+	return {
+		"scale": Vector2(cover.size.x / card.size.x, cover.size.y / card.size.y),
+		"offset": Vector2(
+			(cover.position.x - card.position.x) / card.size.x,
+			((card.position.y + card.size.y) - (cover.position.y + cover.size.y)) / card.size.y
+		),
+	}
+
+
+static func backdrop_sample_uv(cover: Rect2, world_x: float, world_y: float) -> Vector2:
+	var params := backdrop_uv_params(cover)
+	var scale: Vector2 = params["scale"]
+	var offset: Vector2 = params["offset"]
+	var mesh_u := (world_x - cover.position.x) / cover.size.x
+	var mesh_v := ((cover.position.y + cover.size.y) - world_y) / cover.size.y
+	return Vector2(mesh_u * scale.x + offset.x, mesh_v * scale.y + offset.y)
+
+
 static func hit_slot(stun_times: PackedFloat32Array) -> int:
 	var best_index := -1
 	var best := 0.0

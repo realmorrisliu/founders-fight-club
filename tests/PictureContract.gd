@@ -21,6 +21,7 @@ static func scan(project_root: String) -> PackedStringArray:
 	_lock_prose(failures, camera, decisions)
 	_lock_hud(failures, doc)
 	_lock_formula(failures, camera)
+	_lock_cover(failures)
 	_lock_project(failures, _read_text(_join(root, "project.godot")))
 	_lock_sources(failures, root)
 	_lock_picture_source(failures, root)
@@ -171,6 +172,37 @@ static func _lock_formula(failures: PackedStringArray, camera: String) -> void:
 	var distance_match := _search(camera, "The camera is " + _NUMBER + " m from the fighter plane")
 	if distance_match != null:
 		_lock(failures, "computed plane distance", LookB.plane_distance_m(), distance_match.get_string(1))
+
+
+static func _lock_cover(failures: PackedStringArray) -> void:
+	var aim := Vector3(0.0, 0.88, 0.0)
+	var views := [
+		{"height": 720.0, "aspect": 16.0 / 9.0, "zoom": LookB.REFERENCE_ZOOM, "label": "720 16:9"},
+		{"height": 1080.0, "aspect": 16.0 / 9.0, "zoom": LookB.REFERENCE_ZOOM, "label": "1080 16:9"},
+		{"height": 1440.0, "aspect": 16.0 / 9.0, "zoom": LookB.REFERENCE_ZOOM, "label": "1440 16:9"},
+		{"height": 720.0, "aspect": 2560.0 / 1080.0, "zoom": LookB.REFERENCE_ZOOM, "label": "720 ultrawide"},
+		{"height": 960.0, "aspect": 4.0 / 3.0, "zoom": LookB.REFERENCE_ZOOM, "label": "960 4:3"},
+		{"height": 720.0, "aspect": 16.0 / 9.0, "zoom": 1.08, "label": "720 zoomed out"},
+	]
+	for view in views:
+		var height := float(view["height"])
+		var aspect := float(view["aspect"])
+		var zoom := float(view["zoom"])
+		var label := str(view["label"])
+		var fov := LookB.fov_y_deg(height, zoom)
+		var frustum := LookB.frustum_rect_at_backdrop(fov, aspect, aim)
+		var cover := LookB.backdrop_cover_rect(fov, aspect, aim)
+		if not cover.encloses(frustum):
+			failures.append("%s backdrop leaves the frustum" % label)
+		var card := LookB.backdrop_card_rect()
+		var center := card.position + card.size * 0.5
+		var center_uv := LookB.backdrop_sample_uv(cover, center.x, center.y)
+		if center_uv.distance_to(Vector2(0.5, 0.5)) > 0.001:
+			failures.append("%s moved the backdrop center" % label)
+		var top_left := Vector2(card.position.x, card.position.y + card.size.y)
+		var top_left_uv := LookB.backdrop_sample_uv(cover, top_left.x, top_left.y)
+		if top_left_uv.distance_to(Vector2.ZERO) > 0.001:
+			failures.append("%s moved the backdrop top left" % label)
 
 
 static func _lock_project(failures: PackedStringArray, project_text: String) -> void:
