@@ -137,8 +137,11 @@ static func _read(match_root: Node, shown_memory: Dictionary) -> FrameRead:
 	var camera := _find_camera(match_root)
 	if camera != null:
 		camera.force_update_scroll()
-		read.framing.center = camera.get_screen_center_position()
 		read.framing.zoom = camera.zoom.x
+		var limits := Rect2(camera.limit_left, camera.limit_top, camera.limit_right - camera.limit_left, camera.limit_bottom - camera.limit_top)
+		read.framing.center = LookB.framed_center(camera.global_position, read.framing.zoom, read.framing.viewport_size, limits)
+		if camera.offset != Vector2.ZERO:
+			read.framing.center += camera.offset
 	_read_floor(match_root, read)
 	_read_fighters(match_root, read)
 	_read_sparks(match_root, read, shown_memory)
@@ -333,28 +336,6 @@ func _present_floor(read: FrameRead) -> void:
 	var top_mesh := _floor_top.mesh as PlaneMesh
 	var skirt_mesh := _floor_skirt.mesh as BoxMesh
 	_floor_material.albedo_texture = read.floor_texture
-	var pose_value = LookB.pose(
-		read.framing.center,
-		read.framing.zoom,
-		read.framing.viewport_height_px,
-		read.anchor_x,
-		read.floor_y
-	)
-	var view := read.framing.viewport_size
-	if pose_value.valid and view.x > 0.0 and view.y > 0.0 and read.floor_width_px > 0.0:
-		var center_x := LookB.plane_point(read.anchor_x, read.floor_y, Vector2(read.floor_center_x, read.floor_y)).x
-		var deck := LookB.floor_deck_rect(center_x, read.floor_width_px)
-		var cover := LookB.floor_cover_rect(pose_value.fov_y_deg, view.x / view.y, pose_value.aim, center_x, read.floor_width_px)
-		top_mesh.size = cover.size
-		_floor_top.position = LookB.floor_top_from_cover(cover)
-		skirt_mesh.size = LookB.skirt_size_from_cover(cover)
-		_floor_skirt.position = LookB.skirt_from_cover(cover)
-		var uv: Dictionary = LookB.floor_uv_params(cover, deck)
-		var scale: Vector2 = uv["scale"]
-		var offset: Vector2 = uv["offset"]
-		_floor_material.uv1_scale = Vector3(scale.x, scale.y, 1.0)
-		_floor_material.uv1_offset = Vector3(offset.x, offset.y, 0.0)
-		return
 	top_mesh.size = LookB.floor_size_m(read.floor_width_px)
 	_floor_top.position = LookB.floor_top_position(read.anchor_x, read.floor_y, read.floor_center_x)
 	skirt_mesh.size = LookB.skirt_size_m(read.floor_width_px)

@@ -21,7 +21,7 @@ static func scan(project_root: String) -> PackedStringArray:
 	_lock_prose(failures, camera, decisions)
 	_lock_hud(failures, doc)
 	_lock_formula(failures, camera)
-	_lock_cover(failures)
+	_lock_cover(failures, root)
 	_lock_backdrop_disc(failures, root)
 	_lock_project(failures, _read_text(_join(root, "project.godot")))
 	_lock_sources(failures, root)
@@ -175,7 +175,7 @@ static func _lock_formula(failures: PackedStringArray, camera: String) -> void:
 		_lock(failures, "computed plane distance", LookB.plane_distance_m(), distance_match.get_string(1))
 
 
-static func _lock_cover(failures: PackedStringArray) -> void:
+static func _lock_cover(failures: PackedStringArray, root: String) -> void:
 	var aim := Vector3(0.0, 0.88, 0.0)
 	var views := [
 		{"height": 720.0, "aspect": 16.0 / 9.0, "zoom": LookB.REFERENCE_ZOOM, "label": "720 16:9"},
@@ -185,17 +185,22 @@ static func _lock_cover(failures: PackedStringArray) -> void:
 		{"height": 960.0, "aspect": 4.0 / 3.0, "zoom": LookB.REFERENCE_ZOOM, "label": "960 4:3"},
 		{"height": 720.0, "aspect": 16.0 / 9.0, "zoom": 1.08, "label": "720 zoomed out"},
 	]
+	var card := LookB.backdrop_card_rect()
+	var reference_fov := LookB.fov_y_deg(LookB.REFERENCE_VIEWPORT_H, LookB.REFERENCE_ZOOM)
 	for view in views:
 		var height := float(view["height"])
 		var aspect := float(view["aspect"])
 		var zoom := float(view["zoom"])
 		var label := str(view["label"])
 		var fov := LookB.fov_y_deg(height, zoom)
+		if absf(fov - LookB.fov_y_deg(LookB.REFERENCE_VIEWPORT_H, zoom)) > 0.001:
+			failures.append("%s field of view follows pixel height" % label)
 		var frustum := LookB.frustum_rect_at_backdrop(fov, aspect, aim)
 		var cover := LookB.backdrop_cover_rect(fov, aspect, aim)
-		if not cover.encloses(frustum):
-			failures.append("%s backdrop leaves the frustum" % label)
-		var card := LookB.backdrop_card_rect()
+		if absf(cover.position.y - card.position.y) > 0.001 or absf(cover.size.y - card.size.y) > 0.001:
+			failures.append("%s backdrop grew vertically" % label)
+		if not _span_covers(cover.position.x, cover.size.x, frustum.position.x, frustum.size.x):
+			failures.append("%s backdrop leaves the sides" % label)
 		var center := card.position + card.size * 0.5
 		var center_uv := LookB.backdrop_sample_uv(cover, center.x, center.y)
 		if center_uv.distance_to(Vector2(0.5, 0.5)) > 0.001:
@@ -204,7 +209,48 @@ static func _lock_cover(failures: PackedStringArray) -> void:
 		var top_left_uv := LookB.backdrop_sample_uv(cover, top_left.x, top_left.y)
 		if top_left_uv.distance_to(Vector2.ZERO) > 0.001:
 			failures.append("%s moved the backdrop top left" % label)
+		if label == "720 16:9" and absf(fov - reference_fov) > 0.001:
+			failures.append("720 16:9 field of view left the reference")
+		if absf(aspect - (16.0 / 9.0)) < 0.001 and absf(zoom - LookB.REFERENCE_ZOOM) < 0.001:
+			if cover.position.distance_to(card.position) > 0.001 or cover.size.distance_to(card.size) > 0.001:
+				failures.append("%s backdrop left the city card" % label)
+		if label == "720 ultrawide" and cover.size.x <= card.size.x:
+			failures.append("ultrawide backdrop did not cover the extra width")
+	_lock_side_continuation(failures, root, aim)
+	_lock_frame_center(failures)
 	_lock_floor_cover(failures, aim)
+
+
+static func _lock_frame_center(failures: PackedStringArray) -> void:
+	var limits := Rect2(-200.0, -260.0, 1400.0, 880.0)
+	var camera_pos := Vector2(450.0, 252.0)
+	var reference := LookB.framed_center(camera_pos, LookB.REFERENCE_ZOOM, Vector2(1280.0, 720.0), limits)
+	if reference.distance_to(camera_pos) > 0.01:
+		failures.append("reference frame left the camera")
+	for viewport in [Vector2(1920.0, 1080.0), Vector2(2560.0, 1440.0), Vector2(1280.0, 960.0)]:
+		var framed := LookB.framed_center(camera_pos, LookB.REFERENCE_ZOOM, viewport, limits)
+		if framed.distance_to(reference) > 0.01:
+			failures.append("frame center follows the viewport %s" % viewport)
+
+
+static func _span_covers(origin: float, length: float, inner_origin: float, inner_length: float) -> bool:
+	return origin <= inner_origin + 0.001 and origin + length >= inner_origin + inner_length - 0.001
+
+
+static func _lock_side_continuation(failures: PackedStringArray, root: String, aim: Vector3) -> void:
+	var shader := _read_text(_join(root, "scripts/picture/backdrop_cover.gdshader"))
+	if shader.find("fold_u") < 0 or shader.find("clamp(UV") >= 0:
+		failures.append("backdrop shader clamps the city edge")
+	var fov := LookB.fov_y_deg(LookB.REFERENCE_VIEWPORT_H, LookB.REFERENCE_ZOOM)
+	var cover := LookB.backdrop_cover_rect(fov, 2560.0 / 1080.0, aim)
+	var card := LookB.backdrop_card_rect()
+	var mid_y := card.position.y + card.size.y * 0.5
+	var outside := card.position.x - 0.5
+	var inside := card.position.x + 0.5
+	var sampled_out := LookB.backdrop_sample_uv(cover, outside, mid_y)
+	var sampled_in := LookB.backdrop_sample_uv(cover, inside, mid_y)
+	if sampled_out.distance_to(sampled_in) > 0.001 or sampled_out.x <= 0.001:
+		failures.append("ultrawide side does not continue the city")
 
 
 static func _lock_floor_cover(failures: PackedStringArray, aim: Vector3) -> void:
@@ -220,21 +266,9 @@ static func _lock_floor_cover(failures: PackedStringArray, aim: Vector3) -> void
 		var fov := LookB.fov_y_deg(float(view["height"]), float(view["zoom"]))
 		var aspect := float(view["aspect"])
 		var label := str(view["label"])
-		var cover := LookB.floor_cover_rect(fov, aspect, aim, center_x, width_px)
-		if not cover.encloses(deck):
-			failures.append("%s dropped the stage deck" % label)
 		var hit := LookB.floor_ray_hit(fov, aspect, aim, 0.0, -1.0)
-		if not cover.has_point(Vector2(hit.x, hit.z)):
+		if not deck.has_point(Vector2(hit.x, hit.z)):
 			failures.append("%s floor misses the bottom of the frame" % label)
-		var uv: Dictionary = LookB.floor_uv_params(cover, deck)
-		var scale: Vector2 = uv["scale"]
-		var offset: Vector2 = uv["offset"]
-		var center := deck.position + deck.size * 0.5
-		var mesh_u := 0.5 + (center.x - (cover.position.x + cover.size.x * 0.5)) / cover.size.x
-		var mesh_v := 0.5 + (center.y - (cover.position.y + cover.size.y * 0.5)) / cover.size.y
-		var sampled := Vector2(mesh_u * scale.x + offset.x, mesh_v * scale.y + offset.y)
-		if sampled.distance_to(Vector2(0.5, 0.5)) > 0.001:
-			failures.append("%s moved the floor center" % label)
 
 
 static func _lock_backdrop_disc(failures: PackedStringArray, root: String) -> void:
