@@ -27,4 +27,4 @@ Preconditions:
 - Training P2 is a dummy when its control stays idle. That is the default for `run --mode training`. `--p2-control cpu` turns the dummy off and sets `is_ai` true, so P2 chases and attacks. `mode cpu` loads the versus scene, not Training.
 - The drill id `duel_core` is the free-practice drill. It is not a second ruleset.
 - Stocks are still displayed. Leaving the stage in training resets the drill instead of ending a versus stock.
-- If a result banner were shown during training, its chip (y 168 to 214) would intersect the training panel (y 144 to 392). Training does not show that banner today.
+- If a result banner were shown during training, the chip would sit at x 470 to 810. The training panel stays at x 20 to 356. At the 1280-wide viewport those rectangles do not meet. Training does not show that banner today.

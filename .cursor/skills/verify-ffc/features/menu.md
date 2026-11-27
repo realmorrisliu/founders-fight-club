@@ -5,13 +5,13 @@ The menu picks a control style, then a route. A fresh profile asks for Modern or
 ## Sub-features
 
 - `menu-overlay` requires a first-launch control choice.
-- `menu-routes` starts Versus, Story, or Training from that choice.
+- `menu-routes` starts Versus, Story, Training, or Guided Start (Recommended) from that choice.
 - `menu-control-style` toggles Modern and Classic from Advanced Setup.
 
 ## How to get to it (user POV)
 
 - Launch the game. The first screen that accepts a click is the control overlay: Modern or Classic.
-- Then choose Local VS, Story (Auto Rival), or Training Mode.
+- Then choose Local VS, Story (Auto Rival), Training Mode, or Guided Start (Recommended).
 - Choose Advanced Setup, then Control Style, to switch Modern and Classic.
 
 ## Driving it with ffc.sh
@@ -31,3 +31,6 @@ Preconditions:
 - Control Style stays disabled until Advanced Setup is open. Pressing it immediately after the overlay fails.
 - The saved preset lives at `user://settings.cfg`. The next `ffc.sh` command shows the overlay again when `XDG_DATA_HOME` is unset or is not an absolute path. An absolute `XDG_DATA_HOME` keeps the preset, and a later Story press then succeeds.
 - Button text is the proof. Do not infer the preset from the press name alone. The strings in this file are English. Locales `zh`, `zh_CN`, and `zh_TW` use `i18n/zh.tres`. A name such as `zho` still shows these English strings.
+- The Guided Start button reads `Guided Start (Recommended)` until onboarding is completed. It then reads `Guided Start (Training)`.
+- That button loads `scenes/Training.tscn` and sets the onboarding replay flag. `bash scripts/ffc.sh ui --press guided` exits 1 and prints `unknown --press 'guided'`.
+- Enter that scene with the Training button in `training.md`.
