@@ -6,7 +6,7 @@ The match HUD is the corners layout. P1 is the top-left block. P2 is the top-rig
 
 - `hud-percent` shows damage percent, white at rest and red when it is high.
 - `hud-stocks` shows the remaining stocks as icons.
-- `hud-secondary` hides hype, cooldowns, shield, and item charges while they are at rest.
+- `hud-secondary` hides hype, cooldowns, and a full shield while they are at rest.
 
 ## How to get to it (user POV)
 
@@ -28,5 +28,5 @@ Preconditions:
 ## Gotchas
 
 - The corner block ends at y 140. The result chip starts at y 168. The training panel starts at y 144.
-- A resting fighter hides the secondary line. Item charges that start above zero still show.
+- A resting fighter hides hype, cooldowns, and a full shield. Item charges that start above zero still show, so the neutral corners include `Item 2`.
 - The six seed-11 logs do not include the HUD. Their hashes stay the values in `tests/TestRunner.gd`.

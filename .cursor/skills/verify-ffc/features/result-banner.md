@@ -26,5 +26,5 @@ Preconditions:
 ## Gotchas
 
 - The result chip is placed at y 168 to 214. The corner blocks end at y 140.
-- On `Training.tscn` the training panel occupies y 144 to 392. That rectangle intersects the result chip. Training does not show a match result today, so the overlap is not reachable. Do not treat a training screenshot as the versus banner proof.
+- On `Training.tscn` the training panel occupies x 20 to 356 and y 144 to 392. At the 1280-wide viewport the result chip is x 470 to 810 and y 168 to 214. The y bands overlap. The rectangles do not meet. Training does not show a match result today. Do not treat a training screenshot as the versus banner proof.
 - Headless runs can still write the state log. They do not write the PNG.
