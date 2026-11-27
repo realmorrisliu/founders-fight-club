@@ -6,6 +6,7 @@ const PlayerAttackRuntimeBuilderStore := preload("res://scripts/player/PlayerAtt
 const StageConfigStore := preload("res://scripts/config/StageConfig.gd")
 const GameSettingsStore := preload("res://scripts/GameSettings.gd")
 const EvolutionEngineStore := preload("res://scripts/loadout/EvolutionEngine.gd")
+const CharacterLookStore := preload("res://scripts/visual/CharacterLook.gd")
 
 signal health_changed
 signal defeated
@@ -3877,14 +3878,37 @@ func _update_facing() -> void:
 	if visual:
 		visual.flip_h = facing < 0
 
+func apply_character_style() -> void:
+	if visual == null:
+		return
+	if CharacterLookStore.current_id() == "":
+		_setup_visual()
+		return
+	var frames := CharacterLookStore.frames_for(get_character_id())
+	if frames == null:
+		return
+	var anim := visual.animation
+	var frame_index := visual.frame
+	runtime_sprite_frames = frames
+	visual.sprite_frames = frames
+	if frames.has_animation(anim) and frames.get_frame_count(anim) > 0:
+		visual.play(anim)
+		visual.frame = mini(frame_index, frames.get_frame_count(anim) - 1)
+	elif frames.has_animation(&"idle"):
+		visual.play(&"idle")
+	visual.modulate = Color.WHITE
+
+
 func _update_visual() -> void:
 	if visual == null:
 		return
-	var base_tint := Color(0.75, 0.9, 1.0, 1.0) if player_id == 1 else Color(1.0, 0.82, 0.82, 1.0)
+	var base_tint := Color.WHITE
 	var character_id := get_character_id()
-	var palette_tint_value: Variant = CHARACTER_TINT_BY_ID.get(character_id, Color(1.0, 1.0, 1.0, 1.0))
-	if palette_tint_value is Color:
-		base_tint = base_tint.lerp(palette_tint_value as Color, 0.32)
+	if not CharacterLookStore.covers(character_id):
+		base_tint = Color(0.75, 0.9, 1.0, 1.0) if player_id == 1 else Color(1.0, 0.82, 0.82, 1.0)
+		var palette_tint_value: Variant = CHARACTER_TINT_BY_ID.get(character_id, Color(1.0, 1.0, 1.0, 1.0))
+		if palette_tint_value is Color:
+			base_tint = base_tint.lerp(palette_tint_value as Color, 0.32)
 	if guard_counter_time > 0.0 and current_hp > 0 and attack_state == "":
 		base_tint = base_tint.lerp(Color(0.92, 1.0, 0.80, 1.0), 0.42)
 	visual.modulate = base_tint

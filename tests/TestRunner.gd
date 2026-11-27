@@ -10,6 +10,7 @@ const EvolutionEngineStore := preload("res://scripts/loadout/EvolutionEngine.gd"
 const AttackTableStore := preload("res://scripts/resources/AttackTable.gd")
 const GeneratedSkillProfilesStore := preload("res://scripts/player/GeneratedSkillProfiles.gd")
 const PlayerDataStore := preload("res://scripts/player/PlayerData.gd")
+const CharacterLookStore := preload("res://scripts/visual/CharacterLook.gd")
 const PlayerSignatureAttackBuilderStore := preload("res://scripts/player/PlayerSignatureAttackBuilder.gd")
 const REQUIRED_BASE_ATTACKS := ["light", "heavy", "special", "throw"]
 const SUITE_SMOKE := "smoke"
@@ -102,6 +103,7 @@ func _run_smoke_suite() -> void:
 	await _test_hitstop_tier_resolution()
 	await _test_result_banner_clears_stat_rows()
 	await _test_hud_corners_fit_the_viewport()
+	await _test_character_style_prototypes()
 	_test_driver_examples_are_valid_replays_or_inputs()
 	await _test_picture_contract()
 
@@ -4409,6 +4411,61 @@ func _run_ffc_cli(args: PackedStringArray) -> Dictionary:
 		if line.begins_with("hash="):
 			hash_value = line.substr(5).strip_edges()
 	return {"code": code, "text": text, "hash": hash_value}
+
+func _test_character_style_prototypes() -> void:
+	CharacterLookStore.set_id("")
+	_assert_true(CharacterLookStore.current_id() == "", "character style starts on the shared sprite")
+	var rejected := CharacterLookStore.set_id("poster")
+	_assert_true(rejected != "", "an unknown character style is rejected")
+	_assert_true(CharacterLookStore.current_id() == "", "a rejected character style does not stick")
+	_assert_true(CharacterLookStore.cycle() == "block", "F8 cycle opens on block")
+	_assert_true(CharacterLookStore.cycle() == "ink", "F8 cycle moves from block to ink")
+	_assert_true(CharacterLookStore.cycle() == "ramp", "F8 cycle moves from ink to ramp")
+	_assert_true(CharacterLookStore.cycle() == "", "F8 cycle returns to the shared sprite")
+	var samples := {}
+	for style_id in ["block", "ink", "ramp"]:
+		var accepted := CharacterLookStore.set_id(style_id)
+		_assert_true(accepted == "", "%s style is accepted" % style_id)
+		var elon := CharacterLookStore.frames_for("elon_mvsk")
+		var steve := CharacterLookStore.frames_for("steve_jobz")
+		_assert_true(elon is SpriteFrames and steve is SpriteFrames, "%s style builds both founders" % style_id)
+		if elon is SpriteFrames and steve is SpriteFrames:
+			_assert_true(elon.get_frame_count("idle") == 2, "%s idle has two frames" % style_id)
+			_assert_true(elon.get_frame_count("walk") == 4, "%s walk has four frames" % style_id)
+			_assert_true(elon.get_frame_count("light") == 3, "%s light attack has three frames" % style_id)
+			var elon_pixels := elon.get_frame_texture("idle", 0).get_image().get_data()
+			var steve_pixels := steve.get_frame_texture("idle", 0).get_image().get_data()
+			_assert_true(elon_pixels != steve_pixels, "%s keeps Elon Mvsk and Steve Jobz distinct" % style_id)
+			samples[style_id] = elon_pixels
+		_assert_true(CharacterLookStore.frames_for("mark_zuck") == null, "%s leaves other fighters on the shared sprite" % style_id)
+	_assert_true(
+		samples.get("block", PackedByteArray()) != samples.get("ink", PackedByteArray())
+		and samples.get("ink", PackedByteArray()) != samples.get("ramp", PackedByteArray())
+		and samples.get("block", PackedByteArray()) != samples.get("ramp", PackedByteArray()),
+		"block, ink, and ramp are three different drawings"
+	)
+	var setup: Dictionary = await _spawn_test_players()
+	var fighter := setup.get("p1") as CharacterBody2D
+	var host := setup.get("host") as Node2D
+	if fighter != null and host != null:
+		var table = load("res://assets/data/characters/ElonMvskAttackTable.tres")
+		fighter.call("apply_attack_table", table)
+		var hp_before := int(fighter.get("current_hp"))
+		CharacterLookStore.set_id("ink")
+		fighter.call("apply_character_style")
+		fighter.call("_update_visual")
+		var visual := fighter.get_node_or_null("Visual") as AnimatedSprite2D
+		_assert_true(visual is AnimatedSprite2D, "styled fighter keeps a sprite")
+		if visual != null and visual.sprite_frames != null and visual.sprite_frames.has_animation("idle"):
+			var shown := visual.sprite_frames.get_frame_texture("idle", 0).get_image().get_data()
+			_assert_true(shown == samples.get("ink", PackedByteArray()), "the fighter shows the ink drawing")
+			_assert_true(visual.modulate.is_equal_approx(Color.WHITE), "a styled fighter is not washed by the shared tint")
+		_assert_true(int(fighter.get("current_hp")) == hp_before, "swapping character style does not change hp")
+		CharacterLookStore.set_id("")
+		fighter.call("apply_character_style")
+		host.queue_free()
+		await process_frame
+	CharacterLookStore.set_id("")
 
 func _test_picture_contract() -> void:
 	var picture_contract = load("res://tests/PictureContract.gd")

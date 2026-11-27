@@ -239,5 +239,10 @@ messages = {
 "PAUSE_BACK_TO_MENU": "Back to Menu",
 "PAUSE_LANGUAGE": "Language",
 "PAUSE_LANG_EN": "English",
-"PAUSE_LANG_ZH": "Chinese"
+"PAUSE_LANG_ZH": "Chinese",
+"LOOK_STYLE_SHARED": "Shared",
+"LOOK_STYLE_BLOCK": "Block",
+"LOOK_STYLE_INK": "Ink",
+"LOOK_STYLE_RAMP": "Ramp",
+"LOOK_STYLE_CAPTION": "%s style    F8 next"
 }

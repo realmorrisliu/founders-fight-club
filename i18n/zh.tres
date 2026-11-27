@@ -239,5 +239,10 @@ messages = {
 "PAUSE_BACK_TO_MENU": "返回菜单",
 "PAUSE_LANGUAGE": "语言",
 "PAUSE_LANG_EN": "English",
-"PAUSE_LANG_ZH": "中文"
+"PAUSE_LANG_ZH": "中文",
+"LOOK_STYLE_SHARED": "共用",
+"LOOK_STYLE_BLOCK": "块面",
+"LOOK_STYLE_INK": "勾线",
+"LOOK_STYLE_RAMP": "光阶",
+"LOOK_STYLE_CAPTION": "%s 造型    F8 下一个"
 }
