@@ -103,6 +103,7 @@ func _run_smoke_suite() -> void:
 	await _test_result_banner_clears_stat_rows()
 	await _test_hud_corners_fit_the_viewport()
 	_test_driver_examples_are_valid_replays_or_inputs()
+	await _test_pixel_character_look()
 	await _test_picture_contract()
 
 func _run_full_suite() -> void:
@@ -4409,6 +4410,74 @@ func _run_ffc_cli(args: PackedStringArray) -> Dictionary:
 		if line.begins_with("hash="):
 			hash_value = line.substr(5).strip_edges()
 	return {"code": code, "text": text, "hash": hash_value}
+
+func _test_pixel_character_look() -> void:
+	var look = load("res://scripts/player/CharacterLook.gd")
+	var session = load("res://scripts/SessionState.gd")
+	var keys = load("res://scripts/config/SessionKeys.gd")
+	session.clear_keys(PackedStringArray([keys.CHARACTER_STYLE]))
+	var required := [
+		"idle", "walk", "jump", "light", "heavy", "special", "throw",
+		"block", "hit_light", "hit_heavy", "hit", "fall", "getup", "ko"
+	]
+	for character_id in ["elon_mvsk", "steve_jobz"]:
+		var source := SpriteFrames.new()
+		for animation_name in required:
+			source.add_animation(animation_name)
+			source.set_animation_speed(animation_name, 8.0)
+			source.set_animation_loop(animation_name, animation_name == "idle" or animation_name == "walk" or animation_name == "block")
+			var color := Color(0.2, 0.45, 0.9, 1.0) if animation_name == "heavy" else Color(0.85, 0.15, 0.15, 1.0)
+			source.add_frame(animation_name, _solid_texture(color, Vector2i(24, 48)))
+		var styled: SpriteFrames = look.apply(source, character_id)
+		for animation_name in required:
+			var present := styled.has_animation(animation_name) and styled.get_frame_count(animation_name) > 0
+			_assert_true(present, "%s keeps %s" % [character_id, animation_name])
+		var idle_tex := styled.get_frame_texture("idle", 0)
+		var idle_next := styled.get_frame_texture("idle", 1)
+		var jump_tex := styled.get_frame_texture("jump", 0)
+		var heavy_tex := styled.get_frame_texture("heavy", 0)
+		_assert_true(idle_tex != null and idle_tex.get_width() == 48 and idle_tex.get_height() == 96, "%s idle canvas is 48x96" % character_id)
+		_assert_true(styled.get_frame_count("walk") >= 4, "%s walk is a cycle" % character_id)
+		_assert_true(_texture_bytes(idle_tex) != _texture_bytes(jump_tex), "%s jump is not the idle drawing" % character_id)
+		_assert_true(_texture_bytes(idle_tex) != _texture_bytes(idle_next), "%s idle is not a held drawing" % character_id)
+		_assert_true(_texture_bytes(heavy_tex) != _texture_bytes(idle_tex), "%s heavy stays off the idle drawing" % character_id)
+		_assert_true(heavy_tex != null and heavy_tex.get_image().get_pixel(0, 0).b > 0.5, "%s heavy keeps its own pose" % character_id)
+	var plain := SpriteFrames.new()
+	plain.add_animation("idle")
+	plain.add_frame("idle", _solid_texture(Color.WHITE, Vector2i(24, 48)))
+	var skipped: SpriteFrames = look.apply(plain, "mark_zuck")
+	_assert_true(skipped.get_frame_texture("idle", 0).get_width() == 24, "unlisted fighters stay on the 24px canvas")
+	session.set_value(keys.CHARACTER_STYLE, "pixel")
+	var setup: Dictionary = await _spawn_test_players()
+	var p1 := setup.get("p1") as CharacterBody2D
+	var host := setup.get("host") as Node2D
+	if p1 != null:
+		p1.call("apply_attack_table", load("res://assets/data/characters/ElonMvskAttackTable.tres"))
+		var visual := p1.get_node_or_null("Visual") as AnimatedSprite2D
+		_assert_true(visual != null and visual.sprite_frames != null, "styled fighter exposes sprite frames")
+		if visual != null and visual.sprite_frames != null:
+			var wired_idle := visual.sprite_frames.get_frame_texture("idle", 0)
+			var wired_jump := visual.sprite_frames.get_frame_texture("jump", 0)
+			_assert_true(wired_idle != null and wired_idle.get_width() == 48, "wired elon idle is 48 wide")
+			_assert_true(_texture_bytes(wired_idle) != _texture_bytes(wired_jump), "wired elon jump is not idle")
+			_assert_true(visual.scale.y > 1.0 and visual.scale.y < 1.8, "pixel look uses the half-size stage scale")
+	session.clear_keys(PackedStringArray([keys.CHARACTER_STYLE]))
+	if host != null:
+		host.queue_free()
+		await process_frame
+
+func _solid_texture(color: Color, size: Vector2i) -> Texture2D:
+	var image := Image.create(size.x, size.y, false, Image.FORMAT_RGBA8)
+	image.fill(color)
+	return ImageTexture.create_from_image(image)
+
+func _texture_bytes(texture: Texture2D) -> PackedByteArray:
+	if texture == null:
+		return PackedByteArray()
+	var image := texture.get_image()
+	if image == null:
+		return PackedByteArray()
+	return image.get_data()
 
 func _test_picture_contract() -> void:
 	var picture_contract = load("res://tests/PictureContract.gd")

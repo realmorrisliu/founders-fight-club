@@ -6,6 +6,9 @@ const PlayerAttackRuntimeBuilderStore := preload("res://scripts/player/PlayerAtt
 const StageConfigStore := preload("res://scripts/config/StageConfig.gd")
 const GameSettingsStore := preload("res://scripts/GameSettings.gd")
 const EvolutionEngineStore := preload("res://scripts/loadout/EvolutionEngine.gd")
+const CharacterLookStore := preload("res://scripts/player/CharacterLook.gd")
+const SessionStateStore := preload("res://scripts/SessionState.gd")
+const SessionKeysStore := preload("res://scripts/config/SessionKeys.gd")
 
 signal health_changed
 signal defeated
@@ -1796,6 +1799,9 @@ func apply_attack_table(resource: Resource) -> void:
 	_apply_loadout_attack_overrides()
 	_apply_loadout_passive_runtime()
 	_refresh_ai_style_profile()
+	if _character_style_id() == CharacterLookStore.STYLE_ID and CharacterLookStore.covers(get_character_id()):
+		_setup_visual()
+		_update_visual()
 
 func get_character_id() -> String:
 	if attack_table_resource:
@@ -3880,14 +3886,17 @@ func _update_facing() -> void:
 func _update_visual() -> void:
 	if visual == null:
 		return
-	var base_tint := Color(0.75, 0.9, 1.0, 1.0) if player_id == 1 else Color(1.0, 0.82, 0.82, 1.0)
-	var character_id := get_character_id()
-	var palette_tint_value: Variant = CHARACTER_TINT_BY_ID.get(character_id, Color(1.0, 1.0, 1.0, 1.0))
-	if palette_tint_value is Color:
-		base_tint = base_tint.lerp(palette_tint_value as Color, 0.32)
-	if guard_counter_time > 0.0 and current_hp > 0 and attack_state == "":
-		base_tint = base_tint.lerp(Color(0.92, 1.0, 0.80, 1.0), 0.42)
-	visual.modulate = base_tint
+	if _uses_pixel_look():
+		visual.modulate = Color(1.0, 1.0, 1.0, 1.0)
+	else:
+		var base_tint := Color(0.75, 0.9, 1.0, 1.0) if player_id == 1 else Color(1.0, 0.82, 0.82, 1.0)
+		var character_id := get_character_id()
+		var palette_tint_value: Variant = CHARACTER_TINT_BY_ID.get(character_id, Color(1.0, 1.0, 1.0, 1.0))
+		if palette_tint_value is Color:
+			base_tint = base_tint.lerp(palette_tint_value as Color, 0.32)
+		if guard_counter_time > 0.0 and current_hp > 0 and attack_state == "":
+			base_tint = base_tint.lerp(Color(0.92, 1.0, 0.80, 1.0), 0.42)
+		visual.modulate = base_tint
 	_apply_visual_presentation()
 	_update_visual_fx(visual_fx_tick_delta)
 
@@ -4967,9 +4976,12 @@ func _setup_visual() -> void:
 		return
 	_ensure_visual_fx_nodes()
 	visual.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	visual.scale = VISUAL_BASE_SCALE
-	visual.position = Vector2(0.0, _resolve_visual_ground_offset(VISUAL_BASE_SCALE.y))
 	runtime_sprite_frames = _resolve_runtime_sprite_frames()
+	if _uses_pixel_look():
+		runtime_sprite_frames = CharacterLookStore.apply(runtime_sprite_frames, get_character_id())
+	var base_scale := _presented_scale(VISUAL_BASE_SCALE)
+	visual.scale = base_scale
+	visual.position = Vector2(0.0, _resolve_visual_ground_offset(base_scale.y))
 	visual.sprite_frames = runtime_sprite_frames
 	if visual.sprite_frames and visual.sprite_frames.has_animation("idle"):
 		visual.play("idle")
@@ -4977,23 +4989,24 @@ func _setup_visual() -> void:
 func _apply_visual_presentation() -> void:
 	if visual == null:
 		return
-	var target_scale := VISUAL_BASE_SCALE
-	var target_position := Vector2(0.0, _resolve_visual_ground_offset(VISUAL_BASE_SCALE.y))
+	var target_scale := _presented_scale(VISUAL_BASE_SCALE)
+	var target_position := Vector2(0.0, _resolve_visual_ground_offset(target_scale.y))
 	if current_hp <= 0 or is_knocked_down or hitstun_time > 0.0 or shield_break_time > 0.0:
-		target_scale = VISUAL_RECOIL_SCALE
+		target_scale = _presented_scale(VISUAL_RECOIL_SCALE)
 		target_position.x = -float(facing) * VISUAL_RECOIL_OFFSET_X
 	elif attack_state != "" or guard_counter_time > 0.0:
-		target_scale = VISUAL_ATTACK_SCALE
+		target_scale = _presented_scale(VISUAL_ATTACK_SCALE)
 		target_position.x = float(facing) * VISUAL_ATTACK_OFFSET_X
 		target_position.y -= 4.0
 	elif is_dashing or absf(velocity.x) > WALK_ANIMATION_SPEED_THRESHOLD:
-		target_scale = VISUAL_MOVE_SCALE
+		target_scale = _presented_scale(VISUAL_MOVE_SCALE)
 		target_position.x = float(facing) * 2.0
 	elif not is_on_floor():
-		target_scale = VISUAL_AIR_SCALE
+		target_scale = _presented_scale(VISUAL_AIR_SCALE)
 		target_position.y += VISUAL_AIR_OFFSET_Y
 	visual.scale = visual.scale.lerp(target_scale, VISUAL_SCALE_BLEND)
-	target_position.y += _resolve_visual_ground_offset(target_scale.y) - _resolve_visual_ground_offset(VISUAL_BASE_SCALE.y)
+	var base_scale := _presented_scale(VISUAL_BASE_SCALE)
+	target_position.y += _resolve_visual_ground_offset(target_scale.y) - _resolve_visual_ground_offset(base_scale.y)
 	visual.position = visual.position.lerp(target_position, VISUAL_POSITION_BLEND)
 
 func _ensure_visual_fx_nodes() -> void:
@@ -5221,8 +5234,37 @@ func _spawn_afterimage(tint: Color) -> void:
 	)
 
 func _resolve_visual_ground_offset(scale_y: float) -> float:
-	var extra_height := float(PLACEHOLDER_FRAME_SIZE.y) * maxf(0.0, scale_y - 1.0)
-	return -(extra_height * 0.5 + VISUAL_GROUND_LIFT)
+	if not _uses_pixel_look():
+		var extra_height := float(PLACEHOLDER_FRAME_SIZE.y) * maxf(0.0, scale_y - 1.0)
+		return -(extra_height * 0.5 + VISUAL_GROUND_LIFT)
+	var frame_h := float(CharacterLookStore.FRAME_SIZE.y)
+	var foot_y := float(PLACEHOLDER_FRAME_SIZE.y) * 0.5 - VISUAL_GROUND_LIFT
+	return foot_y - frame_h * scale_y * 0.5
+
+func _character_style_id() -> String:
+	return str(SessionStateStore.get_value(SessionKeysStore.CHARACTER_STYLE, "")).strip_edges()
+
+func _uses_pixel_look() -> bool:
+	return _character_style_id() == CharacterLookStore.STYLE_ID and CharacterLookStore.covers(get_character_id())
+
+func _presented_scale(base: Vector2) -> Vector2:
+	if _uses_pixel_look():
+		return base * CharacterLookStore.SCALE_MULTIPLIER
+	return base
+
+func _unhandled_input(event: InputEvent) -> void:
+	if not (event is InputEventKey):
+		return
+	var key_event := event as InputEventKey
+	if not key_event.pressed or key_event.echo or key_event.keycode != KEY_F8:
+		return
+	if _character_style_id() == CharacterLookStore.STYLE_ID:
+		SessionStateStore.clear_keys(PackedStringArray([SessionKeysStore.CHARACTER_STYLE]))
+	else:
+		SessionStateStore.set_value(SessionKeysStore.CHARACTER_STYLE, CharacterLookStore.STYLE_ID)
+	_setup_visual()
+	_update_visual()
+	get_viewport().set_input_as_handled()
 
 func _resolve_runtime_sprite_frames() -> SpriteFrames:
 	var fallback := _build_placeholder_sprite_frames()

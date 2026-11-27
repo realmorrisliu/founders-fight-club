@@ -23,6 +23,7 @@ Options for run/replay:
   --timer-seconds N
   --onboarding true|false
   --control-preset modern|classic
+  --character-style pixel
   --input samples.json
   --screenshots 10,40
   --screenshot-dir DIR

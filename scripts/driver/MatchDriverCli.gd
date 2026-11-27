@@ -286,6 +286,9 @@ func _parse_run_args(args: PackedStringArray) -> Dictionary:
 			"--control-preset":
 				raw["control_preset"] = value
 				index += 2
+			"--character-style":
+				raw["character_style"] = value
+				index += 2
 			"--input":
 				input_path = value
 				index += 2
@@ -337,7 +340,7 @@ func _overlay_replay(path: String, args: PackedStringArray) -> Dictionary:
 		if arg == "--replay" or arg == "--input" or arg == "--out" or arg == "--screenshot-dir":
 			index += 2
 			continue
-		if arg == "--screenshots" or arg.begins_with("--setup-") or arg in ["--seed", "--mode", "--stage", "--frames", "--p1", "--p2", "--p1-control", "--p2-control", "--stocks", "--timer-enabled", "--timer-seconds", "--onboarding", "--control-preset"]:
+		if arg == "--screenshots" or arg.begins_with("--setup-") or arg in ["--seed", "--mode", "--stage", "--frames", "--p1", "--p2", "--p1-control", "--p2-control", "--stocks", "--timer-enabled", "--timer-seconds", "--onboarding", "--control-preset", "--character-style"]:
 			var value := str(args[index + 1]) if index + 1 < args.size() else ""
 			match arg:
 				"--seed":
@@ -366,6 +369,8 @@ func _overlay_replay(path: String, args: PackedStringArray) -> Dictionary:
 					raw["onboarding"] = value
 				"--control-preset":
 					raw["control_preset"] = value
+				"--character-style":
+					raw["character_style"] = value
 				"--screenshots":
 					var frames: Array = []
 					for piece in value.split(",", false):
