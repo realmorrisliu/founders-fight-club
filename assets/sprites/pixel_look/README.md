@@ -1,6 +1,6 @@
 # Pixel look
 
-Review prototype for Elon Mvsk and Steve Jobz. One shared pixel-art language. It is off unless `--character-style pixel` is set, or F8 toggles it in a match.
+Review prototype for Elon Mvsk and Steve Jobz. One shared pixel-art language. It is off unless `--character-style pixel` is set, or F8 toggles it for every fighter in the match.
 
 Canvas is **48×96**. That is an even 2× of the 24×48 fighter contract. `CharacterLook.SCALE_MULTIPLIER` is `0.5`, so a 96px frame at half of `VISUAL_BASE_SCALE` keeps the same on-stage height as a 48px frame. Feet sit on the bottom pixel row.
 

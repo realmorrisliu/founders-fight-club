@@ -4447,24 +4447,45 @@ func _test_pixel_character_look() -> void:
 	plain.add_frame("idle", _solid_texture(Color.WHITE, Vector2i(24, 48)))
 	var skipped: SpriteFrames = look.apply(plain, "mark_zuck")
 	_assert_true(skipped.get_frame_texture("idle", 0).get_width() == 24, "unlisted fighters stay on the 24px canvas")
-	session.set_value(keys.CHARACTER_STYLE, "pixel")
 	var setup: Dictionary = await _spawn_test_players()
 	var p1 := setup.get("p1") as CharacterBody2D
+	var p2 := setup.get("p2") as CharacterBody2D
 	var host := setup.get("host") as Node2D
-	if p1 != null:
+	if p1 != null and p2 != null:
 		p1.call("apply_attack_table", load("res://assets/data/characters/ElonMvskAttackTable.tres"))
-		var visual := p1.get_node_or_null("Visual") as AnimatedSprite2D
-		_assert_true(visual != null and visual.sprite_frames != null, "styled fighter exposes sprite frames")
-		if visual != null and visual.sprite_frames != null:
-			var wired_idle := visual.sprite_frames.get_frame_texture("idle", 0)
-			var wired_jump := visual.sprite_frames.get_frame_texture("jump", 0)
-			_assert_true(wired_idle != null and wired_idle.get_width() == 48, "wired elon idle is 48 wide")
+		p2.call("apply_attack_table", load("res://assets/data/characters/SteveJobzAttackTable.tres"))
+		_assert_true(_idle_width(p1) == 24 and _idle_width(p2) == 24, "both founders start on the 24px canvas")
+		p1.call("_unhandled_input", _f8_key())
+		_assert_true(_idle_width(p1) == 48 and _idle_width(p2) == 48, "one F8 rebuilds both founders")
+		var elon_visual := p1.get_node_or_null("Visual") as AnimatedSprite2D
+		if elon_visual != null and elon_visual.sprite_frames != null:
+			var wired_idle := elon_visual.sprite_frames.get_frame_texture("idle", 0)
+			var wired_jump := elon_visual.sprite_frames.get_frame_texture("jump", 0)
 			_assert_true(_texture_bytes(wired_idle) != _texture_bytes(wired_jump), "wired elon jump is not idle")
-			_assert_true(visual.scale.y > 1.0 and visual.scale.y < 1.8, "pixel look uses the half-size stage scale")
+			_assert_true(elon_visual.scale.y > 1.0 and elon_visual.scale.y < 1.8, "pixel look uses the half-size stage scale")
+		var steve_visual := p2.get_node_or_null("Visual") as AnimatedSprite2D
+		_assert_true(steve_visual != null and steve_visual.scale.y > 1.0 and steve_visual.scale.y < 1.8, "steve keeps the half-size stage scale")
+		p1.call("_unhandled_input", _f8_key())
+		_assert_true(_idle_width(p1) == 24 and _idle_width(p2) == 24, "the next F8 restores both founders")
 	session.clear_keys(PackedStringArray([keys.CHARACTER_STYLE]))
 	if host != null:
 		host.queue_free()
 		await process_frame
+
+func _f8_key() -> InputEventKey:
+	var event := InputEventKey.new()
+	event.pressed = true
+	event.keycode = KEY_F8
+	return event
+
+func _idle_width(player: Node) -> int:
+	var visual := player.get_node_or_null("Visual") as AnimatedSprite2D
+	if visual == null or visual.sprite_frames == null or not visual.sprite_frames.has_animation("idle"):
+		return -1
+	var texture := visual.sprite_frames.get_frame_texture("idle", 0)
+	if texture == null:
+		return -1
+	return texture.get_width()
 
 func _solid_texture(color: Color, size: Vector2i) -> Texture2D:
 	var image := Image.create(size.x, size.y, false, Image.FORMAT_RGBA8)

@@ -5262,9 +5262,13 @@ func _unhandled_input(event: InputEvent) -> void:
 		SessionStateStore.clear_keys(PackedStringArray([SessionKeysStore.CHARACTER_STYLE]))
 	else:
 		SessionStateStore.set_value(SessionKeysStore.CHARACTER_STYLE, CharacterLookStore.STYLE_ID)
+	for node in get_tree().get_nodes_in_group("fighters"):
+		node.refresh_character_look()
+	get_viewport().set_input_as_handled()
+
+func refresh_character_look() -> void:
 	_setup_visual()
 	_update_visual()
-	get_viewport().set_input_as_handled()
 
 func _resolve_runtime_sprite_frames() -> SpriteFrames:
 	var fallback := _build_placeholder_sprite_frames()
