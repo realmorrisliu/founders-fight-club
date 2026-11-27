@@ -27,8 +27,12 @@ Options for run/replay:
   --screenshots 10,40
   --screenshot-dir DIR
   --setup-p1-percent N  and the p2 / x / y variants
+  --character-style block|ink|ramp
   --render headless|xvfb
 
+--character-style selects a prototype drawing of Elon Mvsk and Steve Jobz.
+Omit it to keep the shared sprite. F8 cycles block, ink, ramp, and shared
+during a match. The stage camera and lighting stay on Look B.
 The simulation steps at a fixed 60Hz and does not follow the wall clock.
 headless is the default. xvfb opens a virtual display so PNG capture can use
 the normal renderer when the headless viewport image is empty.

@@ -8,6 +8,8 @@ const StageConfigStore := preload("res://scripts/config/StageConfig.gd")
 const SessionStateStore := preload("res://scripts/SessionState.gd")
 const LoadoutResolverStore := preload("res://scripts/loadout/LoadoutResolver.gd")
 const StagePictureScript := preload("res://scripts/picture/StagePicture.gd")
+const CharacterLookStore := preload("res://scripts/visual/CharacterLook.gd")
+const LocalizationRegistryStore := preload("res://scripts/config/LocalizationRegistry.gd")
 
 const ROUND_TIME_SECONDS := 60.0
 const RULESET_PLATFORM := "platform"
@@ -353,6 +355,7 @@ var selected_character_ids := {"p1": "", "p2": ""}
 var selected_character_names := {"p1": "Player 1", "p2": "Player 2"}
 var selected_character_profiles := {"p1": {}, "p2": {}}
 var selected_character_loadouts := {"p1": {}, "p2": {}}
+var character_style_caption: Label
 var dialogue_pack := {}
 var dialogue_rng := RandomNumberGenerator.new()
 var story_mode_active := false
@@ -499,6 +502,11 @@ func _exit_tree() -> void:
 	_append_session_metrics_on_exit("scene_exit")
 
 func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_F8:
+		CharacterLookStore.cycle()
+		_refresh_character_styles()
+		get_viewport().set_input_as_handled()
+		return
 	if event.is_action_pressed("restart"):
 		_restart_match()
 	elif event.is_action_pressed("pause"):
@@ -3239,6 +3247,46 @@ func _apply_selected_character_tables() -> void:
 	)
 	if _is_story_session_mode():
 		_apply_story_opponent_round()
+	if CharacterLookStore.current_id() != "":
+		_refresh_character_styles()
+
+func _refresh_character_styles() -> void:
+	if player_1 and player_1.has_method("apply_character_style"):
+		player_1.call("apply_character_style")
+	if player_2 and player_2.has_method("apply_character_style"):
+		player_2.call("apply_character_style")
+	_update_character_style_caption()
+
+func _update_character_style_caption() -> void:
+	var style_id := CharacterLookStore.current_id()
+	if style_id == "":
+		if character_style_caption:
+			character_style_caption.visible = false
+		return
+	if character_style_caption == null:
+		LocalizationRegistryStore.ensure_registered()
+		var layer := CanvasLayer.new()
+		layer.name = "CharacterStyleCaption"
+		layer.layer = 40
+		var label := Label.new()
+		label.name = "Caption"
+		label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		label.set_anchors_preset(Control.PRESET_FULL_RECT)
+		label.anchor_top = 1.0
+		label.anchor_bottom = 1.0
+		label.offset_top = -40.0
+		label.offset_bottom = -12.0
+		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		label.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+		label.add_theme_font_size_override("font_size", 16)
+		label.add_theme_color_override("font_color", Color(1.0, 0.96, 0.88, 1.0))
+		label.add_theme_color_override("font_outline_color", Color(0.06, 0.04, 0.08, 1.0))
+		label.add_theme_constant_override("outline_size", 4)
+		layer.add_child(label)
+		add_child(layer)
+		character_style_caption = label
+	character_style_caption.visible = true
+	character_style_caption.text = tr("LOOK_STYLE_CAPTION") % tr(CharacterLookStore.label_key())
 
 func _apply_selected_character_table_for_player(
 	player: Node,

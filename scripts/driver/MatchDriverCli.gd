@@ -4,6 +4,7 @@ const ReplayScriptStore := preload("res://scripts/driver/ReplayScript.gd")
 const MatchDriverScript := preload("res://scripts/driver/MatchDriver.gd")
 const SessionKeysStore := preload("res://scripts/config/SessionKeys.gd")
 const SessionStateStore := preload("res://scripts/SessionState.gd")
+const CharacterLookStore := preload("res://scripts/visual/CharacterLook.gd")
 
 const MENU_BUTTONS := {
 	"first-launch-modern": "FirstLaunchControlOverlay/Panel/ModernButton",
@@ -301,6 +302,13 @@ func _parse_run_args(args: PackedStringArray) -> Dictionary:
 					frames.append(int(piece.strip_edges()))
 				raw["screenshots"] = frames
 				index += 2
+			"--character-style":
+				if value == "" or value.begins_with("--"):
+					return {"ok": false, "error": "character style needs block, ink, or ramp"}
+				var style_error := CharacterLookStore.set_id(value)
+				if style_error != "":
+					return {"ok": false, "error": style_error}
+				index += 2
 			"--setup-p1-percent", "--setup-p2-percent", "--setup-p1-x", "--setup-p1-y", "--setup-p2-x", "--setup-p2-y":
 				_assign_setup(raw, arg, value)
 				index += 2
@@ -334,7 +342,7 @@ func _overlay_replay(path: String, args: PackedStringArray) -> Dictionary:
 	var index := 0
 	while index < args.size():
 		var arg := str(args[index])
-		if arg == "--replay" or arg == "--input" or arg == "--out" or arg == "--screenshot-dir":
+		if arg == "--replay" or arg == "--input" or arg == "--out" or arg == "--screenshot-dir" or arg == "--character-style":
 			index += 2
 			continue
 		if arg == "--screenshots" or arg.begins_with("--setup-") or arg in ["--seed", "--mode", "--stage", "--frames", "--p1", "--p2", "--p1-control", "--p2-control", "--stocks", "--timer-enabled", "--timer-seconds", "--onboarding", "--control-preset"]:
@@ -442,3 +450,5 @@ func _print_help() -> void:
 	print("Buttons in an input sample: move_left, move_right, move_up, move_down, jump,")
 	print("attack_light, attack_heavy, attack_special, throw, dash, block, pause, restart.")
 	print("A sample replaces that side's held buttons. Omit a side to leave it unchanged.")
+	print("Prototype character styles: --character-style block|ink|ramp")
+	print("Omit it to keep the shared sprite. F8 cycles the same styles in a match.")
