@@ -8,6 +8,8 @@ const StageConfigStore := preload("res://scripts/config/StageConfig.gd")
 const SessionStateStore := preload("res://scripts/SessionState.gd")
 const LoadoutResolverStore := preload("res://scripts/loadout/LoadoutResolver.gd")
 const StagePictureScript := preload("res://scripts/picture/StagePicture.gd")
+const FlatPixelScript := preload("res://scripts/stage/FlatPixel.gd")
+const CharacterLookStore := preload("res://scripts/player/CharacterLook.gd")
 
 const ROUND_TIME_SECONDS := 60.0
 const RULESET_PLATFORM := "platform"
@@ -484,6 +486,11 @@ func _ready() -> void:
 	_refresh_result_text()
 	_trigger_pre_fight_dialogue()
 	StagePictureScript.attach(self)
+	if wants_flat_pixel():
+		FlatPixelScript.apply(self)
+
+func wants_flat_pixel() -> bool:
+	return str(SessionStateStore.get_value(SessionKeysStore.CHARACTER_STYLE, "")).strip_edges() == CharacterLookStore.STYLE_ID
 
 func _pin_child_pausable(child: Node) -> void:
 	if child.process_mode != Node.PROCESS_MODE_INHERIT:

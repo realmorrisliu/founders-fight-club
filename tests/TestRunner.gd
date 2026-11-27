@@ -104,6 +104,7 @@ func _run_smoke_suite() -> void:
 	await _test_hud_corners_fit_the_viewport()
 	_test_driver_examples_are_valid_replays_or_inputs()
 	await _test_pixel_character_look()
+	await _test_flat_pixel_stage()
 	await _test_picture_contract()
 
 func _run_full_suite() -> void:
@@ -4506,6 +4507,30 @@ func _texture_bytes(texture: Texture2D) -> PackedByteArray:
 	if image == null:
 		return PackedByteArray()
 	return image.get_data()
+
+func _test_flat_pixel_stage() -> void:
+	var session = load("res://scripts/SessionState.gd")
+	var keys = load("res://scripts/config/SessionKeys.gd")
+	session.set_value(keys.CHARACTER_STYLE, "pixel")
+	var packed = load("res://scenes/Main.tscn")
+	var match_node: Node = null
+	if packed is PackedScene:
+		match_node = (packed as PackedScene).instantiate()
+		get_root().add_child(match_node)
+		await process_frame
+		await process_frame
+		_assert_true(match_node.get_node_or_null("StagePicture") == null, "flat pixel match has no 3D stage")
+		var camera_value: Variant = match_node.get("camera")
+		_assert_true(camera_value is Camera2D and (camera_value as Camera2D).enabled, "flat pixel match uses the side-view camera")
+		var background := match_node.get_node_or_null("Arena/Background") as Sprite2D
+		_assert_true(background != null and background.visible and background.texture_filter == CanvasItem.TEXTURE_FILTER_NEAREST, "flat stage background is a nearest sprite")
+		var deck := match_node.get_node_or_null("Arena/FloorVisual") as Sprite2D
+		_assert_true(deck != null and deck.texture != null and deck.texture.get_width() == 380, "flat deck is the pixel slab")
+		match_node.queue_free()
+		await process_frame
+	else:
+		_assert_true(false, "main scene loads for the flat stage")
+	session.clear_keys(PackedStringArray([keys.CHARACTER_STYLE]))
 
 func _test_picture_contract() -> void:
 	var picture_contract = load("res://tests/PictureContract.gd")
