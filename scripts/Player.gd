@@ -3884,9 +3884,10 @@ func apply_character_style() -> void:
 	if CharacterLookStore.current_id() == "":
 		_setup_visual()
 		return
-	var frames := CharacterLookStore.frames_for(get_character_id())
-	if frames == null:
+	var authored := CharacterLookStore.frames_for(get_character_id())
+	if authored == null:
 		return
+	var frames := _frames_with_authored_style(authored)
 	var anim := visual.animation
 	var frame_index := visual.frame
 	runtime_sprite_frames = frames
@@ -3897,6 +3898,19 @@ func apply_character_style() -> void:
 	elif frames.has_animation(&"idle"):
 		visual.play(&"idle")
 	visual.modulate = Color.WHITE
+
+
+func _frames_with_authored_style(authored: SpriteFrames) -> SpriteFrames:
+	var base := _resolve_runtime_sprite_frames()
+	if base == null:
+		return authored
+	var merged := base.duplicate(true) as SpriteFrames
+	if merged == null:
+		return authored
+	for anim_name in [&"idle", &"walk", &"light"]:
+		if authored.has_animation(anim_name) and authored.get_frame_count(anim_name) > 0:
+			_copy_animation(authored, merged, anim_name)
+	return merged
 
 
 func _update_visual() -> void:
