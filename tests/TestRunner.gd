@@ -4467,6 +4467,13 @@ func _test_pixel_character_look() -> void:
 		_assert_true(steve_visual != null and steve_visual.scale.y > 1.0 and steve_visual.scale.y < 1.8, "steve keeps the half-size stage scale")
 		p1.call("_unhandled_input", _f8_key())
 		_assert_true(_idle_width(p1) == 24 and _idle_width(p2) == 24, "the next F8 restores both founders")
+		session.set_value(keys.CHARACTER_STYLE, "pixel")
+		p2.call("apply_attack_table", load("res://assets/data/characters/ElonMvskAttackTable.tres"))
+		_assert_true(_idle_width(p2) == 48, "pixel style applies when the table becomes elon")
+		p2.call("apply_attack_table", load("res://assets/data/characters/MarkZuckAttackTable.tres"))
+		var mark_visual := p2.get_node_or_null("Visual") as AnimatedSprite2D
+		_assert_true(_idle_width(p2) == 24, "leaving elon drops the pixel sheet")
+		_assert_true(mark_visual != null and mark_visual.scale.y > 2.0, "mark returns to the 24px stage scale")
 	session.clear_keys(PackedStringArray([keys.CHARACTER_STYLE]))
 	if host != null:
 		host.queue_free()

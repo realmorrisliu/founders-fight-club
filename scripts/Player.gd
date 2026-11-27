@@ -1799,7 +1799,7 @@ func apply_attack_table(resource: Resource) -> void:
 	_apply_loadout_attack_overrides()
 	_apply_loadout_passive_runtime()
 	_refresh_ai_style_profile()
-	if _character_style_id() == CharacterLookStore.STYLE_ID and CharacterLookStore.covers(get_character_id()):
+	if _character_style_id() == CharacterLookStore.STYLE_ID:
 		_setup_visual()
 		_update_visual()
 
