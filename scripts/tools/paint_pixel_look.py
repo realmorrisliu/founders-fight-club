@@ -252,6 +252,7 @@ def pose(
 	breath=0,
 	fist=False,
 	head_extra=0,
+	rocket=0,
 ):
 	return {
 		"bob": bob,
@@ -268,30 +269,32 @@ def pose(
 		"breath": breath,
 		"fist": fist,
 		"head_extra": head_extra,
+		"rocket": rocket,
 	}
 
 
 IDLE = [
-	pose(bob=0, sway=0, breath=0, front_upper=5, front_bend=6, back_upper=-12, back_bend=-8),
-	pose(bob=-1, sway=0, breath=1, front_upper=7, front_bend=8, back_upper=-10, back_bend=-6),
-	pose(bob=-2, sway=1, breath=2, front_upper=9, front_bend=10, back_upper=-8, back_bend=-4),
-	pose(bob=-1, sway=0, breath=1, front_upper=6, front_bend=7, back_upper=-11, back_bend=-7),
+	pose(bob=0, sway=0, breath=0, front_upper=8, front_bend=14, back_upper=-18, back_bend=-12),
+	pose(bob=-1, sway=0, breath=1, front_upper=10, front_bend=16, back_upper=-16, back_bend=-10),
+	pose(bob=-2, sway=1, breath=2, front_upper=12, front_bend=18, back_upper=-14, back_bend=-8),
+	pose(bob=-1, sway=0, breath=1, front_upper=9, front_bend=15, back_upper=-17, back_bend=-11),
 ]
 
+# Contact, down, pass, then the other foot. Bob drops on the down frame and rises on the pass.
 WALK = [
-	pose(bob=0, sway=-2, front_thigh=44, front_knee=8, back_thigh=-40, back_knee=12, front_upper=-34, front_bend=-22, back_upper=30, back_bend=16),
-	pose(bob=2, sway=-1, front_thigh=22, front_knee=48, back_thigh=-18, back_knee=30, front_upper=-16, front_bend=-12, back_upper=18, back_bend=12),
-	pose(bob=-1, sway=1, front_thigh=-6, front_knee=18, back_thigh=12, back_knee=42, front_upper=6, front_bend=8, back_upper=-6, back_bend=-8),
-	pose(bob=0, sway=2, front_thigh=-42, front_knee=10, back_thigh=38, back_knee=14, front_upper=34, front_bend=18, back_upper=-28, back_bend=-18),
-	pose(bob=2, sway=1, front_thigh=-18, front_knee=28, back_thigh=20, back_knee=50, front_upper=18, front_bend=12, back_upper=-14, back_bend=-12),
-	pose(bob=-1, sway=-1, front_thigh=14, front_knee=34, back_thigh=-8, back_knee=16, front_upper=-10, front_bend=4, back_upper=8, back_bend=6),
+	pose(bob=1, sway=-2, front_thigh=52, front_knee=6, back_thigh=-46, back_knee=22, front_upper=-40, front_bend=-28, back_upper=36, back_bend=18),
+	pose(bob=3, sway=-1, front_thigh=24, front_knee=58, back_thigh=-16, back_knee=36, front_upper=-18, front_bend=-14, back_upper=20, back_bend=14),
+	pose(bob=-2, sway=1, front_thigh=-4, front_knee=14, back_thigh=8, back_knee=46, front_upper=8, front_bend=10, back_upper=-8, back_bend=-10),
+	pose(bob=1, sway=2, front_thigh=-50, front_knee=8, back_thigh=48, back_knee=18, front_upper=40, front_bend=22, back_upper=-36, back_bend=-20),
+	pose(bob=3, sway=1, front_thigh=-20, front_knee=36, back_thigh=22, back_knee=56, front_upper=20, front_bend=14, back_upper=-16, back_bend=-12),
+	pose(bob=-2, sway=-1, front_thigh=10, front_knee=28, back_thigh=-6, back_knee=12, front_upper=-8, front_bend=6, back_upper=10, back_bend=8),
 ]
 
 LIGHT = [
-	pose(bob=0, lean=-6, sway=-1, front_upper=-46, front_bend=-36, back_upper=8, back_bend=6, front_thigh=10, back_thigh=-4),
-	pose(bob=-1, lean=8, sway=-2, front_upper=74, front_bend=6, back_upper=-28, back_bend=-8, front_thigh=16, front_knee=6, fist=True),
-	pose(bob=0, lean=5, sway=-1, front_upper=68, front_bend=4, back_upper=-16, back_bend=-6, fist=True),
-	pose(bob=0, lean=1, sway=0, front_upper=36, front_bend=18, back_upper=-8, fist=False),
+	pose(bob=0, lean=-8, sway=-1, front_upper=-62, front_bend=-40, back_upper=14, back_bend=8, front_thigh=12, back_thigh=-6),
+	pose(bob=-1, lean=10, sway=-2, front_upper=82, front_bend=4, back_upper=-36, back_bend=-10, front_thigh=18, front_knee=8, fist=True),
+	pose(bob=0, lean=6, sway=-1, front_upper=74, front_bend=6, back_upper=-18, back_bend=-6, fist=True),
+	pose(bob=0, lean=1, sway=0, front_upper=28, front_bend=22, back_upper=-8, fist=False),
 ]
 
 JUMP = [
@@ -301,8 +304,22 @@ JUMP = [
 ]
 
 HIT = [
-	pose(bob=0, lean=-12, sway=3, front_upper=-24, front_bend=20, back_upper=-40, back_bend=-16, front_thigh=8, back_thigh=-14, head_extra=1),
-	pose(bob=1, lean=-18, sway=5, front_upper=-10, front_bend=28, back_upper=-56, back_bend=-10, front_thigh=4, front_knee=16, back_thigh=-6, head_extra=2),
+	pose(bob=0, lean=-14, sway=3, front_upper=-28, front_bend=24, back_upper=-48, back_bend=-18, front_thigh=10, back_thigh=-16, head_extra=1),
+	pose(bob=2, lean=-22, sway=5, front_upper=-8, front_bend=34, back_upper=-64, back_bend=-12, front_thigh=6, front_knee=18, back_thigh=-4, head_extra=2),
+]
+
+HEAVY = [
+	pose(bob=1, lean=-12, sway=-2, front_upper=-78, front_bend=-24, back_upper=24, back_bend=10, front_thigh=14, back_thigh=-8, fist=True),
+	pose(bob=0, lean=6, sway=-1, front_upper=16, front_bend=48, back_upper=-20, front_thigh=20, front_knee=12, fist=True),
+	pose(bob=-1, lean=16, sway=1, front_upper=92, front_bend=2, back_upper=-42, back_bend=-8, front_thigh=22, fist=True),
+	pose(bob=0, lean=4, sway=0, front_upper=46, front_bend=18, back_upper=-12, fist=True),
+]
+
+SPECIAL = [
+	pose(bob=0, lean=-6, front_upper=-24, front_bend=-16, back_upper=-28, front_thigh=8, back_thigh=-4, rocket=1),
+	pose(bob=-1, lean=4, front_upper=48, front_bend=8, back_upper=-20, fist=True, rocket=2),
+	pose(bob=0, lean=8, front_upper=76, front_bend=4, fist=True, rocket=2),
+	pose(bob=0, lean=1, front_upper=22, front_bend=16, rocket=0),
 ]
 
 
@@ -363,10 +380,23 @@ def _draw_leg(canvas, hip, thigh_deg, knee_deg, colors, boot_colors, thigh_len, 
 def _draw_arm(canvas, shoulder, upper_deg, bend_deg, sleeve, skin, fist, upper_len, fore_len):
 	elbow = bone(shoulder, upper_deg, upper_len)
 	hand = bone(elbow, upper_deg + bend_deg, fore_len)
-	canvas.paint(shade(capsule_mask(shoulder[0], shoulder[1], elbow[0], elbow[1], 2.05), sleeve))
-	canvas.paint(shade(capsule_mask(elbow[0], elbow[1], hand[0], hand[1], 1.7), sleeve))
-	radius = 2.7 if fist else 2.0
-	canvas.paint(shade(ellipse_mask(hand[0], hand[1], radius, radius - 0.15), skin))
+	upper_r = 2.8 if fist else 2.15
+	fore_r = 2.5 if fist else 1.85
+	canvas.paint(shade(capsule_mask(shoulder[0], shoulder[1], elbow[0], elbow[1], upper_r), sleeve))
+	canvas.paint(shade(capsule_mask(elbow[0], elbow[1], hand[0], hand[1], fore_r), sleeve))
+	hx, hy = int(round(hand[0])), int(round(hand[1]))
+	if fist:
+		facing = 1 if hand[0] >= elbow[0] else -1
+		fx = hx - 1 if facing > 0 else hx - 3
+		for dy in range(4):
+			for dx in range(5):
+				tone = skin[3] if dy == 0 else skin[1]
+				canvas.set(fx + dx, hy - 2 + dy, tone)
+		knuckle = fx + 4 if facing > 0 else fx
+		canvas.set(knuckle, hy - 2, skin[3])
+		canvas.set(knuckle, hy - 1, skin[2])
+		return (fx + (4 if facing > 0 else 0), hy)
+	canvas.paint(shade(ellipse_mask(hx, hy, 2.1, 1.9), skin))
 	return hand
 
 
@@ -386,38 +416,42 @@ def _draw_elon_coat(canvas, back_shoulder, front_shoulder, hip, sway, breath):
 		(hx + 2, hy),
 		(hx - 3, hy),
 	])
-	canvas.paint(shade(shirt, [SHIRT, CYAN_DEEP, CYAN, CYAN]))
+	canvas.paint(shade(shirt, [SHIRT, SHIRT, CYAN_DEEP, CYAN]))
 	back = polygon_mask([
-		(bx - 6, by - 1),
-		(bx + 4, by - 4),
-		(hx - 1, hy + 3),
-		(hx - 7 + sway, hy + 15),
-		(hx - 15 + sway * 1.5, hy + 23),
-		(hx - 8, hy + 8),
+		(bx - 8, by - 2),
+		(bx + 5, by - 5),
+		(hx - 1, hy + 2),
+		(hx - 8 + sway, hy + 16),
+		(hx - 16 + sway * 1.4, hy + 26),
+		(hx - 9, hy + 8),
 	])
 	front = polygon_mask([
-		(fx, fy + 2),
-		(fx + 7 + breath, fy),
-		(hx + 11 + sway * 0.25, hy + 6),
-		(hx + 14 + sway, hy + 18),
-		(hx + 7 + sway, hy + 23),
-		(hx + 2, hy + 7),
+		(fx - 1, fy + 1),
+		(fx + 9 + breath, fy - 1),
+		(hx + 13 + sway * 0.3, hy + 8),
+		(hx + 16 + sway, hy + 20),
+		(hx + 8 + sway, hy + 26),
+		(hx + 2, hy + 8),
 	])
 	canvas.paint(shade(back, COAT))
 	canvas.paint(shade(front, COAT))
-	canvas.paint(shade(ellipse_mask(bx, by, 5.4, 3.8), COAT))
-	canvas.paint(shade(ellipse_mask(fx + 1, fy, 6.4, 4.4), COAT))
-	for ox, oy in ((hx - 11 + sway, hy + 7), (hx - 13 + sway, hy + 13), (hx + 7 + sway, hy + 11)):
-		_cluster(canvas, ox, oy, 2, 3, COAT[0])
-	hem_y = int(round(hy + 23))
-	left = int(round(hx - 15 + sway * 1.5))
-	right = int(round(hx + 13 + sway))
+	canvas.paint(shade(ellipse_mask(bx - 1, by, 6.2, 4.2), COAT))
+	canvas.paint(shade(ellipse_mask(fx + 2, fy - 1, 7.2, 4.8), COAT))
+	collar_x = int(round(fx - 1))
+	collar_y = int(round(fy - 2))
+	_cluster(canvas, collar_x, collar_y, 6, 2, COAT[2])
+	_cluster(canvas, collar_x + 1, collar_y + 2, 3, 2, COAT[1])
+	for ox, oy in ((hx - 12 + sway, hy + 8), (hx - 14 + sway, hy + 15), (hx + 8 + sway, hy + 12)):
+		_cluster(canvas, ox, oy, 2, 4, COAT[0])
+		_cluster(canvas, ox + 2, oy + 1, 1, 2, COAT[2])
+	hem_y = int(round(hy + 26))
+	left = int(round(hx - 16 + sway * 1.4))
+	right = int(round(hx + 15 + sway))
 	for x in range(left, right):
 		canvas.set(x, hem_y, COAT[0])
-		if (x + hem_y) % 3 != 0:
-			canvas.set(x, hem_y - 1, COAT[1])
+		canvas.set(x, hem_y - 1, COAT[1] if (x + int(sway)) % 4 else COAT[2])
 	open_x = int(round(fx))
-	for y in range(int(fy) + 5, int(fy) + 13):
+	for y in range(int(fy) + 6, int(fy) + 11):
 		canvas.set(open_x, y, CYAN_DEEP)
 		canvas.set(open_x + 1, y, CYAN)
 
@@ -443,69 +477,79 @@ def _draw_face(canvas, cx, cy, kind):
 	cx = int(round(cx))
 	cy = int(round(cy))
 	if kind == ELON:
-		for x in range(cx + 1, cx + 7):
-			canvas.set(x, cy - 6, HAIR_ELON[1])
-			canvas.set(x, cy - 5, HAIR_ELON[0])
-		for x in range(cx + 2, cx + 6):
-			canvas.set(x, cy - 3, SKIN[3])
-			canvas.set(x, cy - 2, SKIN[2])
-		canvas.set(cx + 3, cy - 3, PUPIL)
+		for x in range(cx + 1, cx + 8):
+			canvas.set(x, cy - 6, HAIR_ELON[0])
+		canvas.set(cx + 2, cy - 5, HAIR_ELON[1])
+		canvas.set(cx + 3, cy - 5, HAIR_ELON[1])
+		canvas.set(cx + 4, cy - 4, SKIN[3])
+		canvas.set(cx + 5, cy - 4, SKIN[2])
 		canvas.set(cx + 4, cy - 3, PUPIL)
-		canvas.set(cx + 3, cy - 2, PUPIL)
-		canvas.set(cx + 5, cy - 3, LENS_HOT)
-		canvas.set(cx + 2, cy - 1, SKIN[1])
-		canvas.set(cx + 8, cy, SKIN[3])
-		canvas.set(cx + 8, cy + 1, SKIN[1])
-		canvas.set(cx + 7, cy + 1, SKIN[0])
-		canvas.set(cx + 5, cy + 4, rgb("#8a4038"))
-		canvas.set(cx + 6, cy + 4, rgb("#e0a098"))
-		canvas.set(cx + 7, cy + 4, rgb("#8a4038"))
-		canvas.set(cx + 3, cy + 6, SKIN[0])
-		canvas.set(cx + 4, cy + 6, SKIN[0])
+		canvas.set(cx + 5, cy - 3, PUPIL)
+		canvas.set(cx + 6, cy - 4, LENS_HOT)
+		canvas.set(cx + 7, cy - 1, SKIN[3])
+		canvas.set(cx + 8, cy, SKIN[2])
+		canvas.set(cx + 8, cy + 1, SKIN[0])
+		canvas.set(cx + 5, cy + 3, rgb("#8a4038"))
+		canvas.set(cx + 6, cy + 3, rgb("#8a4038"))
+		canvas.set(cx + 7, cy + 3, rgb("#e0a098"))
+		canvas.set(cx + 3, cy + 5, SKIN[0])
+		canvas.set(cx + 4, cy + 5, SKIN[0])
+		canvas.set(cx + 5, cy + 5, SKIN[1])
 		return
-	x0 = cx + 1
-	y0 = cy - 5
-	for y in range(y0, y0 + 7):
-		for x in range(x0, x0 + 8):
-			edge = x == x0 or x == x0 + 7 or y == y0 or y == y0 + 6
-			canvas.set(x, y, FRAME if edge else LENS)
+	x0 = cx + 2
+	y0 = cy - 4
+	for x in range(x0, x0 + 7):
+		canvas.set(x, y0, FRAME)
+		canvas.set(x, y0 + 4, FRAME)
+	for y in range(y0, y0 + 5):
+		canvas.set(x0, y, FRAME)
+		canvas.set(x0 + 6, y, FRAME)
+	canvas.set(x0 + 2, y0 + 2, PUPIL)
+	canvas.set(x0 + 3, y0 + 2, PUPIL)
 	canvas.set(x0 + 3, y0 + 3, PUPIL)
-	canvas.set(x0 + 4, y0 + 3, PUPIL)
-	canvas.set(x0 + 3, y0 + 4, PUPIL)
-	canvas.set(x0 + 2, y0 + 2, LENS_HOT)
-	for x in range(x0 + 1, x0 + 7):
+	canvas.set(x0 + 4, y0 + 1, LENS)
+	for x in range(x0 + 1, x0 + 6):
 		canvas.set(x, y0 - 1, HAIR_STEVE[0])
-		canvas.set(x, y0 - 2, HAIR_STEVE[1])
-	canvas.set(x0 - 1, y0 + 2, FRAME)
+	canvas.set(x0 - 1, y0 + 1, FRAME)
 	canvas.set(x0 - 2, y0 + 2, FRAME)
 	canvas.set(x0 - 3, y0 + 3, FRAME)
-	canvas.set(x0 - 4, y0 + 4, FRAME)
-	canvas.set(x0 + 9, cy, SKIN[3])
-	canvas.set(x0 + 9, cy + 1, SKIN[1])
-	canvas.set(x0 + 4, y0 + 9, SKIN[0])
-	canvas.set(x0 + 5, y0 + 9, rgb("#c08078"))
-	canvas.set(x0 + 6, y0 + 9, SKIN[0])
+	canvas.set(x0 + 8, cy, SKIN[2])
+	canvas.set(x0 + 8, cy + 1, SKIN[0])
+	canvas.set(x0 + 2, y0 + 7, SKIN[0])
+	canvas.set(x0 + 3, y0 + 7, rgb("#c08078"))
+	canvas.set(x0 + 4, y0 + 7, SKIN[0])
 
 
-def _draw_rocket(canvas, hip, sway):
+def _draw_rocket(canvas, hip, sway, boost):
 	hx, hy = hip
-	ox = int(round(hx - 16 + sway))
-	oy = int(round(hy + 16))
-	for dy, row in enumerate((
-		"...ww...",
-		"..wRRw..",
-		".wRHHRw.",
-		"wRHWHHRw",
-		".wRHHRw.",
-		"..wRRw..",
-		"...hh...",
-		"..h..h..",
-	)):
+	ox = int(round(hx - 11 + sway))
+	oy = int(round(hy + 14))
+	rows = (
+		"..ss..",
+		".sMMs.",
+		"sM##Ms",
+		".sMMs.",
+		"..ff..",
+	)
+	if boost:
+		rows = rows + ("..FF..",)
+	if boost > 1:
+		rows = rows + (".F..F.",)
+	ink = rgb("#1a100c")
+	for dy, row in enumerate(rows):
 		for dx, cell in enumerate(row):
 			if cell == ".":
 				continue
-			color = {"h": ROCKET[1], "H": ROCKET[0], "W": ROCKET[2], "w": ROCKET[1], "R": ROCKET[0]}[cell]
+			color = {
+				"s": ink,
+				"M": ROCKET[0],
+				"#": ROCKET[2],
+				"f": ROCKET[1],
+				"F": ROCKET[2],
+			}[cell]
 			canvas.set(ox + dx, oy + dy, color)
+	canvas.set(ox + 1, oy - 1, COAT[1])
+	canvas.set(ox + 4, oy - 1, COAT[1])
 
 
 def _draw_phone(canvas, hand):
@@ -517,14 +561,10 @@ def _draw_phone(canvas, hand):
 
 
 def _draw_arc(canvas, shoulder):
-	sx, sy = shoulder
-	for step in range(10):
-		t = step / 9
-		x = sx + 1 + t * 14
-		y = sy + 8 - math.sin(t * math.pi) * 9
-		color = LENS_HOT if step in (4, 5) else LENS
-		canvas.set(x, y, color)
-		canvas.set(x, y + 1, CYAN_DEEP if step not in (4, 5) else LENS)
+	sx, sy = int(round(shoulder[0])), int(round(shoulder[1]))
+	canvas.set(sx + 2, sy + 6, LENS)
+	canvas.set(sx + 3, sy + 7, CYAN_DEEP)
+	canvas.set(sx + 4, sy + 6, LENS)
 
 
 def paint_frame(kind, frame_pose):
@@ -554,7 +594,7 @@ def paint_frame(kind, frame_pose):
 
 	if elon:
 		_draw_elon_coat(canvas, back_shoulder, front_shoulder, hip, sway, breath)
-		_draw_rocket(canvas, hip, sway)
+		_draw_rocket(canvas, hip, sway, frame_pose["rocket"])
 	else:
 		_draw_steve_torso(canvas, back_shoulder, front_shoulder, hip, breath)
 		ridge_y = int(round(head[1] + 8))
@@ -570,9 +610,9 @@ def paint_frame(kind, frame_pose):
 		canvas, front_shoulder, frame_pose["front_upper"], frame_pose["front_bend"],
 		sleeve, SKIN, frame_pose["fist"], 10, 9,
 	)
-	if elon and not frame_pose["fist"] and frame_pose["front_upper"] < 40:
+	if elon and not frame_pose["fist"] and abs(frame_pose["front_upper"]) < 16 and abs(frame_pose["lean"]) < 4:
 		_draw_phone(canvas, hand)
-	if not elon and frame_pose["front_upper"] < 50:
+	if not elon and abs(frame_pose["front_upper"]) < 16 and abs(frame_pose["lean"]) < 4:
 		_draw_arc(canvas, front_shoulder)
 
 	canvas.paint(shade(polygon_mask(_head_points(head[0], head[1], kind)), SKIN))
@@ -597,6 +637,8 @@ CLIPS = {
 	"light": LIGHT,
 	"jump": JUMP,
 	"hit": HIT,
+	"heavy": HEAVY,
+	"special": SPECIAL,
 }
 
 

@@ -11,6 +11,8 @@ const _FRAME_COUNTS := {
 	"light": 4,
 	"jump": 3,
 	"hit": 2,
+	"heavy": 4,
+	"special": 4,
 }
 
 
