@@ -103,6 +103,8 @@ func _run_smoke_suite() -> void:
 	await _test_result_banner_clears_stat_rows()
 	await _test_hud_corners_fit_the_viewport()
 	_test_driver_examples_are_valid_replays_or_inputs()
+	await _test_pixel_character_look()
+	await _test_flat_pixel_stage()
 	await _test_picture_contract()
 
 func _run_full_suite() -> void:
@@ -4409,6 +4411,128 @@ func _run_ffc_cli(args: PackedStringArray) -> Dictionary:
 		if line.begins_with("hash="):
 			hash_value = line.substr(5).strip_edges()
 	return {"code": code, "text": text, "hash": hash_value}
+
+func _test_pixel_character_look() -> void:
+	var look = load("res://scripts/player/CharacterLook.gd")
+	var session = load("res://scripts/SessionState.gd")
+	var keys = load("res://scripts/config/SessionKeys.gd")
+	session.clear_keys(PackedStringArray([keys.CHARACTER_STYLE]))
+	var required := [
+		"idle", "walk", "jump", "light", "heavy", "special", "throw",
+		"block", "hit_light", "hit_heavy", "hit", "fall", "getup", "ko"
+	]
+	for character_id in ["elon_mvsk", "steve_jobz"]:
+		var source := SpriteFrames.new()
+		for animation_name in required:
+			source.add_animation(animation_name)
+			source.set_animation_speed(animation_name, 8.0)
+			source.set_animation_loop(animation_name, animation_name == "idle" or animation_name == "walk" or animation_name == "block")
+			var color := Color(0.2, 0.45, 0.9, 1.0) if animation_name == "throw" else Color(0.85, 0.15, 0.15, 1.0)
+			source.add_frame(animation_name, _solid_texture(color, Vector2i(24, 48)))
+		var styled: SpriteFrames = look.apply(source, character_id)
+		for animation_name in required:
+			var present := styled.has_animation(animation_name) and styled.get_frame_count(animation_name) > 0
+			_assert_true(present, "%s keeps %s" % [character_id, animation_name])
+		var idle_tex := styled.get_frame_texture("idle", 0)
+		var idle_next := styled.get_frame_texture("idle", 1)
+		var jump_tex := styled.get_frame_texture("jump", 0)
+		var heavy_tex := styled.get_frame_texture("heavy", 0)
+		var throw_tex := styled.get_frame_texture("throw", 0)
+		_assert_true(idle_tex != null and idle_tex.get_width() == 48 and idle_tex.get_height() == 96, "%s idle canvas is 48x96" % character_id)
+		_assert_true(styled.get_frame_count("walk") >= 4, "%s walk is a cycle" % character_id)
+		_assert_true(_texture_bytes(idle_tex) != _texture_bytes(jump_tex), "%s jump is not the idle drawing" % character_id)
+		_assert_true(_texture_bytes(idle_tex) != _texture_bytes(idle_next), "%s idle is not a held drawing" % character_id)
+		_assert_true(_texture_bytes(heavy_tex) != _texture_bytes(idle_tex), "%s heavy stays off the idle drawing" % character_id)
+		_assert_true(heavy_tex != null and heavy_tex.get_width() == 48, "%s heavy is on the pixel canvas" % character_id)
+		_assert_true(throw_tex != null and throw_tex.get_image().get_pixel(0, 0).b > 0.5, "%s unauthored throw keeps its own pose" % character_id)
+	var plain := SpriteFrames.new()
+	plain.add_animation("idle")
+	plain.add_frame("idle", _solid_texture(Color.WHITE, Vector2i(24, 48)))
+	var skipped: SpriteFrames = look.apply(plain, "mark_zuck")
+	_assert_true(skipped.get_frame_texture("idle", 0).get_width() == 24, "unlisted fighters stay on the 24px canvas")
+	var setup: Dictionary = await _spawn_test_players()
+	var p1 := setup.get("p1") as CharacterBody2D
+	var p2 := setup.get("p2") as CharacterBody2D
+	var host := setup.get("host") as Node2D
+	if p1 != null and p2 != null:
+		p1.call("apply_attack_table", load("res://assets/data/characters/ElonMvskAttackTable.tres"))
+		p2.call("apply_attack_table", load("res://assets/data/characters/SteveJobzAttackTable.tres"))
+		_assert_true(_idle_width(p1) == 24 and _idle_width(p2) == 24, "both founders start on the 24px canvas")
+		p1.call("_unhandled_input", _f8_key())
+		_assert_true(_idle_width(p1) == 48 and _idle_width(p2) == 48, "one F8 rebuilds both founders")
+		var elon_visual := p1.get_node_or_null("Visual") as AnimatedSprite2D
+		if elon_visual != null and elon_visual.sprite_frames != null:
+			var wired_idle := elon_visual.sprite_frames.get_frame_texture("idle", 0)
+			var wired_jump := elon_visual.sprite_frames.get_frame_texture("jump", 0)
+			_assert_true(_texture_bytes(wired_idle) != _texture_bytes(wired_jump), "wired elon jump is not idle")
+			_assert_true(elon_visual.scale.y > 1.0 and elon_visual.scale.y < 1.8, "pixel look uses the half-size stage scale")
+		var steve_visual := p2.get_node_or_null("Visual") as AnimatedSprite2D
+		_assert_true(steve_visual != null and steve_visual.scale.y > 1.0 and steve_visual.scale.y < 1.8, "steve keeps the half-size stage scale")
+		p1.call("_unhandled_input", _f8_key())
+		_assert_true(_idle_width(p1) == 24 and _idle_width(p2) == 24, "the next F8 restores both founders")
+		session.set_value(keys.CHARACTER_STYLE, "pixel")
+		p2.call("apply_attack_table", load("res://assets/data/characters/ElonMvskAttackTable.tres"))
+		_assert_true(_idle_width(p2) == 48, "pixel style applies when the table becomes elon")
+		p2.call("apply_attack_table", load("res://assets/data/characters/MarkZuckAttackTable.tres"))
+		var mark_visual := p2.get_node_or_null("Visual") as AnimatedSprite2D
+		_assert_true(_idle_width(p2) == 24, "leaving elon drops the pixel sheet")
+		_assert_true(mark_visual != null and mark_visual.scale.y > 2.0, "mark returns to the 24px stage scale")
+	session.clear_keys(PackedStringArray([keys.CHARACTER_STYLE]))
+	if host != null:
+		host.queue_free()
+		await process_frame
+
+func _f8_key() -> InputEventKey:
+	var event := InputEventKey.new()
+	event.pressed = true
+	event.keycode = KEY_F8
+	return event
+
+func _idle_width(player: Node) -> int:
+	var visual := player.get_node_or_null("Visual") as AnimatedSprite2D
+	if visual == null or visual.sprite_frames == null or not visual.sprite_frames.has_animation("idle"):
+		return -1
+	var texture := visual.sprite_frames.get_frame_texture("idle", 0)
+	if texture == null:
+		return -1
+	return texture.get_width()
+
+func _solid_texture(color: Color, size: Vector2i) -> Texture2D:
+	var image := Image.create(size.x, size.y, false, Image.FORMAT_RGBA8)
+	image.fill(color)
+	return ImageTexture.create_from_image(image)
+
+func _texture_bytes(texture: Texture2D) -> PackedByteArray:
+	if texture == null:
+		return PackedByteArray()
+	var image := texture.get_image()
+	if image == null:
+		return PackedByteArray()
+	return image.get_data()
+
+func _test_flat_pixel_stage() -> void:
+	var session = load("res://scripts/SessionState.gd")
+	var keys = load("res://scripts/config/SessionKeys.gd")
+	session.set_value(keys.CHARACTER_STYLE, "pixel")
+	var packed = load("res://scenes/Main.tscn")
+	var match_node: Node = null
+	if packed is PackedScene:
+		match_node = (packed as PackedScene).instantiate()
+		get_root().add_child(match_node)
+		await process_frame
+		await process_frame
+		_assert_true(match_node.get_node_or_null("StagePicture") == null, "flat pixel match has no 3D stage")
+		var camera_value: Variant = match_node.get("camera")
+		_assert_true(camera_value is Camera2D and (camera_value as Camera2D).enabled, "flat pixel match uses the side-view camera")
+		var background := match_node.get_node_or_null("Arena/Background") as Sprite2D
+		_assert_true(background != null and background.visible and background.texture_filter == CanvasItem.TEXTURE_FILTER_NEAREST, "flat stage background is a nearest sprite")
+		var deck := match_node.get_node_or_null("Arena/FloorVisual") as Sprite2D
+		_assert_true(deck != null and deck.texture != null and deck.texture.get_width() == 380, "flat deck is the pixel slab")
+		match_node.queue_free()
+		await process_frame
+	else:
+		_assert_true(false, "main scene loads for the flat stage")
+	session.clear_keys(PackedStringArray([keys.CHARACTER_STYLE]))
 
 func _test_picture_contract() -> void:
 	var picture_contract = load("res://tests/PictureContract.gd")

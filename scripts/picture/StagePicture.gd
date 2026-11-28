@@ -110,6 +110,9 @@ static func attach(match_root: Node) -> void:
 
 func _ready() -> void:
 	_match = get_parent()
+	if _match != null and _match.has_method("wants_flat_pixel") and bool(_match.call("wants_flat_pixel")):
+		queue_free()
+		return
 	_build_world()
 	_publish()
 	if not RenderingServer.frame_pre_draw.is_connected(_publish):

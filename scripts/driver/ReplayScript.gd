@@ -115,6 +115,11 @@ static func normalize(raw: Dictionary) -> Dictionary:
 		if timer_seconds < 0.0 or timer_seconds > 600.0:
 			return {"ok": false, "error": "timer_seconds must be from 0 to 600"}
 		overrides["timer_seconds"] = timer_seconds
+	var style := str(raw.get("character_style", "")).strip_edges().to_lower()
+	if style != "" and style != "pixel":
+		return {"ok": false, "error": "character_style must be pixel"}
+	if style != "":
+		spec["character_style"] = style
 	return {"ok": true, "spec": spec}
 
 static func merge_input_file(spec_raw: Dictionary, path: String) -> Dictionary:

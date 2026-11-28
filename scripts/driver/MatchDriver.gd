@@ -19,7 +19,8 @@ const SESSION_KEYS := [
 	SessionKeysStore.MATCH_MODE,
 	SessionKeysStore.STORY_ROUND_INDEX,
 	SessionKeysStore.ONBOARDING_FORCE_REPLAY,
-	SessionKeysStore.ONBOARDING_ENTRY_POINT
+	SessionKeysStore.ONBOARDING_ENTRY_POINT,
+	SessionKeysStore.CHARACTER_STYLE
 ]
 
 var _match: Node = null
@@ -186,6 +187,11 @@ func _apply_session(spec: Dictionary) -> void:
 		SessionStateStore.clear_keys(PackedStringArray([SessionKeysStore.STORY_ROUND_INDEX]))
 	_apply_character_session("p1", str(spec.get("p1", "")))
 	_apply_character_session("p2", str(spec.get("p2", "")))
+	var style := str(spec.get("character_style", "")).strip_edges()
+	if style == "":
+		SessionStateStore.clear_keys(PackedStringArray([SessionKeysStore.CHARACTER_STYLE]))
+	else:
+		SessionStateStore.set_value(SessionKeysStore.CHARACTER_STYLE, style)
 
 func _apply_character_session(side: String, character_id: String) -> void:
 	var id_key := SessionKeysStore.PLAYER_1_ID if side == "p1" else SessionKeysStore.PLAYER_2_ID

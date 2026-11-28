@@ -40,6 +40,18 @@ var stage_fx_time := 0.0
 var presentation_center := Vector2(450.0, 252.0)
 var presentation_zoom := 1.0
 var presentation_viewport_size := Vector2(1280.0, 720.0)
+var flat_pixels := false
+var flat_platform_texture: Texture2D
+var flat_platform_left: Sprite2D
+var flat_platform_right: Sprite2D
+
+const FLAT_DRESSING := [
+	"BackdropGlow", "WarmGlow", "SkylineHaze", "CrowdBand", "FloorRim",
+	"NeonRail", "FloorSheen", "FrontFog", "TopVignette",
+]
+const FLAT_SKY := "res://assets/sprites/flat_stage/sky.png"
+const FLAT_DECK := "res://assets/sprites/flat_stage/deck.png"
+const FLAT_PLATFORM := "res://assets/sprites/flat_stage/platform.png"
 
 func _ready() -> void:
 	if background:
@@ -101,7 +113,50 @@ func _configure_base_stage_sprite(sprite: Sprite2D, z_index: int) -> void:
 	sprite.z_index = z_index
 	sprite.texture_filter = DRESSING_LINEAR_FILTER
 
+func enable_flat_pixels() -> void:
+	flat_pixels = true
+	for node_name in FLAT_DRESSING:
+		var dressing := get_node_or_null(node_name) as CanvasItem
+		if dressing:
+			dressing.visible = false
+	var sky := _load_png(FLAT_SKY)
+	var deck := _load_png(FLAT_DECK)
+	flat_platform_texture = _load_png(FLAT_PLATFORM)
+	if background and sky:
+		background.texture = sky
+		background.material = null
+		background.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	if floor_visual and deck:
+		floor_visual.texture = deck
+		floor_visual.material = null
+		floor_visual.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	flat_platform_left = _ensure_flat_platform("FlatPlatformLeft", platform_left)
+	flat_platform_right = _ensure_flat_platform("FlatPlatformRight", platform_right)
+	_sync_visual_shell()
+
+func _load_png(path: String) -> Texture2D:
+	var image := Image.new()
+	if image.load(ProjectSettings.globalize_path(path)) != OK:
+		return null
+	return ImageTexture.create_from_image(image)
+
+func _ensure_flat_platform(node_name: String, body: StaticBody2D) -> Sprite2D:
+	var sprite := get_node_or_null(node_name) as Sprite2D
+	if sprite == null:
+		sprite = Sprite2D.new()
+		sprite.name = node_name
+		add_child(sprite)
+	sprite.texture = flat_platform_texture
+	sprite.centered = false
+	sprite.z_as_relative = false
+	sprite.z_index = -1
+	sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	sprite.visible = body != null and side_platforms_enabled
+	return sprite
+
 func _process(delta: float) -> void:
+	if flat_pixels:
+		return
 	stage_fx_time += maxf(0.0, delta)
 	if cool_glow:
 		var alpha := 0.44 + sin(stage_fx_time * STAGE_PULSE_SPEED) * 0.05
@@ -218,6 +273,9 @@ func _ensure_stage_dressing() -> void:
 	)
 
 func _sync_visual_shell() -> void:
+	if flat_pixels:
+		_layout_flat_pixels()
+		return
 	var viewport_size := presentation_viewport_size
 	if viewport_size.x <= 0.0 or viewport_size.y <= 0.0:
 		viewport_size = get_viewport_rect().size
@@ -253,6 +311,46 @@ func _sync_visual_shell() -> void:
 	_position_sprite(top_vignette, Vector2(shell_left, shell_top), Vector2(shell_width, world_view_size.y * 0.24), false)
 	_position_sprite(cool_glow, Vector2(presentation_center.x, horizon_y), Vector2(world_view_size.x * 0.96, world_view_size.y * 0.42), true)
 	_position_sprite(warm_glow, Vector2(presentation_center.x, floor_y - world_view_size.y * 0.08), Vector2(world_view_size.x * 0.72, world_view_size.y * 0.24), true)
+
+func _layout_flat_pixels() -> void:
+	_place_sky(background)
+	_place_slab(floor_visual, ground_collision)
+	_place_slab(flat_platform_left, _platform_shape(platform_left))
+	_place_slab(flat_platform_right, _platform_shape(platform_right))
+	if flat_platform_left:
+		flat_platform_left.visible = side_platforms_enabled
+	if flat_platform_right:
+		flat_platform_right.visible = side_platforms_enabled
+
+func _place_sky(sprite: Sprite2D) -> void:
+	if sprite == null or sprite.texture == null:
+		return
+	sprite.centered = false
+	sprite.z_as_relative = false
+	sprite.z_index = -30
+	sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	sprite.scale = Vector2(2, 2)
+	sprite.position = Vector2(-510, -290)
+
+func _platform_shape(body: StaticBody2D) -> CollisionShape2D:
+	if body == null:
+		return null
+	return body.get_node_or_null("CollisionShape2D") as CollisionShape2D
+
+func _place_slab(sprite: Sprite2D, shape_node: CollisionShape2D) -> void:
+	if sprite == null or sprite.texture == null or shape_node == null:
+		return
+	if shape_node.shape is not RectangleShape2D:
+		return
+	var rect := shape_node.shape as RectangleShape2D
+	var center := to_local(shape_node.global_position)
+	var top_left := center - rect.size * 0.5
+	var pixel := rect.size.x / maxf(1.0, sprite.texture.get_width())
+	sprite.centered = false
+	sprite.z_as_relative = false
+	sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	sprite.scale = Vector2(pixel, pixel)
+	sprite.position = top_left
 
 func _position_sprite(sprite: Sprite2D, position: Vector2, target_size: Vector2, centered: bool) -> void:
 	if sprite == null or sprite.texture == null:
