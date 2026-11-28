@@ -14,7 +14,7 @@ Local versus starts a stock match between two human fighters. The CPU brain is t
 
 - On a fresh profile, choose Modern or Classic, then choose Local VS. The press id is `versus`. P2 is human.
 - There is no Versus CPU item. Choosing Story is the menu path that enables a CPU opponent. That path is `story.md`.
-- Keyboard: P1 uses WASD and J/K/I/U/L/H. P2 uses the second keyboard layout. Those keys are not how this harness injects input. The harness presses the named actions directly.
+- Keyboard: both styles move P1 with WASD. Modern binds J/K/I/U/L/H. Classic binds J/K/L/U/I and blocks by holding back. P2 uses the second keyboard layout. Those keys are not how this harness injects input. The harness presses the named actions directly.
 
 ## Driving it with ffc.sh
 

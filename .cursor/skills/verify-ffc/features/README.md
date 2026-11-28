@@ -45,4 +45,4 @@ Each feature file has an H1, one opening paragraph, then these H2 sections in or
 
 ## Known issues
 
-- On `Training.tscn` the training panel (y 144 to 392) intersects the result chip (y 168 to 214). Training does not show a match result today, so the overlap is not reachable. See [Result banner](./result-banner.md).
+- On `Training.tscn` the training panel (x 20 to 356, y 144 to 392) does not meet the result chip (x 470 to 810, y 168 to 214) at the 1280-wide viewport. Training does not show a match result today. See [Result banner](./result-banner.md).
