@@ -380,6 +380,14 @@ def _draw_leg(canvas, hip, thigh_deg, knee_deg, colors, boot_colors, thigh_len, 
 def _draw_arm(canvas, shoulder, upper_deg, bend_deg, sleeve, skin, fist, upper_len, fore_len):
 	elbow = bone(shoulder, upper_deg, upper_len)
 	hand = bone(elbow, upper_deg + bend_deg, fore_len)
+	if fist:
+		facing = 1 if hand[0] >= elbow[0] else -1
+		limit = W - 7 if facing > 0 else 6
+		if facing > 0 and hand[0] > limit:
+			hand = (limit, hand[1])
+		if facing < 0 and hand[0] < limit:
+			hand = (limit, hand[1])
+		hand = (hand[0], max(4, min(H - 6, hand[1])))
 	upper_r = 2.8 if fist else 2.15
 	fore_r = 2.5 if fist else 1.85
 	canvas.paint(shade(capsule_mask(shoulder[0], shoulder[1], elbow[0], elbow[1], upper_r), sleeve))
@@ -388,6 +396,7 @@ def _draw_arm(canvas, shoulder, upper_deg, bend_deg, sleeve, skin, fist, upper_l
 	if fist:
 		facing = 1 if hand[0] >= elbow[0] else -1
 		fx = hx - 1 if facing > 0 else hx - 3
+		fx = max(0, min(W - 5, fx))
 		for dy in range(4):
 			for dx in range(5):
 				tone = skin[3] if dy == 0 else skin[1]
@@ -594,7 +603,6 @@ def paint_frame(kind, frame_pose):
 
 	if elon:
 		_draw_elon_coat(canvas, back_shoulder, front_shoulder, hip, sway, breath)
-		_draw_rocket(canvas, hip, sway, frame_pose["rocket"])
 	else:
 		_draw_steve_torso(canvas, back_shoulder, front_shoulder, hip, breath)
 		ridge_y = int(round(head[1] + 8))
@@ -610,6 +618,8 @@ def paint_frame(kind, frame_pose):
 		canvas, front_shoulder, frame_pose["front_upper"], frame_pose["front_bend"],
 		sleeve, SKIN, frame_pose["fist"], 10, 9,
 	)
+	if elon:
+		_draw_rocket(canvas, hip, sway, frame_pose["rocket"])
 	if elon and not frame_pose["fist"] and abs(frame_pose["front_upper"]) < 16 and abs(frame_pose["lean"]) < 4:
 		_draw_phone(canvas, hand)
 	if not elon and abs(frame_pose["front_upper"]) < 16 and abs(frame_pose["lean"]) < 4:
